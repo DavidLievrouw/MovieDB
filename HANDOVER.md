@@ -32,8 +32,33 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M0 Scaffold | Done (committed) |
 | M1 Data | Done (committed) |
 | M2 Auth | Done, awaiting owner review (uncommitted) |
-| M3 Import | **Next. Not started** |
-| M4–M6 | Not started |
+| M3 Import | Done, awaiting owner review (uncommitted) |
+| M4 Overview + edit | **Next. Not started** |
+| M5–M6 | Not started |
+
+### What M3 delivered
+
+- **`src/tools/MovieDB.AccessImport`** (internal, plain `net10.0`, x64): `OdbcFilmSource` (read-only ODBC, behind
+  `IFilmSource`-style abstraction), `MovieCleaner` (whitespace, polluted titles/directors, `n/a`, `0` scores, text
+  `Duur`/`Jaar`), `CollationKey` (approximation of `utf8mb4_uca1400_ai_ci`), `Duplicates` (keep oldest Datum, then
+  lowest FilmID), attribute corrections, `ImportPlanner`, `ImportLoader` (one transaction, preserves `FilmID` as
+  `movie_id`, seeds genres/media, sets AUTO_INCREMENT past max, refuses a non-empty DB unless `--reset`, which keeps
+  `users`), `ImportReport` (counts only), `Fingerprint` + `DumpComposer` (guarded dump). Subcommands: `import`,
+  `migrate`, `fingerprint`, `wrap-dump`. The connection string comes from env `MOVIEDB_CONNECTION_STRING`.
+- **`scripts/Import-Access.ps1`**: `-Source`, `-DryRun`, `-Reset` (typed `RESET`), `-SkipDump`, `-DumpPath` (default
+  `.\artifacts\import\moviedb-data.sql`), `-ConnectionString` (else env, else user-secrets, else prompt),
+  `-MariaDbContainer`, `-AllowRemote`. Builds, migrates, imports, writes the report, dumps via `mariadb-dump` in the
+  container, wraps the dump with a guard (single transaction, refuses unless the target is empty and at the expected
+  migration), restores it into scratch DB `moviedb_dumpcheck`, compares fingerprints, checks that a second load is
+  refused, and drops the scratch DB.
+- **Real run against the local `FilmsBase.mdb`:** 1,222 source rows, 19 duplicates dropped, **1,203 movies**, 21 genres,
+  6 media, 6 corrections applied; every plan figure equals the database figure; dump verification passed. The local
+  `moviedb` now holds the imported data (users untouched).
+- **Tests:** unit (95: cleaner, duplicates, corrections, planner, dump composer) and characteristics (35:
+  28 collation parity pairs against the real DB, loader, dump round trip, guard refusals, rollback). All synthetic data.
+- Checks: build, csharpier and the full test run pass (see "Learnings from M3").
+
+Earlier: M2 delivered auth (summary below).
 
 ### What M2 delivered
 
@@ -76,7 +101,8 @@ health endpoints, options validation and Serilog.
   `dotnet user-secrets list --id 9b46a74e-075e-4f32-b29a-dc9bd38c1cec | ForEach-Object { ($_ -split '=')[0] }`.
   The owner granted the user rights on `moviedb.*` and `moviedb_dumpcheck.*`.
 - Production database and user also exist (owner-managed). Nothing for the agent to do there.
-- The `scripts/` folder was deliberately removed. Recreate it in M3 for `Import-Access.ps1`.
+- `scripts/Import-Access.ps1` exists (M3). The local `moviedb` already contains the imported 1,203 movies; re-run with
+  `-Reset` to redo it. The dump is at `artifacts\import\moviedb-data.sql` (git-ignored, personal reviews).
 - Docker (Rancher Desktop) is running with `mariadb:12.3.3` locally. Testcontainers pulled from the same image.
 - PowerShell 7 is installed at `C:\Users\David\AppData\Local\Microsoft\WindowsApps\pwsh.exe`. The default tool shell
   is Windows PowerShell 5.1.
@@ -84,20 +110,35 @@ health endpoints, options validation and Serilog.
 - Playwright browsers are **not** installed yet (M6: build, then run `playwright.ps1 install chromium`).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M3 – Import (PLAN.md §10, with §6 and §2.3, and the stub in `src/tools/MovieDB.AccessImport`)
+## Next: M4 – Overview + edit (PLAN.md §10, with §7 and §8)
 
-Scope: the Access → MariaDB import into the **local** database. Platform-neutral cleanup, de-duplication and
-correction rules (unit-tested, synthetic data only), an ODBC reader behind a source abstraction (x64 Access driver,
-Windows only, read-only), `scripts/Import-Access.ps1` (`-Reset`, `-DryRun`, `-SkipDump`, `-DumpPath`, dump + dump
-verification) and the counts-only verification report (§6.4). The tool uses `DatabaseMigrator.MigrateAsync` (no seed).
-Recreate the `scripts/` folder. Never print rows or review text. The dump (§6.5) stays in git-ignored `artifacts/`.
+Read PLAN.md §10 for M4, the UI spec in §8 and the Movies slice in §4.2/§7. M4 builds the `MovieDB.Movies` slice
+(queries, commands, validators, `MoviesModule`), the `MovieDB.Ui` components (`ScoreInput`, `SuggestField`,
+`ScorePill`, dialogs), the theme, the `/films` overview (sortable, debounced title search, paging), `/films/nieuw`
+and `/films/{id}` with the sticky save bar, and the redirect from `/`. Real data is now in the local `moviedb`, so
+develop against it (never print rows or reviews). Make `DbOperations`/`DbFailure` public if the slice needs them
+and extend `PublicSurfaceTests`. Verify the Dutch `MudBlazor.Translations` strings and interactive circuits in a
+browser (not yet verified). Add bUnit tests. Stop for owner review afterwards.
 
-Done when: the report matches §6.4 (1,203 movies from the current `.mdb`), dump verification passes, and the unit
-tests for the rules pass.
+## Learnings from M3
 
-Suggested order: read PLAN.md §2.3, §6.1–6.5; model the source abstraction and the rules with unit tests first;
-then the ODBC reader, the loader (genres/media suggestion rows, preserved `FilmID` as `movie_id`), the report, the
-script and the dump check; run against the local `FilmsBase.mdb`; update docs; stop for review.
+- **`dotnet user-secrets` connection strings** use keys `Server;Port;Database;User;Password;CharSet`. In PowerShell
+  use `$b.set_ConnectionString(...)` / `get_ConnectionString()` on a `DbConnectionStringBuilder`: the
+  `ConnectionString` property is shadowed by the indexer in PS.
+- **Piping to the script:** `'RESET' | powershell -File .\scripts\Import-Access.ps1 -Reset …` satisfies the typed
+  confirmation non-interactively. Do not `Select-Object -First N` the script output: it stops the pipeline and
+  can interrupt the run midway (the first real run did exactly that; the data was imported but no dump written).
+- **Windows PowerShell 5.1:** the script is ASCII-only for that reason; native stderr is handled in `Invoke-Native`.
+- **Collation parity:** the 28 synthetic pairs agree with `utf8mb4_uca1400_ai_ci`; the real data yields exactly the 19
+  expected duplicate groups. The DB unique index is the final arbiter inside the loader transaction.
+- **Duplicate FilmIDs in the source** (should not occur) are de-duplicated by the planner (first row wins) and
+  reported as an error rather than crashing.
+- **Rules hit by Roslynator:** RCS1205 (named arguments must follow parameter order).
+- PLAN §6.1 said `net10.0-windows`; corrected to plain `net10.0` (§4.2 wins).
+- **Test container connections:** each test's own database has its own connection pool, so the full run exceeded
+  MariaDB's default `max_connections` (151) ("Too many connections"). `MariaDbFixture` now starts the container with
+  `--max-connections=1000`.
+- Final checks: build `-warnaserror`, `csharpier check` and `dotnet test --solution` pass (214 tests).
 
 ## Learnings from M2
 

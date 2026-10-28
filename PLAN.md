@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 has not started. All §13 questions are answered.
+**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 (import) implemented and run against the local `.mdb`; awaiting owner review. M4 has not started. All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -376,7 +376,7 @@ auth throttle table(s).
 
 ### 6.1 Tool
 
-`src/tools/MovieDB.AccessImport`: a console app targeting `net10.0-windows` with `PlatformTarget=x64` (the Access ODBC
+`src/tools/MovieDB.AccessImport`: a console app targeting plain `net10.0` (see §4.2) with `PlatformTarget=x64` (the Access ODBC
 driver "Microsoft Access Driver (*.mdb, *.accdb)" is 64-bit only on this machine). It reads `FilmsBase.mdb`
 **read-only** through `System.Data.Odbc` and writes through `MovieDbContext` (or batched SQL), reusing the
 Infrastructure mapping.

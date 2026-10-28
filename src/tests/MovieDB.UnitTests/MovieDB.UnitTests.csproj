@@ -15,5 +15,6 @@
     <ProjectReference Include="..\..\MovieDB.Infrastructure\MovieDB.Infrastructure.csproj" />
     <ProjectReference Include="..\..\MovieDB.Movies\MovieDB.Movies.csproj" />
     <ProjectReference Include="..\..\MovieDB.Ui\MovieDB.Ui.csproj" />
+    <ProjectReference Include="..\..\tools\MovieDB.AccessImport\MovieDB.AccessImport.csproj" />
   </ItemGroup>
 </Project>

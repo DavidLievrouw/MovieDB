@@ -23,3 +23,18 @@ dotnet test --solution src/MovieDB.slnx
 ```
 
 Characteristics and browser tests require Docker to be running.
+
+## Importing the Access data
+
+The one-time import loads the git-ignored `FilmsBase.mdb` (repository root) into the **local** database and writes a
+guarded data dump for production (see PLAN.md §6). It needs Windows, the 64-bit Access ODBC driver and the local
+MariaDB container.
+
+```powershell
+.\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -DryRun   # counts only, no database changes
+.\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb           # migrate, import, report, dump, verify the dump
+.\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -Reset    # clear movies/genres/media first (asks for RESET)
+```
+
+The dump lands in `artifacts\import\moviedb-data.sql`. It contains personal reviews: never commit it and delete all
+copies after deploying it. The script never prints rows or review text.

@@ -109,6 +109,8 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - Use `TimeProvider` and `UserClock` (time zone from `App:TimeZone` only; it lives in Common). Never call
   `DateTime.Now`/`UtcNow` in business logic. Store UTC and display in the configured time zone. `watched_on` is a date
   (`DateOnly`). Validators and commands get "today"/"current year" from `UserClock`, never from the browser.
+- Always specify the `DateTimeKind` when creating a `DateTime` (`new DateTime(…, DateTimeKind.Utc)`; use `Unspecified`
+  for zone-less values such as dates read from Access). This applies to test projects too.
 - Keep route and external data formats stable unless a change is intentional and documented.
 - **Authentication:** the fallback policy requires an authenticated user. Only login, access-denied, health and static
   assets allow anonymous access. Auth pages are static SSR with antiforgery. Logout is POST only. `returnUrl` must be
@@ -150,6 +152,8 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - Collation `utf8mb4_uca1400_ai_ci`. Connection strings include `CharSet=utf8mb4`. Never use `ToLower()`/`ToUpper()`
   for case-insensitive comparisons; rely on the collation.
 - Search uses `LIKE` with `%`, `_` and `\` escaped. Do not filter in memory.
+- Use parameterized queries (EF Core LINQ/`FormattableString`, or `DbParameter`s) instead of string formatting,
+  interpolation or concatenation to build SQL. Identifiers cannot be parameters: use fixed literal statements for them.
 - The Access source `FilmsBase.mdb` is a git-ignored local copy in the repository root. Code opens it read-only. Never
   commit it, and never use it or its contents in automated tests or test output; tests use synthetic data.
 - Use `utf8mb4` end to end. Preserve Unicode in source, database connections, pages, and tests; never repair or replace

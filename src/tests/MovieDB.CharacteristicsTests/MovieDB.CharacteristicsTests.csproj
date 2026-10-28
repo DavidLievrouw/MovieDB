@@ -14,5 +14,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microting.EntityFrameworkCore.MySql" />
     <ProjectReference Include="..\..\MovieDB.Web\MovieDB.Web.csproj" />
+    <ProjectReference Include="..\..\tools\MovieDB.AccessImport\MovieDB.AccessImport.csproj" />
   </ItemGroup>
 </Project>

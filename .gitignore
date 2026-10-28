@@ -62,6 +62,10 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# Data dumps (personal data); SQL sources under src/ are fine
+/*.sql
+/scripts/*.sql
+
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
 
@@ -251,7 +255,7 @@ orleans.codegen.cs
 Generated_Code/
 
 # Backup & report files from converting an old project file
-# to a newer Visual Studio version. 
+# to a newer Visual Studio version.
 _UpgradeReport_Files/
 UpgradeLog*.XML
 UpgradeLog*.htm

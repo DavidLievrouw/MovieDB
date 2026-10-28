@@ -15,7 +15,10 @@ public sealed class MariaDbFixture : IAsyncLifetime
 
     public const string DefaultPasswordVariable = "Auth__DefaultPassword";
 
-    private readonly MariaDbContainer _container = new MariaDbBuilder("mariadb:12.3.3").Build();
+    /// <summary>Every test creates its own database, and each connection string keeps its own idle pool for a while.</summary>
+    private readonly MariaDbContainer _container = new MariaDbBuilder("mariadb:12.3.3")
+        .WithCommand("--max-connections=1000")
+        .Build();
 
     public async ValueTask InitializeAsync()
     {
@@ -39,6 +42,49 @@ public sealed class MariaDbFixture : IAsyncLifetime
     {
         Environment.SetEnvironmentVariable(DefaultPasswordVariable, null);
         await _container.DisposeAsync();
+    }
+
+    /// <summary>Runs a SQL script through the container's own <c>mariadb</c> client, like an operator would.</summary>
+    public async Task<(long ExitCode, string Stderr)> RunScriptAsync(string connectionString, string script)
+    {
+        var builder = new MySqlConnectionStringBuilder(connectionString);
+        var path = $"/tmp/{Guid.NewGuid():N}.sql";
+        await _container.CopyAsync(
+            new System.Text.UTF8Encoding(false).GetBytes(script),
+            path,
+            ct: TestContext.Current.CancellationToken
+        );
+        var result = await _container.ExecAsync(
+            [
+                "sh",
+                "-c",
+                $"MYSQL_PWD='{builder.Password}' mariadb --default-character-set=utf8mb4 -h 127.0.0.1 -u '{builder.UserID}' '{builder.Database}' < {path}",
+            ],
+            TestContext.Current.CancellationToken
+        );
+        return (result.ExitCode ?? -1, result.Stderr);
+    }
+
+    /// <summary>Dumps the data of the domain tables the way <c>Import-Access.ps1</c> does.</summary>
+    public async Task<string> DumpDataAsync(string connectionString)
+    {
+        var builder = new MySqlConnectionStringBuilder(connectionString);
+        var path = $"/tmp/{Guid.NewGuid():N}.dump.sql";
+        var result = await _container.ExecAsync(
+            [
+                "sh",
+                "-c",
+                $"MYSQL_PWD='{builder.Password}' mariadb-dump -h 127.0.0.1 -u '{builder.UserID}' --no-create-info --no-create-db --skip-triggers --complete-insert --default-character-set=utf8mb4 --single-transaction --skip-add-locks --skip-disable-keys --no-tablespaces --result-file={path} '{builder.Database}' genres media movies",
+            ],
+            TestContext.Current.CancellationToken
+        );
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException("mariadb-dump failed: " + result.Stderr);
+        }
+
+        var bytes = await _container.ReadFileAsync(path, TestContext.Current.CancellationToken);
+        return new System.Text.UTF8Encoding(false).GetString(bytes);
     }
 
     /// <summary>Creates an empty database and returns a utf8mb4 connection string for it.</summary>
