@@ -43,11 +43,25 @@ Adapt these rules to the new repository; remove any that do not fit:
   feature.
 - Keep reusable UI independent of feature and database projects. Feature projects should not reference one another
   unless the architecture explicitly permits it.
-- Prefer internal visibility by default; expose only module entry points and types required across project boundaries.
+- Make a type `public` only when another production assembly must use it, or the host requires it (for example
+  `Program` for `WebApplicationFactory`). Everything else is `internal`, including options, stores, health checks,
+  assembly markers and EF migrations/design-time factories. Tests see internals through `InternalsVisibleTo`; do not
+  make a type public for a test. Generated Razor components are always public (the Razor compiler cannot emit internal
+  components). Re-check visibility when adding a type, and make newly scaffolded migrations `internal`. This does not
+  apply to test projects.
+- Do not use primary constructors on classes or structs: declare `private readonly` fields (`_camelCase`) and an
+  explicit constructor. Primary constructors (positional parameter lists) are allowed, and preferred, on `record` and
+  `record struct` types, which are small immutable data carriers. This applies to test projects too.
+- XML documentation must be complete: every `<param>` (including positional record parameters), `<typeparam>` and
+  `<exception>` thrown by a documented member. Roslynator only reports these (RCS1140/1141/1142) when
+  `GenerateDocumentationFile` is true, which the IDE always does; check with
+  `dotnet build -p:GenerateDocumentationFile=true -p:TreatWarningsAsErrors=false --no-incremental`.
 - Use the repository's established dependency injection and module-registration patterns.
 - Use the repository's established result/error and validation conventions. Validate before mutating state.
 - Use the configured time abstraction (for .NET, prefer `TimeProvider`); avoid direct local-clock calls in business
   logic.
+- Always specify the `DateTimeKind` when creating a `DateTime` (`new DateTime(…, DateTimeKind.Utc)`; use `Unspecified`
+  for zone-less values). This applies to test projects too.
 - Keep route and external data formats stable unless a change is intentional and documented.
 - For any authentication or authorization flow, protect state-changing requests, validate local redirect targets, and
   make authorization explicit. Default to requiring authentication when that matches the product.
@@ -71,6 +85,8 @@ Adapt these rules to the new repository; remove any that do not fit:
   where required by the provider and migration design.
 - If application instances migrate on startup, serialize migration execution using a MariaDB named lock on a dedicated
   connection. Verify repeated and concurrent startup behavior.
+- Use parameterized queries (EF Core LINQ/`FormattableString`, or `DbParameter`s) instead of string formatting,
+  interpolation or concatenation to build SQL. Identifiers cannot be parameters: use fixed literal statements for them.
 - Use `utf8mb4` end to end. Preserve Unicode in source, database connections, pages, and tests; never repair or replace
   text through lossy transcoding.
 - Keep database command logging free of credentials, personal data, and large or sensitive values. Never print database
