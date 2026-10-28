@@ -13,6 +13,8 @@
   host and Docker network as the owner's other web application, behind Nginx Proxy Manager (TLS), using the shared
   MariaDB instance (database `moviedb`). Public URL: `https://mdb.dalion.eu` (HTTPS only, HSTS). Local development uses the local Docker MariaDB container `mariadb` (12.3.3) on `localhost:3306` with its
   own `moviedb` database and user.
+- **Current status and next steps:** [`HANDOVER.md`](HANDOVER.md). Read it first and update it at the end of every
+  milestone.
 - **Current plan and handover:** [`PLAN.md`](PLAN.md) covers the source analysis, decisions, data model, import, UI
   spec and milestones. Phase 1 (MVP) means functional equivalence with the
   Access input form, plus a sortable overview, add/edit and login. PLAN.md §13 records the owner's answers to the
@@ -202,7 +204,8 @@ Run the smallest relevant checks, then expand when results warrant it:
 2. Run the repository formatter and verify formatting.
 3. Run targeted tests; run the full suite when the change affects shared behavior or project-wide contracts.
 4. Inspect the final diff and ensure no generated artifacts, secrets, or unrelated changes are included.
-5. Update `PLAN.md` (milestone status, answered questions) when the task changes it.
+5. Update `PLAN.md` (milestone status, answered questions) when the task changes it, and update `HANDOVER.md` at the
+   end of every milestone.
 
 **Repository commands** (verify and correct once the solution exists, in milestone M0):
 

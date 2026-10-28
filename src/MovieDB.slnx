@@ -2,6 +2,7 @@
   <Folder Name="/Assets/">
     <File Path="../.editorconfig" />
     <File Path="../AGENTS.md" />
+    <File Path="../HANDOVER.md" />
     <File Path="../PLAN.md" />
     <File Path="../README.md" />
     <File Path="../version.txt" />
