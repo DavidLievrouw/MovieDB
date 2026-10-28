@@ -7,7 +7,7 @@ milestones in §10) first. Update this file at the end of every milestone.
 
 - Do **one milestone at a time**, then stop and wait for the owner's review. Do not start the next milestone
   unprompted.
-- Do not commit unless asked. All work so far is uncommitted in the working tree.
+- Do not commit unless asked. M1 is uncommitted in the working tree.
 - Ask before taking product or schema decisions that the docs do not settle.
 
 ## Keeping this handover current (required)
@@ -29,25 +29,37 @@ After finishing a milestone, and before reporting to the owner, update this file
 
 | Milestone | State |
 |-----------|-------|
-| M0 Scaffold | Done, awaiting owner review (uncommitted) |
-| M1 Data | **Next. Not started** |
-| M2–M6 | Not started |
+| M0 Scaffold | Done (committed) |
+| M1 Data | Done, awaiting owner review (uncommitted) |
+| M2 Auth | **Next. Not started** |
+| M3–M6 | Not started |
 
-### What M0 delivered
+### What M1 delivered
 
-- Root: `global.json` (SDK 10.0.200, MTP test runner), `dotnet-tools.json` (csharpier 1.3.0, dotnet-ef 10.0.14),
-  `.csharpierrc.yaml`, `.csharpierignore`, `NuGet.config`, `version.txt` (1.0.0), `README.md`. `.editorconfig` and
-  `.gitattributes` are LF; all existing text files were converted to LF.
-- `src/MovieDB.slnx`, `Directory.Build.props`, `Directory.Packages.props`, `version.props`.
-- Projects: Common (`Result<T>`, `Error`, `ErrorKind`), Ui, Infrastructure, Auth, Movies, Web, `tools/MovieDB.AccessImport`.
-  Ui and Infrastructure only hold an assembly-anchor type. Auth and Movies hold an empty `Add<Slice>Services()`.
-- `MovieDB.Web`: minimal host (Serilog console, `GET /health/live`, `public partial class Program`). No Blazor, auth,
-  EF or options yet. `UserSecretsId` is `9b46a74e-075e-4f32-b29a-dc9bd38c1cec`.
-- `MovieDB.AccessImport`: stub that prints a message and exits with 1 (real work in M3).
-- Tests (17 passing): `ResultTests` (unit), `LayerTests` (architecture), `MariaDbCollationTests` (Testcontainers),
-  `ProjectWiringTests` (browser project placeholder).
-- Checks at the end of M0: `dotnet build src/MovieDB.slnx -warnaserror`, `dotnet csharpier check .` and
-  `dotnet test --solution src/MovieDB.slnx` all pass.
+- **Common:** `Vogen.cs` (`MovieId`, `GenreId`, `MediumId` as int; `UserId` as GUID string), `UserClock` (time zone from
+  `App:TimeZone` only; `Today`, `CurrentYear`; throws on an invalid zone id).
+- **Infrastructure:** entities (`Movie`, `Genre`, `Medium`, `User`), `IEntityTypeConfiguration`s in `snake_case` with
+  plural tables, `MovieDbContext`, `DatabaseConfiguration.AddMovieDbDatabase` (+ `RequireUtf8mb4`),
+  `DatabaseMigrator` (hosted lifecycle `StartingAsync`, `GET_LOCK('moviedb-migrate', 120)` on a dedicated connection),
+  design-time factory, auth throttle types, DataProtection key store. Migration `20261028115529_Initial` creates
+  `genres`, `media`, `movies`, `users`, `auth_throttle_states`, `data_protection_keys`.
+  - The migration is **hand-written** with `CREATE TABLE IF NOT EXISTS` / `DROP TABLE IF EXISTS` (retry-safe after a
+    partial failure). The Designer and model snapshot are generated. If you add a migration with `dotnet ef`, expect
+    Roslynator `RCS1021` on the generated file: rewrite it by hand in the same style.
+- **Web:** `Program.cs` (Serilog, `--health-check` switch, validated `AppOptions`/`AuthProtectionOptions`, DB, migrator,
+  DataProtection with optional certificate via `KeyRingProtection`, forwarded headers from known proxies, HSTS outside
+  Development, `/health` and `/health/live`), `AppOptions`, `HealthChecks` (DB check; public-host check registered only
+  when `Health:PublicUrl` is set), appsettings files, launch profile on port **4200**.
+- **Tests (59 passing in total):** `UserClockTests`, `DatabaseConfigurationTests` (unit); `MigrationTests`
+  (fresh migrate, model = schema, re-run no-op, 5 concurrent migrators, partial-failure retry, `Down` + up again,
+  collation), `MovieConstraintTests` (unique Title+Year+Director ignoring case/accents, FK restrict, check constraints,
+  concurrency token, Unicode round trip, unique user name), `HealthEndpointTests` (live, healthy after migrating an
+  empty DB, invalid time zone stops startup).
+- Checks: `dotnet build src/MovieDB.slnx -warnaserror`, `dotnet csharpier check .` and
+  `dotnet test --solution src/MovieDB.slnx` pass. The app was run once against the local `moviedb`: the migration
+  applied and `/health` reported Healthy.
+
+Earlier: M0 delivered the scaffold (repo files, solution and projects, architecture tests, stub import tool).
 
 ### Environment facts
 
@@ -64,34 +76,36 @@ After finishing a milestone, and before reporting to the owner, update this file
 - Playwright browsers are **not** installed yet (M6: build, then run `playwright.ps1 install chromium`).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M1 – Data (PLAN.md §10, with §5, §4.3 and §11)
+## Next: M2 – Auth (PLAN.md §10, with §7.1, §5.3 and the Motorsports `Infrastructure/Auth` and `Auth` projects)
 
-Scope: entities, `MovieDbContext`, configurations, initial migration (domain + auth tables), `DatabaseMigrator`,
-health endpoints (`/health/live`, `/health`, `--health-check` switch), options validation (`ValidateOnStart`), Serilog
-setup.
+Scope: Identity Core stores, cookie auth, login/logout/access-denied/change-password pages, login throttling,
+DataProtection, default `admin` seeding (once, under the migrator lock), fallback authorization policy, security
+headers (CSP nonce). Blazor setup (`App`, `Routes`, `MainLayout`, global `InteractiveServer` routing) is needed for
+the static SSR pages; keep the layout minimal until M4.
 
-Done when: characteristics tests for migrations and constraints pass, and the app migrates the local `moviedb`.
+Done when: auth characteristics tests pass and a local login as `admin` works.
 
-Suggested order:
+Already in place from M1: `User` entity and `users` table, `auth_throttle_states` table and throttle types,
+`data_protection_keys` store, `AuthProtectionOptions` binding, `UserId`, `AddAuthServices()` (empty) in `MovieDB.Auth`.
 
-1. Read PLAN.md §5 (tables, columns, constraints, indexes, seed data) and §4.3 (naming). Mirror Motorsports'
-   `Infrastructure` (context, migrator, DataProtection store, options).
-2. Vogen IDs (`MovieId`, `GenreId`, `MediumId`, `UserId`) with EF value converters.
-3. Entities and `IEntityTypeConfiguration`s with explicit `snake_case`/plural names, collation
-   `utf8mb4_uca1400_ai_ci`, restrictive FKs, `version` concurrency tokens, unique index on
-   Title + ReleaseYear + Director.
-4. Add the first migration with the documented command (AGENTS.md); review its idempotent script. `Down` must work.
-   Migrations are excluded from CSharpier.
-5. `DatabaseMigrator` (`IHostedLifecycleService.StartingAsync`, `GET_LOCK('moviedb-migrate', 120)` on a dedicated
-   connection). Test repeated and concurrent startup.
-6. Real health endpoints and options classes (`ConnectionStrings:MovieDb`, `App:TimeZone`, `Auth:*`,
-   `DataProtection:*`, `ForwardedHeaders:KnownProxies`, `Health:PublicUrl`). `UserClock` goes in Common (time zone
-   from `App:TimeZone` only).
-7. Characteristics tests against a real `mariadb:12.3.3` (Testcontainers): migration applies, constraints hold
-   (duplicate Title+Year+Director, FK restrict, collation matching, concurrency token), concurrent migrator runs.
-8. Run the app once against the local `moviedb` and confirm the migration applies. Do not print rows.
-9. End-of-task routine (AGENTS.md), then update PLAN.md §10/status and **this file** as described in "Keeping this
-   handover current", then stop and wait for the owner's review.
+Suggested order: read PLAN.md §7.1 and the Motorsports auth code, port the stores/sign-in/throttle services, add the
+seeder to the migrator, add the pages and middleware, then characteristics tests (login, lockout/throttle, return URL,
+anonymous redirect, security headers, seeding runs once), run once locally, update docs, stop for review.
+
+## Learnings from M1
+
+- **Testcontainers MariaDB user:** the default test user `mariadb` only owns one database. The fixture grants it
+  `ALL ON *.*` via `ExecAsync` as root (`ExecScriptAsync` runs as the test user and does not work), then each test
+  creates its own `moviedb_<guid>` database.
+- **Host tests and user-secrets:** in `WebApplicationFactory` (Development) user-secrets override `UseSetting`, so host
+  tests would hit the developer's local DB. `HealthEndpointTests` sets environment variables instead (they win). Do the
+  same for any new test that boots the host; characteristics tests run serially in one collection.
+- **Migrations:** see the hand-written `Initial` above. `HasPendingModelChanges` is tested, so keep the snapshot in
+  sync with the model.
+- **Dev port** is 4200 (`launchSettings.json`). `AllowedHosts` is `mdb.dalion.eu` in appsettings.json and
+  `localhost;127.0.0.1` in Development.
+- `Health:PublicUrl` is empty by default (check not registered). `KeyRingProtection` fails closed outside Development
+  unless a DataProtection certificate is configured.
 
 ## Learnings from M0 not yet in PLAN.md/AGENTS.md
 
@@ -118,7 +132,6 @@ Suggested order:
 - **Running the host in the tool shell:** `Stop-Process -Name …` is blocked and `dotnet run` in async mode did not
   bind reliably. A `Start-Job` that runs `dotnet run --no-build --urls http://localhost:5099`, a `curl.exe` probe, then
   `Stop-Job` worked. Always check afterwards that no `MovieDB.Web` process is left (`Get-Process MovieDB.Web`).
-- **Placeholders to replace:** `MovieDB.Web/Program.cs` is deliberately minimal (the `/health/live` mapping, Serilog
-  bootstrap) and will be restructured in M1–M2 (options, migrator, auth). `UiAssembly`/`InfrastructureAssembly`
-  anchors can be dropped once those projects hold real types.
+- **Placeholders to replace:** `UiAssembly`/`InfrastructureAssembly` anchors can be dropped once those projects hold
+  real types (Infrastructure now does; check whether the anchor is still used).
 - **Deliberate PLAN deviations so far:** none. `Result.cs` enum values were made explicit only to satisfy RCS1161.

@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** M0 (scaffold) implemented and awaiting owner review. M1 has not started. All §13 questions are answered.
+**Status:** M0 (scaffold) and M1 (data) implemented; M1 awaiting owner review. M2 has not started. All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -183,6 +183,7 @@ Single-record form, caption "Films", header "Database van films". The tab order 
 | g | Users | Seed a default user **`admin` / `demodemo`** once. The owner may change the password after logging in. |
 | h | Formatting | CSharpier with **LF** line endings (as Motorsports). |
 | i | IDs | Vogen strongly typed IDs (as Motorsports). |
+| j | M1 implementation choices | `UserId` is a GUID string (`users.id` varchar(36)), as Motorsports. Auth throttle table is `auth_throttle_states`, DataProtection table `data_protection_keys`. The initial migration is hand-written with self-guarding `CREATE TABLE IF NOT EXISTS` / `DROP TABLE IF EXISTS` so it is retry-safe after a partial failure (the generated Designer and snapshot are kept). `UserClock` is a singleton and throws on an invalid `App:TimeZone`; this is validated at startup. `Health:PublicUrl` has no default; the public-host health check is registered only when set. The connection string must use `CharSet=utf8mb4` (validated at startup). Local dev port is 4200. |
 
 ---
 
@@ -748,7 +749,7 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 | # | Milestone | Done when |
 |---|---|---|
 | M0 | **Scaffold**: repo files (`global.json`, tools, `.csharpierrc.yaml`, `version.txt`, `.editorconfig` → LF), `src/` solution and projects, Directory props, empty test projects, architecture tests, README skeleton. The local `moviedb` database, user and user-secrets connection string already exist (§11.1, created by the owner); the `MovieDB.Web` project uses that `UserSecretsId` | Build and the (empty) test run pass |
-| M1 | **Data**: entities, `MovieDbContext`, configurations, initial migration (domain + auth tables), `DatabaseMigrator`, health endpoints, options validation, Serilog | Characteristics tests for migrations and constraints pass; the app migrates the local `moviedb` |
+| M1 | **Data** (done, awaiting review): entities, `MovieDbContext`, configurations, initial migration (domain + auth tables), `DatabaseMigrator`, health endpoints, options validation, Serilog | Characteristics tests for migrations and constraints pass; the app migrates the local `moviedb` |
 | M2 | **Auth**: Identity Core stores, cookie auth, login/logout/access-denied/change-password pages, throttling, DataProtection, default `admin` seeding, fallback policy | Auth characteristics tests pass; local login as `admin` works |
 | M3 | **Import**: tool, `Import-Access.ps1` (`-Reset`, `-DryRun`, dump + dump verification), verification report. Run it against the local `FilmsBase.mdb` | Report matches §6.4; dump verification passes; unit tests for the rules pass |
 | M4 | **UI shell + overview**: theme, fonts, layout, login styling, overview with search/sort/paging/URL state, mobile cards | Characteristics + bUnit tests pass; manual check at 390px and 1440px |
