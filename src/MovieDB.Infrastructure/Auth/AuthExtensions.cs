@@ -9,6 +9,7 @@ public static class AuthExtensions
     public const int MinimumPasswordLength = 8;
 
     /// <summary>Identity core over the users table. The host adds cookies and the sign-in manager.</summary>
+    /// <param name="services">The service collection to extend.</param>
     public static IdentityBuilder AddMovieDbIdentity(this IServiceCollection services)
     {
         services.AddSingleton<DefaultUserSeeder>();

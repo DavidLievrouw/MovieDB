@@ -1,6 +1,21 @@
 namespace MovieDB.AccessImport;
 
 /// <summary>One raw <c>tblFilms</c> record, as stored in Access: <c>Duur</c>, <c>Jaar</c> and <c>Extras</c> stay text.</summary>
+/// <param name="FilmId">The Access FilmID.</param>
+/// <param name="Title">The raw title.</param>
+/// <param name="Genre">The raw genre.</param>
+/// <param name="Duration">The raw runtime text (Duur).</param>
+/// <param name="Year">The raw release year text (Jaar).</param>
+/// <param name="Director">The raw director.</param>
+/// <param name="WatchedOn">The viewing date (Datum).</param>
+/// <param name="OverallScore">The raw overall score; 0 means empty.</param>
+/// <param name="StoryScore">The raw story score; 0 means empty.</param>
+/// <param name="PictureScore">The raw picture score; 0 means empty.</param>
+/// <param name="MusicScore">The raw music score; 0 means empty.</param>
+/// <param name="SoundScore">The raw sound score; 0 means empty.</param>
+/// <param name="Extras">The raw extras score text; "n/a" means empty.</param>
+/// <param name="Medium">The raw medium (Gezien op).</param>
+/// <param name="Review">The raw review.</param>
 internal sealed record SourceFilm(
     int FilmId,
     string? Title,

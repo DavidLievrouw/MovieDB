@@ -22,6 +22,8 @@ public sealed class DefaultUserSeedingTests
     }
 
     /// <summary>Binds the default password from the environment, like the host does, unless a configuration is given.</summary>
+    /// <param name="connectionString">The connection string of the test database.</param>
+    /// <param name="configuration">An explicit configuration, or null to read the environment.</param>
     private static ServiceProvider BuildServices(string connectionString, IConfiguration? configuration = null)
     {
         configuration ??= new ConfigurationBuilder().AddEnvironmentVariables().Build();

@@ -100,6 +100,8 @@ internal sealed class ImportLoader
     }
 
     /// <summary>Clears only the three domain tables. Users, data-protection keys and throttling data are untouched.</summary>
+    /// <param name="connection">An open connection to the target database.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
     private static async Task ResetAsync(DbConnection connection, CancellationToken cancellationToken)
     {
         await ExecuteAsync(connection, "SET FOREIGN_KEY_CHECKS=0", cancellationToken);

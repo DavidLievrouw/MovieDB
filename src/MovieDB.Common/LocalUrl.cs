@@ -4,6 +4,7 @@ namespace MovieDB.Common;
 public static class LocalUrl
 {
     /// <summary>True for a path starting with a single '/', without '//' or '/\' prefixes or control characters.</summary>
+    /// <param name="url">The URL to check.</param>
     public static bool IsLocal(string? url)
     {
         if (string.IsNullOrEmpty(url) || url[0] != '/')

@@ -4,6 +4,21 @@ using System.Text;
 namespace MovieDB.AccessImport;
 
 /// <summary>A cleaned, validated movie ready to load. <c>Id</c> is the preserved Access <c>FilmID</c>.</summary>
+/// <param name="Id">The preserved Access FilmID.</param>
+/// <param name="Title">The cleaned title.</param>
+/// <param name="ReleaseYear">The release year.</param>
+/// <param name="Director">The cleaned director.</param>
+/// <param name="Genre">The genre.</param>
+/// <param name="RuntimeMinutes">The runtime in minutes.</param>
+/// <param name="WatchedOn">The viewing date.</param>
+/// <param name="Medium">The medium, if known.</param>
+/// <param name="OverallScore">The overall score (1-10), if any.</param>
+/// <param name="StoryScore">The story score (1-10), if any.</param>
+/// <param name="PictureScore">The picture score (1-10), if any.</param>
+/// <param name="MusicScore">The music score (1-10), if any.</param>
+/// <param name="SoundScore">The sound score (1-10), if any.</param>
+/// <param name="ExtrasScore">The extras score (1-10), if any.</param>
+/// <param name="Review">The review text, if any.</param>
 internal sealed record CleanMovie(
     int Id,
     string Title,
@@ -23,12 +38,21 @@ internal sealed record CleanMovie(
 );
 
 /// <summary>One validation problem. Only the row id and the field are reported, never the content.</summary>
+/// <param name="FilmId">The Access FilmID of the row.</param>
+/// <param name="Field">The name of the offending field.</param>
+/// <param name="Problem">A content-free description of the problem.</param>
 internal sealed record RowError(int FilmId, string Field, string Problem)
 {
     public override string ToString() => $"FilmID {FilmId}: {Field} {Problem}";
 }
 
 /// <summary>Outcome of cleaning one row: either a movie or errors, plus which cleanups were applied.</summary>
+/// <param name="FilmId">The Access FilmID of the row.</param>
+/// <param name="Movie">The cleaned movie, or null when the row has errors.</param>
+/// <param name="Errors">The validation problems found.</param>
+/// <param name="TitleExtraPartsDropped">Whether extra lines or tabs were dropped from the title.</param>
+/// <param name="DirectorExtraPartsDropped">Whether extra lines or tabs were dropped from the director.</param>
+/// <param name="WhitespaceCleaned">Whether whitespace was cleaned in any text field.</param>
 internal sealed record CleanResult(
     int FilmId,
     CleanMovie? Movie,
@@ -117,6 +141,7 @@ internal static class MovieCleaner
     /// Takes the first non-empty line (split on CR, LF and tab), trims it and collapses runs of spaces. Reports whether
     /// further non-empty parts were dropped and whether anything other than nothing was changed.
     /// </summary>
+    /// <param name="raw">The raw source text.</param>
     internal static (string Value, bool ExtraPartsDropped, bool Changed) SingleLine(string? raw)
     {
         if (string.IsNullOrEmpty(raw))
@@ -163,6 +188,7 @@ internal static class MovieCleaner
     }
 
     /// <summary>Length in code points, which is how MariaDB counts utf8mb4 characters.</summary>
+    /// <param name="value">The text to measure.</param>
     internal static int CharCount(string value) => value.EnumerateRunes().Count();
 
     private static void Require(List<RowError> errors, int filmId, string field, string value, int maxLength)

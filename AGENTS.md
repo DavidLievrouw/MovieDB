@@ -103,6 +103,10 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - Do not use primary constructors on classes or structs: declare `private readonly` fields (`_camelCase`) and an
   explicit constructor. Primary constructors (positional parameter lists) **are** allowed, and preferred, on `record`
   and `record struct` types, which are small immutable data carriers. This applies to test projects too.
+- XML documentation must be complete: every `<param>` (including positional record parameters), `<typeparam>` and
+  `<exception>` thrown by a documented member. Roslynator only reports these (RCS1140/1141/1142) with
+  `-p:GenerateDocumentationFile=true`, which the IDE always does; check with
+  `dotnet build src/MovieDB.slnx -p:GenerateDocumentationFile=true -p:TreatWarningsAsErrors=false --no-incremental`.
 - Use `Result<T>`/`Error`/`ErrorKind` for expected failures and FluentValidation (Dutch messages) for input. Validate
   before mutating state.
 - Use strongly typed IDs (Vogen) for entity keys (`MovieId`, `GenreId`, `MediumId`, `UserId`).

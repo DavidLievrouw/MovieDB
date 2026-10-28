@@ -3,6 +3,10 @@ namespace MovieDB.AccessImport;
 internal sealed record DuplicateGroup(int KeptId, IReadOnlyList<int> DroppedIds);
 
 /// <summary>One of the fixed, IMDb-verified attribute corrections, applied only when the source still holds the expected value.</summary>
+/// <param name="FilmId">The Access FilmID of the row to correct.</param>
+/// <param name="Field">The name of the field to correct.</param>
+/// <param name="Expected">The value the source must still hold for the correction to apply.</param>
+/// <param name="Replacement">The corrected value.</param>
 internal sealed record AttributeCorrection(int FilmId, string Field, string Expected, string Replacement);
 
 internal sealed record CorrectionOutcome(AttributeCorrection Correction, bool Applied, string Reason);
@@ -10,6 +14,7 @@ internal sealed record CorrectionOutcome(AttributeCorrection Correction, bool Ap
 internal static class DuplicateResolver
 {
     /// <summary>Groups on Title + Year + Director and keeps the earliest Datum, then the lowest FilmID.</summary>
+    /// <param name="movies">The cleaned movies to de-duplicate.</param>
     public static (IReadOnlyList<CleanMovie> Kept, IReadOnlyList<DuplicateGroup> Groups) Resolve(
         IEnumerable<CleanMovie> movies
     )

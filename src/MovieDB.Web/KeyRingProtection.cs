@@ -24,6 +24,12 @@ internal static class KeyRingProtection
     /// Loads the key-ring protection certificate. Fails closed when none is configured, except in development
     /// where the key ring may remain unencrypted for local use.
     /// </summary>
+    /// <param name="options">The key-ring protection options.</param>
+    /// <param name="allowUnprotected">Whether running without a certificate is allowed (development).</param>
+    /// <exception cref="InvalidOperationException">
+    /// No certificate is configured while one is required, the certificate file does not exist, or the certificate
+    /// lacks an RSA public and private key.
+    /// </exception>
     public static X509Certificate2? LoadCertificate(KeyRingProtectionOptions options, bool allowUnprotected)
     {
         if (string.IsNullOrWhiteSpace(options.CertificatePath))

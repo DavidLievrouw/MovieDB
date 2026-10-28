@@ -3,6 +3,23 @@ using System.Globalization;
 namespace MovieDB.AccessImport;
 
 /// <summary>Aggregate figures used to compare the plan with what the database holds after loading. Never contains content.</summary>
+/// <param name="Movies">Number of movies.</param>
+/// <param name="Genres">Number of genre suggestion rows.</param>
+/// <param name="Media">Number of medium suggestion rows.</param>
+/// <param name="NullOverall">Movies without an overall score.</param>
+/// <param name="NullStory">Movies without a story score.</param>
+/// <param name="NullPicture">Movies without a picture score.</param>
+/// <param name="NullMusic">Movies without a music score.</param>
+/// <param name="NullSound">Movies without a sound score.</param>
+/// <param name="NullExtras">Movies without an extras score.</param>
+/// <param name="NullMedium">Movies without a medium.</param>
+/// <param name="NullReview">Movies without a review.</param>
+/// <param name="MaxTitleLength">Longest title, in characters.</param>
+/// <param name="MaxDirectorLength">Longest director, in characters.</param>
+/// <param name="MaxReviewLength">Longest review, in characters.</param>
+/// <param name="MinWatchedOn">Earliest viewing date, if any.</param>
+/// <param name="MaxWatchedOn">Latest viewing date, if any.</param>
+/// <param name="MaxId">Highest movie id.</param>
 internal sealed record DataStats(
     int Movies,
     int Genres,

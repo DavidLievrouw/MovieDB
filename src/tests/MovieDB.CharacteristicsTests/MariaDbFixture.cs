@@ -45,6 +45,8 @@ public sealed class MariaDbFixture : IAsyncLifetime
     }
 
     /// <summary>Runs a SQL script through the container's own <c>mariadb</c> client, like an operator would.</summary>
+    /// <param name="connectionString">The connection string of the target database.</param>
+    /// <param name="script">The SQL script to run.</param>
     public async Task<(long ExitCode, string Stderr)> RunScriptAsync(string connectionString, string script)
     {
         var builder = new MySqlConnectionStringBuilder(connectionString);
@@ -66,6 +68,8 @@ public sealed class MariaDbFixture : IAsyncLifetime
     }
 
     /// <summary>Dumps the data of the domain tables the way <c>Import-Access.ps1</c> does.</summary>
+    /// <param name="connectionString">The connection string of the database to dump.</param>
+    /// <exception cref="InvalidOperationException">The dump command exited with a non-zero exit code.</exception>
     public async Task<string> DumpDataAsync(string connectionString)
     {
         var builder = new MySqlConnectionStringBuilder(connectionString);

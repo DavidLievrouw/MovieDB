@@ -9,6 +9,9 @@ public enum ErrorKind
 }
 
 /// <summary>Failure description. <see cref="Fields"/> maps a property name (or "" for the form) to messages.</summary>
+/// <param name="Kind">The category of the failure.</param>
+/// <param name="Message">A general description of the failure.</param>
+/// <param name="Fields">Messages per property name (or "" for the form); null when not field-specific.</param>
 public sealed record Error(ErrorKind Kind, string Message, IReadOnlyDictionary<string, string[]>? Fields = null)
 {
     public static Error Validation(string field, string message) =>

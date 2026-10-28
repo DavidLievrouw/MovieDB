@@ -110,6 +110,7 @@ public sealed class DatabaseMigrator : IHostedLifecycleService
     }
 
     /// <summary>Runs before the host starts listening, so no request ever sees an unmigrated schema.</summary>
+    /// <param name="cancellationToken">Cancels the migration.</param>
     public Task StartingAsync(CancellationToken cancellationToken) => MigrateAndSeedAsync(cancellationToken);
 
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;

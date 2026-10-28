@@ -47,6 +47,11 @@ internal static class DbOperations
     /// Runs <paramref name="work"/> in a transaction. A failed result rolls back, a successful one commits.
     /// Deadlocks are retried a few times; constraint violations become conflict results.
     /// </summary>
+    /// <typeparam name="T">The type of the value in the result.</typeparam>
+    /// <param name="factory">Creates the short-lived context for each attempt.</param>
+    /// <param name="work">The work to run inside the transaction.</param>
+    /// <param name="isolation">The transaction isolation level.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
     public static async Task<Result<T>> InTransactionAsync<T>(
         this IDbContextFactory<MovieDbContext> factory,
         Func<MovieDbContext, CancellationToken, Task<Result<T>>> work,

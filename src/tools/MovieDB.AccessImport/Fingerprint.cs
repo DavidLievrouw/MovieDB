@@ -70,6 +70,11 @@ internal static class DumpComposer
     /// Wraps a <c>mariadb-dump</c> data body into a guarded script: it aborts unless the schema is at the expected
     /// migration and the three domain tables are empty, and loads everything in one transaction.
     /// </summary>
+    /// <param name="body">The <c>mariadb-dump</c> data statements.</param>
+    /// <param name="sourceName">The file name of the source, for the header.</param>
+    /// <param name="createdAt">When the dump was made.</param>
+    /// <param name="migrationId">The latest migration the schema must be at.</param>
+    /// <param name="stats">The row counts, for the header.</param>
     public static string Compose(
         string body,
         string sourceName,

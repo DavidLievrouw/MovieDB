@@ -17,6 +17,8 @@ public static class DatabaseConfiguration
     }
 
     /// <summary>Fails when the connection string does not explicitly select utf8mb4 (CharSet=utf8mb4).</summary>
+    /// <param name="connectionString">The connection string to check.</param>
+    /// <exception cref="InvalidOperationException">The connection string does not specify CharSet=utf8mb4.</exception>
     public static string RequireUtf8mb4(string connectionString)
     {
         var builder = new MySqlConnectionStringBuilder(connectionString);

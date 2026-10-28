@@ -26,6 +26,8 @@ public sealed class UserClock
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, Zone).DateTime);
 
     /// <summary>Resolves an IANA id; unknown or malformed ids are reported instead of silently using the machine zone.</summary>
+    /// <param name="id">The IANA time zone id.</param>
+    /// <param name="zone">The resolved time zone when the method returns true.</param>
     public static bool TryResolveZone(string? id, [NotNullWhen(true)] out TimeZoneInfo? zone)
     {
         zone = null;
