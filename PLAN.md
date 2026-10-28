@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** planning complete. Implementation may start at M0. All §13 questions are answered.
+**Status:** M0 (scaffold) implemented and awaiting owner review. M1 has not started. All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -747,7 +747,7 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 
 | # | Milestone | Done when |
 |---|---|---|
-| M0 | **Scaffold**: repo files (`global.json`, tools, `.csharpierrc.yaml`, `version.txt`, `.editorconfig` → LF), `src/` solution and projects, Directory props, empty test projects, architecture tests, README skeleton. Create the local `moviedb` database and user (§11.1) and store the connection string in user-secrets | Build and the (empty) test run pass |
+| M0 | **Scaffold**: repo files (`global.json`, tools, `.csharpierrc.yaml`, `version.txt`, `.editorconfig` → LF), `src/` solution and projects, Directory props, empty test projects, architecture tests, README skeleton. The local `moviedb` database, user and user-secrets connection string already exist (§11.1, created by the owner); the `MovieDB.Web` project uses that `UserSecretsId` | Build and the (empty) test run pass |
 | M1 | **Data**: entities, `MovieDbContext`, configurations, initial migration (domain + auth tables), `DatabaseMigrator`, health endpoints, options validation, Serilog | Characteristics tests for migrations and constraints pass; the app migrates the local `moviedb` |
 | M2 | **Auth**: Identity Core stores, cookie auth, login/logout/access-denied/change-password pages, throttling, DataProtection, default `admin` seeding, fallback policy | Auth characteristics tests pass; local login as `admin` works |
 | M3 | **Import**: tool, `Import-Access.ps1` (`-Reset`, `-DryRun`, dump + dump verification), verification report. Run it against the local `FilmsBase.mdb` | Report matches §6.4; dump verification passes; unit tests for the rules pass |
@@ -762,13 +762,12 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 ### 11.1 Local development
 
 - Use the **existing local Docker MariaDB** (container `mariadb`, image `mariadb:12.3.3`, `localhost:3306`).
-  - Create the database `moviedb` (`CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci`) and a user
+  - The owner has created the database `moviedb` (`CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci`) and the user
     `moviedb`@`%` with `ALL PRIVILEGES` on `moviedb.*` **and** `moviedb_dumpcheck.*` (the import's dump verification
-    creates and drops that scratch database, §6.2). This one-off step in M0 is the only one that uses root.
-  - The owner provides the **root password** outside the repository. Never write it into any file, script default,
-    log or commit. Pass it through a prompt or an environment variable.
-  - The app user's password is generated locally and stored only in user-secrets.
-- Connection string in user-secrets (`dotnet user-secrets` on `MovieDB.Web`):
+    creates and drops that scratch database, §6.2). The agent never needs the root password.
+  - The app user's password is chosen by the owner and stored only in user-secrets.
+- Connection string in user-secrets (`dotnet user-secrets` on `MovieDB.Web`, `UserSecretsId`
+  `9b46a74e-075e-4f32-b29a-dc9bd38c1cec`):
   `Server=localhost;Port=3306;Database=moviedb;User=moviedb;Password=…;CharSet=utf8mb4`.
 - On first start, the app migrates and seeds `admin` / `demodemo`.
 - Import with `./scripts/Import-Access.ps1 -Source .\FilmsBase.mdb`. This also produces the production dump.
@@ -808,7 +807,8 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 - **First deployment** (documented step by step in README):
   1. Locally: run `Import-Access.ps1` on a fresh local database to produce and verify
      `artifacts/import/moviedb-data.sql`.
-  2. Production: create the database `moviedb` (utf8mb4, `utf8mb4_uca1400_ai_ci`) and the user.
+  2. Production: the owner has already created the database `moviedb` (utf8mb4, `utf8mb4_uca1400_ai_ci`) and its
+     user, with a password different from the local one. Nothing to do for the agent.
   3. Deploy the container. It migrates the schema and seeds `admin` / `demodemo`.
   4. Copy the dump to the server, `docker cp` it into the MariaDB container, and run it there with
      `docker exec -it mariadb sh -c "mariadb -u root -p moviedb < /tmp/moviedb-data.sql"`. The guard block refuses to

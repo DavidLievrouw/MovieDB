@@ -131,8 +131,8 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   `GET_LOCK('moviedb-migrate', 120)` on a dedicated connection, then seeds the default user under the same lock. Verify
   repeated and concurrent startup behavior.
 - Local development database: container `mariadb` (`mariadb:12.3.3`) on `localhost:3306`, database and user `moviedb`.
-  The connection string lives in user-secrets. The root password is provided by the owner out-of-band; never write it
-  into files, scripts, logs or commits. Development, tests and production all use MariaDB 12.3.3; keep them aligned.
+  The owner created the database and user; the connection string lives in user-secrets (`UserSecretsId`
+  `9b46a74e-075e-4f32-b29a-dc9bd38c1cec`). Never write passwords into files, scripts, logs or commits. Development, tests and production all use MariaDB 12.3.3; keep them aligned.
 - Collation `utf8mb4_uca1400_ai_ci`. Connection strings include `CharSet=utf8mb4`. Never use `ToLower()`/`ToUpper()`
   for case-insensitive comparisons; rely on the collation.
 - Search uses `LIKE` with `%`, `_` and `\` escaped. Do not filter in memory.

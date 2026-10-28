@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <TieredPGO>true</TieredPGO>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <UserSecretsId>9b46a74e-075e-4f32-b29a-dc9bd38c1cec</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="MudBlazor.Translations" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <ProjectReference Include="..\MovieDB.Auth\MovieDB.Auth.csproj" />
+    <ProjectReference Include="..\MovieDB.Common\MovieDB.Common.csproj" />
+    <ProjectReference Include="..\MovieDB.Infrastructure\MovieDB.Infrastructure.csproj" />
+    <ProjectReference Include="..\MovieDB.Movies\MovieDB.Movies.csproj" />
+    <ProjectReference Include="..\MovieDB.Ui\MovieDB.Ui.csproj" />
+  </ItemGroup>
+</Project>

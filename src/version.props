@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <MovieDbVersion>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)../version.txt').Trim())</MovieDbVersion>
+    <Version>$(MovieDbVersion)</Version>
+    <AssemblyVersion>$(MovieDbVersion).0</AssemblyVersion>
+    <FileVersion>$(MovieDbVersion).0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <InformationalVersion Condition="'$(SourceRevisionId)' == ''">$(MovieDbVersion)</InformationalVersion>
+    <InformationalVersion Condition="'$(SourceRevisionId)' != ''"
+      >$(MovieDbVersion)+$(SourceRevisionId)</InformationalVersion>
+  </PropertyGroup>
+</Project>

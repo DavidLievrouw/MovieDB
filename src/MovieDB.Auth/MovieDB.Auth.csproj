@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MovieDB.Common\MovieDB.Common.csproj" />
+    <ProjectReference Include="..\MovieDB.Ui\MovieDB.Ui.csproj" />
+    <ProjectReference Include="..\MovieDB.Infrastructure\MovieDB.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

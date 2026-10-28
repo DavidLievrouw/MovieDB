@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/Assets/">
+    <File Path="../.editorconfig" />
+    <File Path="../AGENTS.md" />
+    <File Path="../PLAN.md" />
+    <File Path="../README.md" />
+    <File Path="../version.txt" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="version.props" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/MovieDB.ArchitectureTests/MovieDB.ArchitectureTests.csproj" />
+    <Project Path="tests/MovieDB.BrowserTests/MovieDB.BrowserTests.csproj" />
+    <Project Path="tests/MovieDB.CharacteristicsTests/MovieDB.CharacteristicsTests.csproj" />
+    <Project Path="tests/MovieDB.UnitTests/MovieDB.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/Tools/">
+    <Project Path="tools/MovieDB.AccessImport/MovieDB.AccessImport.csproj" />
+  </Folder>
+  <Project Path="MovieDB.Auth/MovieDB.Auth.csproj" />
+  <Project Path="MovieDB.Common/MovieDB.Common.csproj" />
+  <Project Path="MovieDB.Infrastructure/MovieDB.Infrastructure.csproj" />
+  <Project Path="MovieDB.Movies/MovieDB.Movies.csproj" />
+  <Project Path="MovieDB.Ui/MovieDB.Ui.csproj" />
+  <Project Path="MovieDB.Web/MovieDB.Web.csproj" />
+</Solution>

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <ProjectReference Include="..\..\MovieDB.Auth\MovieDB.Auth.csproj" />
+    <ProjectReference Include="..\..\MovieDB.Common\MovieDB.Common.csproj" />
+    <ProjectReference Include="..\..\MovieDB.Infrastructure\MovieDB.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\MovieDB.Movies\MovieDB.Movies.csproj" />
+    <ProjectReference Include="..\..\MovieDB.Ui\MovieDB.Ui.csproj" />
+  </ItemGroup>
+</Project>
