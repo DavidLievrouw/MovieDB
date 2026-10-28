@@ -1,10 +1,19 @@
 # MovieDB – Project Plan & Handover
 
 Handover for the coding agent that builds the solution. Read it together with [`AGENTS.md`](AGENTS.md). The reference
-implementation for conventions, auth, deployment and tooling is the sibling repository `C:\_git\Motorsports`. Read it
-and mirror its patterns unless this plan says otherwise.
+implementation for conventions, auth, deployment and tooling is the owner's **Motorsports** repository. Read it and
+mirror its patterns unless this plan says otherwise.
 
-**Status:** planning complete. All questions are answered (§3); §13 has no open items. Implementation may start at M0.
+**Where to find the Motorsports source (read-only, never modify it):**
+
+- Local clone: `C:\_git\Motorsports` (sibling of this repo). Read it directly from disk.
+- GitHub: <https://github.com/DavidLievrouw/Motorsports> (use it if the local clone is missing; clone it outside this
+  repo, e.g. next to it).
+- Paths quoted in this plan, such as `src/Motorsports.Infrastructure/Auth`, `src/Motorsports.Common/UserClock.cs`,
+  `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
+  script, are relative to that repository root.
+
+**Status:** planning complete. Implementation may start at M0. All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -181,7 +190,13 @@ Single-record form, caption "Films", header "Database van films". The tab order 
 
 ### 4.1 Stack
 
-Mirror the Motorsports versions. Check the latest patch versions when scaffolding.
+Mirror the Motorsports versions. Check the latest patch versions when scaffolding. Starting point (from
+`C:\_git\Motorsports`, as of 2026-10-28): SDK 10.0.200 (`rollForward: latestFeature`, test runner
+`Microsoft.Testing.Platform` in `global.json`), CSharpier 1.3.0, dotnet-ef 10.0.14, MudBlazor 9.11.0,
+`MudBlazor.Translations` 3.x (the line that matches MudBlazor 9; new, Motorsports does not use it),
+Microting.EntityFrameworkCore.MySql 10.0.13, FluentValidation 12.2.0, Vogen 8.0.7, Serilog.AspNetCore 10.0.0,
+Roslynator 5.0.1, Testcontainers.MariaDb 4.16.0, xunit.v3 4.0.2, Shouldly 4.3.0, bunit 2.12.5, NetArchTest.Rules 1.3.2,
+Microsoft.Playwright 1.64.1. Motorsports has **no** browser tests and no request localization; both are new here.
 
 | Concern | Choice |
 |---|---|
@@ -218,7 +233,7 @@ Mirror the Motorsports versions. Check the latest patch versions when scaffoldin
    ├─ MovieDB.Ui/             # theme, shared components (ScoreInput, SuggestField, ScorePill, ConfirmDialog, …)
    ├─ MovieDB.Infrastructure/ # MovieDbContext, entities, configurations, migrations, DatabaseMigrator, seeders, auth stores
    ├─ MovieDB.Movies/         # feature: overview + edit pages, queries, commands, validators, MoviesModule
-   ├─ tools/MovieDB.AccessImport/  # net10.0-windows, x64, System.Data.Odbc; not part of the image
+   ├─ tools/MovieDB.AccessImport/  # net10.0 (not -windows), PlatformTarget x64, System.Data.Odbc; not part of the image
    └─ tests/
       ├─ MovieDB.UnitTests/
       ├─ MovieDB.CharacteristicsTests/  # WebApplicationFactory + Testcontainers MariaDB 12.3.3
@@ -236,6 +251,14 @@ Mirror the Motorsports versions. Check the latest patch versions when scaffoldin
 - Ui → Common only. Infrastructure → Common. Common → nothing.
 - Features never reference each other.
 - AccessImport → Common, Infrastructure.
+- Test projects may reference anything (the unit and characteristics tests reference AccessImport). Nothing in
+  `src/MovieDB.*` references `tools/` or `tests/`.
+- AccessImport targets plain `net10.0`, **not** `net10.0-windows`: a `net10.0` test project cannot reference a
+  `-windows` project. Only the ODBC reader needs Windows; keep it behind an `IFilmSource`-style abstraction so the
+  rules (cleanup, de-duplication, corrections, report) are platform-neutral and unit-testable (§9).
+- Razor components in Auth, Movies and Ui are discovered through `AdditionalAssemblies` on the router and
+  `MapRazorComponents` in the host (as Motorsports does).
+- The host exposes `public partial class Program` for `WebApplicationFactory<Program>`.
 
 Types are `internal` by default; each slice exposes a `*Module.Add<Slice>Services()` entry point. Use
 `InternalsVisibleTo` for tests (as Motorsports does in `Directory.Build.props`).
@@ -298,7 +321,7 @@ since MariaDB 10.10). This makes uniqueness and search behave as the user expect
 | `created_at`, `updated_at` | DATETIME(6) NOT NULL | UTC, set from `TimeProvider` |
 | `version` | INT NOT NULL | concurrency token: 1 on insert (including imported rows), incremented by 1 by the app on every update (set explicitly in the update command; EF `IsConcurrencyToken`) |
 | **UQ** | (`title`, `release_year`, `director`) | `ux_movies_title_year_director` |
-| Index | (`watched_on`, `title`, `id`) | default sort (scanned backwards for DESC) |
+| Index (optional) | (`watched_on` DESC, `title`, `id` DESC) | default sort `watched_on DESC, title ASC, id DESC`. A plain ascending index cannot serve this mixed direction, so declare the descending key parts explicitly (MariaDB 10.8+ supports them) or skip the index: at ~1.2k rows a filesort is fine. Do not add indexes for the other sort columns. |
 
 **`genres`** and **`media`** (suggestion lists): `id` INT PK, `name` VARCHAR(50) NOT NULL **unique**, `created_at`.
 Typed values are trimmed and validated to 1–50 characters ("Genre mag maximaal 50 tekens bevatten.").
@@ -368,7 +391,8 @@ database:
 ```
 
 - `-DryRun`: read, clean, de-duplicate and correct in memory, print the report (§6.4), write nothing (no migration,
-  no import, no dump).
+  no import, no dump, no connection to the target DB unless the temporary-table fallback of §6.3 is needed). Report
+  lines that need the DB (max id and next AUTO_INCREMENT, DB-side checks) print "n/a (dry run)".
 - `-SkipDump`: import and report, but skip steps 7–8 (useful while iterating).
 - `-AllowRemote`: allow a non-`localhost`/`127.0.0.1` host. Never used for production (§11.2).
 - Exit code 0 only when every step succeeded; any failure stops the script with a non-zero exit code.
@@ -384,7 +408,8 @@ database:
    auth state.
 5. Import everything in **one transaction**: suggestion lists first, then movies with explicit IDs. InnoDB moves
    AUTO_INCREMENT past the max explicit id by itself. Verify that, and do not use `ALTER TABLE`.
-6. Print the verification report (§6.4). `-DryRun` runs everything and rolls back (no dump).
+6. Print the verification report (§6.4), including the DB-side numbers read back after the commit. (`-DryRun` skips
+   steps 3–8 and prints the in-memory report only.)
 7. Write the **production data dump** (§6.5) to `-DumpPath` (default `artifacts/import/moviedb-data.sql`).
 8. **Verify the dump**: drop and create a scratch database `moviedb_dumpcheck` (same charset/collation), migrate it
    with the tool (connection string with `Database=moviedb_dumpcheck`), run the dump in it exactly as in production
@@ -410,7 +435,7 @@ database:
 | `Gezien op` | Trim; empty → NULL; resolve to `media`. |
 | `Genre` | Trim; resolve to `genres`. |
 | `Opmerkingen` | Normalise line endings to `\n`, trim; empty → NULL. |
-| Duplicates | After cleanup, group rows by Title + Year + Director **with the DB collation semantics** (case- and accent-insensitive; compare in .NET with an equivalent comparer, or detect them in a staging query). In each group **keep the row with the earliest `Datum`, then the lowest `FilmID`**; drop the others completely (no merging of scores, reviews or attributes). Report every group as kept id / dropped ids. The rule is generic, so a re-import from a newer `.mdb` (at deployment) handles new duplicates the same way. For the current `.mdb` it drops exactly 859, 1014, 728, 1084, 1216, 1020, 1093, 705, 885, 1117, 1095, 1007, 852, 863, 1150, 1221, 756, 1086 and 749 (Skyfall: 747 kept). |
+| Duplicates | After cleanup, group rows by Title + Year + Director **with the DB collation semantics** (case- and accent-insensitive). A .NET comparer (for example ICU `IgnoreCase | IgnoreNonSpace`) is only an approximation of `utf8mb4_uca1400_ai_ci` (for example `ø`, `ß`, `æ`, `œ`, punctuation). Therefore: (1) plan the groups in .NET; (2) a characteristics test compares the comparer with the real DB collation for a synthetic set of variants (case, `é`/`e`, `ø`/`o`, `å`/`a`, `ç`/`c`, `ß`/`ss`, ligatures, trailing spaces); (3) the unique key on `movies` is the safety net, so a missed duplicate fails the single import transaction loudly instead of importing it. If (2) shows that the comparer disagrees, detect the groups with a query on a session-scoped temporary table in the target DB (same collation) instead, which also works for `-DryRun` (§6.2). In each group **keep the row with the earliest `Datum`, then the lowest `FilmID`**; drop the others completely (no merging of scores, reviews or attributes). Report every group as kept id / dropped ids. The rule is generic, so a re-import from a newer `.mdb` (at deployment) handles new duplicates the same way. For the current `.mdb` it drops exactly 859, 1014, 728, 1084, 1216, 1020, 1093, 705, 885, 1117, 1095, 1007, 852, 863, 1150, 1221, 756, 1086 and 749 (Skyfall: 747 kept). |
 | Attribute corrections | After duplicate resolution, apply a fixed, code-reviewed list of IMDb-verified corrections to kept rows (§2.3). Each entry is (FilmID, field, expected source value after cleanup, corrected value): 33 Title "Goldeneye" → "GoldenEye"; 33 RuntimeMinutes 145 → 130; 148 RuntimeMinutes 132 → 133; 308 Genre "Actie" → "Sci-fi"; 328 RuntimeMinutes 116 → 117; 765 RuntimeMinutes 99 → 83. Apply an entry only when the source still holds the expected value. If the source already holds the corrected value, or something else (for example, because the owner edited it in Access before the deployment import), skip it and report it as skipped. The list lives in the import tool (not in config), with unit tests. |
 
 Any row that cannot be mapped fails the whole import. No partial imports.
@@ -505,7 +530,16 @@ every non-dropped source id is present with the same id.
 - Time: inject `TimeProvider`, plus a `UserClock` (as Motorsports) to convert to and from `App:TimeZone`. "Today" for
   the default `Datum` comes from `UserClock`.
 - **Globalization**: unlike Motorsports, set `InvariantGlobalization=false`. nl-BE formatting needs ICU, so use the
-  `aspnet:10.0-noble-chiseled-extra` runtime image (ICU + tzdata).
+  `aspnet:10.0-noble-chiseled-extra` runtime image (ICU + tzdata). Motorsports has no request localization, so set it
+  up here: `UseRequestLocalization` with `nl-BE` as the default and only supported culture (also for the Blazor
+  circuit), `AddMudTranslations()` (the package needs this to work), `<html lang="nl-BE">`. Dev machines run on
+  Windows with ICU, where IANA time zone ids resolve; Motorsports' `UserClock.ResolveZone` fallback to
+  `TimeZoneInfo.Local` is then only a last resort and must not hide an invalid `App:TimeZone` (that fails validation
+  on start).
+- **`UserClock`**: copy it to Common, but resolve "today" from the configured `App:TimeZone` only. Motorsports applies
+  the browser time zone after first render and forbids using it for validation; MovieDB has no browser-zone
+  detection, so the same clock is used for the default Datum, the validators (max `watched_on`, max `release_year`)
+  and display. Register it as a singleton.
 - Formatting: dates `dd/MM/yyyy`, thousands separator `.` (for example "1.203 films").
 
 ### 7.3 Logging and health
@@ -619,8 +653,10 @@ The layout is equivalent to `frmFilms`, modernised:
   "Nieuwe film").
 - **Record navigation** button group: `Eerste`, `Vorige`, `Volgende`, `Laatste` and `Nieuw`, with the tooltips from
   §2.2 and Dutch aria-labels ("Eerste film", …). The position indicator reads "12 van 1.203".
-  - Navigation follows the **overview's current sort and search** (passed through the query string). Without context
-    it uses the default sort. Eerste/Vorige are disabled on the first record; Volgende/Laatste on the last.
+  - Navigation follows the **overview's current sort and search**, passed through the query string as
+    `?q=&sort=&dir=` (same names and defaults as §8.3). The edit page also passes `page` and `size` through
+    untouched, so "← Overzicht" restores the exact overview view. Without context it uses the default sort.
+    Eerste/Vorige are disabled on the first record; Volgende/Laatste on the last.
   - Each move runs a server query by sort-key seek, not by loading all ids (same ordering, including NULLs-last and
     the id tie-breaker, as the overview). The position comes from a `COUNT` of rows before the current one. If the
     current film no longer matches the search (for example, after its title was edited), navigation falls back to
@@ -697,6 +733,11 @@ The layout is equivalent to `frmFilms`, modernised:
   Desktop) must run for characteristics and browser tests.
 - Make the import tool's source reader an abstraction so tests can feed synthetic rows. The ODBC reader itself is
   verified manually in M3.
+- **Browser tests** need a real HTTP listener: Playwright and the Blazor circuit (WebSocket) cannot use the in-memory
+  `TestServer` of `WebApplicationFactory`. Start the host on a random local port (a Kestrel-backed fixture, or launch
+  the built `MovieDB.Web` as a process with `ConnectionStrings__MovieDb` pointing at the Testcontainers DB), seed
+  synthetic data, and install the Playwright browsers once (`playwright.ps1 install chromium`). This is new
+  relative to Motorsports.
 
 ---
 
@@ -742,15 +783,28 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
   `dotnet MovieDB.Web.dll --health-check`.
   - Environment variables, as in Motorsports (`KEY=${SOURCE_VAR:?…}` for required secrets):
     `ConnectionStrings__MovieDb=${MOVIEDB_CONNECTION_STRING}`, image tag `${MOVIEDB_VERSION}`,
-    `App__TimeZone=Europe/Brussels`, `Health__PublicUrl`, `Auth__SecureCookies=true`,
-    `ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0}`,
+    `App__TimeZone=Europe/Brussels`, `Health__PublicUrl=https://mdb.dalion.eu`, `Auth__SecureCookies=true`,
+    `ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0:-172.18.0.3}` (the Nginx Proxy Manager
+    container IP, confirmed by the owner),
     `DataProtection__CertificatePath=/run/secrets/dataprotection.pfx` and
     `DataProtection__CertificatePassword=${DATAPROTECTION_CERTIFICATE_PASSWORD}`.
     The owner sets the values in the stack at deployment.
   - The PFX is bind-mounted read-only from `/etc/dalion/moviedb/secrets/`.
-- **Database**: the existing production MariaDB 12.3 instance, with a separate database `moviedb` and a separate user
-  that has privileges on `moviedb` only.
-- `backup.ps1` runs `mariadb-dump` of `moviedb`, excluding `data_protection_keys` data (as Motorsports).
+- **Database**: the existing production MariaDB 12.3.3 instance (container `mariadb`, hostname `mariadb`, on
+  `motorsports_net`; see `docker-compose/mariadb` in the Motorsports repo), with a separate database `moviedb` and a
+  separate user that has privileges on `moviedb` only (it needs DDL for the startup migrations). The production
+  connection string therefore reads
+  `Server=mariadb;Port=3306;Database=moviedb;User=moviedb;Password=<secret>;CharSet=utf8mb4`.
+- **Ingress**: the container listens on 8080 (`ASPNETCORE_HTTP_PORTS=8080` in the image; do not set
+  `Kestrel__Endpoints__Http__Url` as Motorsports' compose does). In Nginx Proxy Manager add a proxy host for the
+  public hostname `mdb.dalion.eu` that forwards to `moviedb:8080` with TLS, "Force SSL" and HSTS, and WebSocket support
+  enabled (Blazor Server needs WebSockets). `Health__PublicUrl` is `https://mdb.dalion.eu`, and
+  `ForwardedHeaders__KnownProxies__0` is the NPM container IP `172.18.0.3` (confirmed by the owner). The app itself
+  must also send an HSTS header (`UseHsts` outside Development) and treat the site as HTTPS-only (`Secure` cookies).
+- **Compose service name**: `moviedb` (container and image `moviedb-web:${MOVIEDB_VERSION}`), which must differ from
+  Motorsports' `motorsports` container.
+- `backup.ps1` runs `mariadb-dump` of `moviedb`, excluding `data_protection_keys` data (as Motorsports). README also
+  documents the restore (drop/create `moviedb` with the right charset and collation, load the dump, start the app).
 - **First deployment** (documented step by step in README):
   1. Locally: run `Import-Access.ps1` on a fresh local database to produce and verify
      `artifacts/import/moviedb-data.sql`.
@@ -777,8 +831,28 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 
 ---
 
-## 13. Open questions
+## 13. Open questions and decisions from review
 
-None. Q-b (keep the oldest row), Q-c (keep Skyfall 747) and Q-j (local MariaDB upgraded to 12.3.3) are decided and
-recorded in §3, §2.3, §6.3 and §11.1. Ask the owner before deciding anything new that the code or this plan does not
-establish.
+The owner answered the questions raised in the review of AGENTS.md and PLAN.md:
+
+| # | Question | Answer |
+|---|---|---|
+| Q-k | Public hostname? | `https://mdb.dalion.eu`, HTTPS only (HSTS). Used for `Health__PublicUrl`, the NPM proxy host and `Secure` cookies. |
+| Q-l | Is the NPM container IP still `172.18.0.3`? | Yes. Default `ForwardedHeaders__KnownProxies__0` to it. |
+| Q-m | Share the existing production MariaDB and its resource limit? | Yes. |
+| Q-n | Production DB host and user? | Host `mariadb`, with its own `moviedb` user (privileges on `moviedb` only). |
+
+All questions are answered; nothing is assumed any more.
+Review findings already resolved in the text above (no action needed, listed for traceability):
+
+- AccessImport targets `net10.0`, not `net10.0-windows` (§4.2), so that the unit tests can reference it.
+- `-DryRun` semantics are defined once (§6.2).
+- Duplicate detection must agree with the DB collation; a parity test and the unique key are the safeguards (§6.3).
+- The default-sort index claim was wrong for a mixed `DESC, ASC` order and is corrected (§5.1).
+- `UserClock` uses only the configured time zone, so validators may use it (§7.2); culture and `MudBlazor.Translations`
+  setup is specified (§7.2).
+- Browser tests need a real HTTP listener (§9); ingress port 8080 and NPM WebSocket support are specified (§11.2).
+
+Ask the owner before deciding anything new that the code or this plan does not establish. Earlier decisions: Q-b (keep
+the oldest row), Q-c (keep Skyfall 747) and Q-j (local MariaDB upgraded to 12.3.3) are recorded in §3, §2.3, §6.3 and
+§11.1.

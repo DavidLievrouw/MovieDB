@@ -10,14 +10,28 @@
   overview and edit pages), MudBlazor 9, EF Core 10 with `Microting.EntityFrameworkCore.MySql`, MariaDB 12.3,
   ASP.NET Core Identity Core with cookie auth, FluentValidation, Serilog, Vogen.
 - **Runtime/deployment:** Linux container (`aspnet:10.0-noble-chiseled-extra`, non-root, port 8080) on the same Docker
-  host and network as Motorsports, behind Nginx Proxy Manager (TLS), using the shared MariaDB instance (database
-  `moviedb`). Local development uses the local Docker MariaDB container `mariadb` (12.3.3) on `localhost:3306` with its
+  host and Docker network as the owner's other web application, behind Nginx Proxy Manager (TLS), using the shared
+  MariaDB instance (database `moviedb`). Public URL: `https://mdb.dalion.eu` (HTTPS only, HSTS). Local development uses the local Docker MariaDB container `mariadb` (12.3.3) on `localhost:3306` with its
   own `moviedb` database and user.
 - **Current plan and handover:** [`PLAN.md`](PLAN.md) covers the source analysis, decisions, data model, import, UI
-  spec and milestones (all planning questions are answered). Phase 1 (MVP) means functional equivalence with the
-  Access input form, plus a sortable overview, add/edit and login.
-- **Reference repository:** `C:\_git\Motorsports` (read-only). Mirror its auth, migrator, options, time zone, Docker,
-  compose, backup and tooling patterns unless PLAN.md says otherwise.
+  spec and milestones. Phase 1 (MVP) means functional equivalence with the
+  Access input form, plus a sortable overview, add/edit and login. PLAN.md §13 records the owner's answers to the
+  review questions.
+- **Reference implementation:** a sibling repository by the same owner is the pattern source for auth, migrator,
+  options, time zone, Docker, compose, backup and tooling. PLAN.md names it and says where to find it. It is read-only.
+  Mirror its patterns unless PLAN.md or this file says otherwise. Its package versions are the starting point
+  (PLAN.md §4.1).
+- **Precedence:** AGENTS.md holds the conventions, PLAN.md the product spec. If the two, or a document and the
+  code/environment, disagree, stop and ask the owner before choosing. Record the answer in PLAN.md §3 and §13.
+- **Deliberate differences from the reference implementation** (do not copy its behavior blindly here):
+  - Database objects are `snake_case` with plural names, not PascalCase.
+  - `InvariantGlobalization=false`, culture `nl-BE` and request localization, instead of an invariant culture.
+  - `MudBlazor.Translations` is used for Dutch component text.
+  - No forced password change on first login.
+  - `UserClock` uses only the configured `App:TimeZone` (no browser time-zone detection), so it is also safe for
+    validation.
+  - Browser tests (Playwright) are new.
+  - The container listens on 8080 and compose does not override the Kestrel URL.
 
 ### Architecture
 
@@ -33,9 +47,11 @@ Solution `src/MovieDB.slnx` (PLAN.md §4.2):
   user seeder, Identity stores, DataProtection key store.
 - **`MovieDB.Movies`:** feature slice for the overview and edit/new pages, queries, commands, validators and
   `MoviesModule`.
-- **`src/tools/MovieDB.AccessImport`:** Access → MariaDB import (Windows x64, ODBC) into the **local** database. Run it
-  through `scripts/Import-Access.ps1`, which also produces the guarded production data dump. It is not shipped in the
-  image.
+- **`src/tools/MovieDB.AccessImport`:** Access → MariaDB import into the **local** database. It targets plain `net10.0`
+  (so the test projects can reference it) with `PlatformTarget=x64`; only the ODBC reader needs Windows and the 64-bit
+  Access driver, and it sits behind a source abstraction. The cleanup, de-duplication and correction rules are
+  platform-neutral and unit-tested. Run it through `scripts/Import-Access.ps1`, which also produces the guarded
+  production data dump. It is not shipped in the image.
 - **`src/tests/`:** `MovieDB.UnitTests`, `MovieDB.CharacteristicsTests` (WebApplicationFactory + Testcontainers),
   `MovieDB.ArchitectureTests` (NetArchTest), `MovieDB.BrowserTests` (Playwright .NET).
 
@@ -43,6 +59,7 @@ Dependency directions:
 
 - Web → all. Movies and Auth → Common, Ui, Infrastructure. Features never reference each other.
 - Ui → Common. Infrastructure → Common. AccessImport → Common, Infrastructure. Common → nothing.
+- Test projects may reference anything. Nothing in `src/MovieDB.*` references `tools/` or `tests/`.
 
 These are enforced by architecture tests. Each slice registers through `*Module.Add<Slice>Services()`.
 
@@ -65,7 +82,7 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   `OverallScore`, `StoryScore`, `PictureScore`, `MusicScore`, `SoundScore`, `ExtrasScore`). Suggestion values (genres,
   media) are Dutch domain data. In the UI, a viewing of a film is called a **"Vertoning"** (never "kijkbeurt").
 - Database objects use lowercase `snake_case` with plural table names, mapped explicitly. This deliberately differs
-  from Motorsports.
+  from the reference implementation.
 - Build settings live in `src/Directory.Build.props` (net10.0, C# 14, nullable, `TreatWarningsAsErrors`, Roslynator,
   `InternalsVisibleTo` tests). Package versions live in `src/Directory.Packages.props` (central package management).
   Format with CSharpier (`.csharpierrc.yaml`, printWidth 120); follow `.editorconfig`. Line endings are **LF**.
@@ -76,9 +93,10 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - Prefer internal visibility by default; expose only module entry points and types required across project boundaries.
 - Use `Result<T>`/`Error`/`ErrorKind` for expected failures and FluentValidation (Dutch messages) for input. Validate
   before mutating state.
-- Use strongly typed IDs (Vogen) for entity keys (`MovieId`, `GenreId`, `MediumId`, `UserId`), as Motorsports does.
-- Use `TimeProvider` and `UserClock` (time zone from `App:TimeZone`). Never call `DateTime.Now`/`UtcNow` in business
-  logic. Store UTC and display in the user's time zone. `watched_on` is a date (`DateOnly`).
+- Use strongly typed IDs (Vogen) for entity keys (`MovieId`, `GenreId`, `MediumId`, `UserId`).
+- Use `TimeProvider` and `UserClock` (time zone from `App:TimeZone` only; it lives in Common). Never call
+  `DateTime.Now`/`UtcNow` in business logic. Store UTC and display in the configured time zone. `watched_on` is a date
+  (`DateOnly`). Validators and commands get "today"/"current year" from `UserClock`, never from the browser.
 - Keep route and external data formats stable unless a change is intentional and documented.
 - **Authentication:** the fallback policy requires an authenticated user. Only login, access-denied, health and static
   assets allow anonymous access. Auth pages are static SSR with antiforgery. Logout is POST only. `returnUrl` must be
@@ -132,7 +150,10 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   §8: a dark-first theme with a light toggle, the given palette, score pills and the sticky save bar. Do not add a
   second framework or ad-hoc controls without a clear need.
 - Culture is `nl-BE`: dates `dd/MM/yyyy`, Monday is the first day of the week, `.` is the thousands separator.
-  `InvariantGlobalization` must be **false**, unlike Motorsports.
+  `InvariantGlobalization` must be **false**. `MudBlazor.Translations` only works when Blazor
+  localization is configured: call `AddMudTranslations()`, use `UseRequestLocalization` with `nl-BE` as the only
+  supported and default culture, and use `<html lang="nl-BE">`. Verify that the Dutch strings appear (the package
+  may only ship `nl`, which `nl-BE` falls back to); subclass `MudLocalizer` for gaps.
 - Configuration uses Options with `ValidateOnStart`:
   - `ConnectionStrings:MovieDb`: user-secrets in development; `ConnectionStrings__MovieDb` in deployment (compose maps
     it from `MOVIEDB_CONNECTION_STRING`).
@@ -140,9 +161,9 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   - `Auth:*`, `DataProtection:*`, `ForwardedHeaders:KnownProxies`, `Health:PublicUrl`.
 - Design mobile-first and verify key flows at narrow and desktop widths (390px and 1440px).
 - Prefer static/server-rendered content when it does not need client interactivity. Add interactivity only where the
-  user experience requires it. As in Motorsports: global `InteractiveServer` routing, with auth and error pages opted
+  user experience requires it. Use global `InteractiveServer` routing, with auth and error pages opted
   out through `[ExcludeFromInteractiveRouting]` (static SSR). Avoid double data loads during prerendering.
-- Send the Motorsports security headers (CSP with a per-request nonce on every `<script>`, `X-Frame-Options`, etc.).
+- Send the security headers of the reference implementation (CSP with a per-request nonce on every `<script>`, `X-Frame-Options`, etc.).
   Load no external scripts, styles or fonts.
 - Validate configuration at startup. Use local secret storage for development and environment/secret-manager
   configuration in deployment. Never commit secrets.
@@ -167,6 +188,11 @@ input, boundary cases, concurrency/conflicts, and important business rules—not
 
 - Test stack: xUnit v3 (Microsoft.Testing.Platform), Shouldly, bUnit, Testcontainers, NetArchTest, Playwright.
 - Characteristics and browser tests require Docker (Rancher Desktop) to be running.
+- Browser tests need a real HTTP listener (not the in-memory `TestServer`), because Playwright and the Blazor circuit
+  connect over HTTP/WebSocket. Browsers are installed once with
+  `pwsh src/tests/MovieDB.BrowserTests/bin/Debug/net10.0/playwright.ps1 install chromium` after a build.
+- Characteristics tests that need `Program` use `WebApplicationFactory<Program>`; the host project exposes it
+  (`public partial class Program`).
 
 ### End-of-task routine
 
@@ -206,8 +232,9 @@ Run the smallest relevant checks, then expand when results warrant it:
   `aspnet:10.0-noble-chiseled-extra` runtime (ICU + tzdata), running as `$APP_UID`. The image tag `moviedb-web:<ver>`
   comes from `version.txt`.
 - Listening address/port and health probe:
-  - Port 8080 in the container. `docker-compose/moviedb-web` joins the external network `motorsports_net` with no host
-    port; Nginx Proxy Manager terminates TLS.
+  - Port 8080 in the container. `docker-compose/moviedb-web`   joins the existing external Docker network of the shared
+      MariaDB and proxy (name in PLAN.md §11.2) with no host port; Nginx Proxy Manager terminates TLS for
+      `https://mdb.dalion.eu`.
   - Forwarded headers come from known proxies only.
   - The healthcheck runs `dotnet MovieDB.Web.dll --health-check`.
 - Database backup/restore and migration procedure:
@@ -224,7 +251,7 @@ Run the smallest relevant checks, then expand when results warrant it:
     environment only, never in the repo.
   - Rotating the PFX invalidates auth cookies; users log in again.
 - Logging, monitoring, and resource limits: Serilog to the console, read with `docker logs`. Compose healthcheck.
-  Resource limits follow Motorsports.
+  Resource limits follow the reference implementation's compose files; the shared MariaDB keeps its existing limit.
 
 Use supported .NET runtime and SDK versions. Keep local development, tests, and production configuration consistent
 without copying production secrets or data into development.
@@ -249,7 +276,12 @@ Record only decisions that are binding for this repository:
   in README. CI is out of scope.
 - **Known constraints and gotchas:**
   - Pomelo has no EF Core 10 release; use `Microting.EntityFrameworkCore.MySql` (same API).
-  - The Access ODBC driver is 64-bit only, so the import tool must run as x64 on Windows.
+  - The Access ODBC driver is 64-bit only ("Microsoft Access Driver (*.mdb, *.accdb)"; the 32-bit drivers on this
+    machine are not usable), so the import tool must run as x64 on Windows.
+  - The Access source is read through ODBC only; no Python or `pyodbc` is installed here.
+  - Duplicate detection in the import must agree with the DB collation `utf8mb4_uca1400_ai_ci`. A .NET comparer is
+    only an approximation; see PLAN.md §6.3.
+  - The Docker healthcheck image is chiseled (no shell), so it uses the exec form `["CMD", "dotnet", …]`.
   - The column `[Gezien op]` contains a space. `Duur`, `Jaar` and `Extras` are text in Access. `Extras` uses `"n/a"`
     and scores use `0` for "empty".
   - Source data quirks (polluted titles and directors, whitespace, duplicate Title + Year + Director groups) are
