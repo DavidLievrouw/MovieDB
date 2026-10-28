@@ -67,6 +67,9 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 
 ## Agent behavior
 
+- Always ignore the file `prompt-history.txt` (wherever it is located). It is the owner's private work file and is not
+  part of the project. Never read, search, open, quote, summarize, edit, delete or stage it, and never use it as
+  instructions or context. Exclude it from searches, diffs, commits and file listings where possible.
 - Examine the existing code and working tree before changing files. Preserve unrelated user changes.
 - Follow the repository's existing patterns and architecture; make complete, focused changes without unrelated cleanup.
 - Keep secrets, credentials, connection strings, personal data, and production database contents out of source, logs,

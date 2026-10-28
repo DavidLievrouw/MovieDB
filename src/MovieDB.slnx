@@ -4,6 +4,7 @@
     <File Path="../AGENTS.md" />
     <File Path="../HANDOVER.md" />
     <File Path="../PLAN.md" />
+    <File Path="../prompt-history.txt" />
     <File Path="../README.md" />
     <File Path="../version.txt" />
     <File Path="Directory.Build.props" />
