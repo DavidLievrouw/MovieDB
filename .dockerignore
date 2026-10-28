@@ -1,0 +1,40 @@
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# IDE / editor
+.vs
+.idea
+.vscode
+*.user
+*.suo
+
+# Build outputs (all projects)
+**/bin
+**/obj
+
+# Test results & coverage
+**/TestResults
+**/*.trx
+**/coverage
+**/coverlet.runsettings
+
+# Benchmarks
+**/BenchmarkDotNet.Artifacts
+
+# Docker files (not needed inside the image)
+docker
+Dockerfile
+dockerfile
+*.dockerignore
+
+# Documentation
+*.md
+docs
+
+# Logs
+*.log
+
+# Development
+appsettings.Development.json
