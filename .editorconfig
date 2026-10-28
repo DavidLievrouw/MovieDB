@@ -91,6 +91,10 @@ dotnet_style_qualification_for_method = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
 dotnet_style_require_accessibility_modifiers = for_non_interface_members:suggestion
 
+# Primary constructors are not used: declare fields and an explicit constructor (positional records are fine)
+csharp_style_prefer_primary_constructors = false:suggestion
+dotnet_diagnostic.IDE0290.severity = none
+
 # ReSharper properties
 resharper_autodetect_indent_settings = true
 resharper_braces_for_for = required

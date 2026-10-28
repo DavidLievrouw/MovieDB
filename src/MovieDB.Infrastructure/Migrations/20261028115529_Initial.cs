@@ -8,7 +8,7 @@ namespace MovieDB.Infrastructure.Migrations;
 /// Creates the domain and auth tables. MariaDB DDL is not transactional, so every statement is a single
 /// self-guarding CREATE TABLE IF NOT EXISTS (keys and constraints inline); a run that failed half-way can be retried.
 /// </summary>
-public partial class Initial : Migration
+internal partial class Initial : Migration
 {
     private const string TableOptions = "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci";
 

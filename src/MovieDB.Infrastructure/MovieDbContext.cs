@@ -7,12 +7,13 @@ using Vogen;
 
 namespace MovieDB.Infrastructure;
 
-public sealed class MovieDbContext(DbContextOptions<MovieDbContext> options)
-    : DbContext(options),
-        IDataProtectionKeyContext
+public sealed class MovieDbContext : DbContext, IDataProtectionKeyContext
 {
     /// <summary>The database collation: case- and accent-insensitive, so uniqueness and search behave as the owner expects.</summary>
     public const string Collation = "utf8mb4_uca1400_ai_ci";
+
+    public MovieDbContext(DbContextOptions<MovieDbContext> options)
+        : base(options) { }
 
     public DbSet<Movie> Movies => Set<Movie>();
     public DbSet<Genre> Genres => Set<Genre>();

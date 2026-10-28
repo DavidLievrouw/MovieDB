@@ -21,7 +21,7 @@
   review questions.
 - **Reference implementation:** a sibling repository by the same owner is the pattern source for auth, migrator,
   options, time zone, Docker, compose, backup and tooling. PLAN.md names it and says where to find it. It is read-only.
-  Mirror its patterns unless PLAN.md or this file says otherwise. Its package versions are the starting point
+  Mirror its patterns unless PLAN.md or this file says otherwise. Its package versions are the starting pointgfj
   (PLAN.md §4.1).
 - **Precedence:** AGENTS.md holds the conventions, PLAN.md the product spec. If the two, or a document and the
   code/environment, disagree, stop and ask the owner before choosing. Record the answer in PLAN.md §3 and §13.
@@ -95,7 +95,14 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   feature.
 - Keep reusable UI independent of feature and database projects. Feature projects should not reference one another
   unless the architecture explicitly permits it.
-- Prefer internal visibility by default; expose only module entry points and types required across project boundaries.
+- Make a type `public` only when another production assembly must use it, or the host requires it (`Program` for
+  `WebApplicationFactory`). Everything else is `internal`, including options, stores, health checks, assembly markers and
+  EF migrations/design-time factories. Tests see internals through `InternalsVisibleTo`; do not make a type public for a
+  test. Generated Razor components are always public (the Razor compiler cannot emit internal components). Re-check
+  visibility when adding a type, and make newly scaffolded migrations `internal`. This does not apply to test projects.
+- Do not use primary constructors on classes or structs: declare `private readonly` fields (`_camelCase`) and an
+  explicit constructor. Primary constructors (positional parameter lists) **are** allowed, and preferred, on `record`
+  and `record struct` types, which are small immutable data carriers. This applies to test projects too.
 - Use `Result<T>`/`Error`/`ErrorKind` for expected failures and FluentValidation (Dutch messages) for input. Validate
   before mutating state.
 - Use strongly typed IDs (Vogen) for entity keys (`MovieId`, `GenreId`, `MediumId`, `UserId`).
@@ -105,7 +112,9 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - Keep route and external data formats stable unless a change is intentional and documented.
 - **Authentication:** the fallback policy requires an authenticated user. Only login, access-denied, health and static
   assets allow anonymous access. Auth pages are static SSR with antiforgery. Logout is POST only. `returnUrl` must be
-  local. When the `users` table is empty, startup seeds the default user `admin` / `demodemo` exactly once; the owner can
+  local. When the `users` table is empty, startup seeds the default user `admin` exactly once, with the password from
+  the `Auth__DefaultPassword` environment variable (compose: `MOVIEDB_DEFAULT_PASSWORD`; the launch profile sets
+  `demodemo`; startup fails if it is missing); the owner can
   change the password at `/account/wachtwoord`. There is no registration UI and no user management.
 
 ## MariaDB and data access
@@ -220,7 +229,8 @@ Run the smallest relevant checks, then expand when results warrant it:
 - Restore tools: `dotnet tool restore`
 - Access import + production dump (local DB only):
   `./scripts/Import-Access.ps1 -Source .\FilmsBase.mdb [-Reset] [-DryRun] [-SkipDump] [-DumpPath .\artifacts\import\moviedb-data.sql]`
-- Default login after a fresh database: `admin` / `demodemo` (seeded once on startup).
+- Default login after a fresh database: `admin` / `demodemo` (seeded once on startup; the password comes from
+  `Auth__DefaultPassword`, set by the launch profile).
 
 ## Performance and reliability
 

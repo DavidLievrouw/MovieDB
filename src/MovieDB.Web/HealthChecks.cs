@@ -6,8 +6,15 @@ using MovieDB.Infrastructure;
 
 namespace MovieDB.Web;
 
-internal sealed class DatabaseHealthCheck(IDbContextFactory<MovieDbContext> factory) : IHealthCheck
+internal sealed class DatabaseHealthCheck : IHealthCheck
 {
+    private readonly IDbContextFactory<MovieDbContext> _factory;
+
+    public DatabaseHealthCheck(IDbContextFactory<MovieDbContext> factory)
+    {
+        _factory = factory;
+    }
+
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default
@@ -15,7 +22,7 @@ internal sealed class DatabaseHealthCheck(IDbContextFactory<MovieDbContext> fact
     {
         try
         {
-            await using var db = await factory.CreateDbContextAsync(cancellationToken);
+            await using var db = await _factory.CreateDbContextAsync(cancellationToken);
             _ = await db.Genres.AsNoTracking().AnyAsync(cancellationToken);
             return HealthCheckResult.Healthy();
         }
@@ -27,10 +34,19 @@ internal sealed class DatabaseHealthCheck(IDbContextFactory<MovieDbContext> fact
     }
 }
 
-internal sealed class PublicHostHealthCheck(IHttpClientFactory clients, IOptions<HealthOptions> options) : IHealthCheck
+internal sealed class PublicHostHealthCheck : IHealthCheck
 {
     public const string ClientName = "public-host-health";
     public const string LivenessResponse = "MovieDB";
+
+    private readonly IHttpClientFactory _clients;
+    private readonly IOptions<HealthOptions> _options;
+
+    public PublicHostHealthCheck(IHttpClientFactory clients, IOptions<HealthOptions> options)
+    {
+        _clients = clients;
+        _options = options;
+    }
 
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
@@ -39,9 +55,9 @@ internal sealed class PublicHostHealthCheck(IHttpClientFactory clients, IOptions
     {
         try
         {
-            using var client = clients.CreateClient(ClientName);
+            using var client = _clients.CreateClient(ClientName);
             using var response = await client.GetAsync(
-                new Uri(new Uri(options.Value.PublicUrl!), "/health/live"),
+                new Uri(new Uri(_options.Value.PublicUrl!), "/health/live"),
                 cancellationToken
             );
             if (
@@ -61,7 +77,7 @@ internal sealed class PublicHostHealthCheck(IHttpClientFactory clients, IOptions
     }
 }
 
-public sealed class HealthOptions
+internal sealed class HealthOptions
 {
     public const string Section = "Health";
 

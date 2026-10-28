@@ -6,16 +6,24 @@ namespace MovieDB.Common;
 /// The owner's "today", derived only from the configured IANA time zone (App:TimeZone). It never depends on the
 /// browser, so it is safe for validation and writes.
 /// </summary>
-public sealed class UserClock(TimeProvider timeProvider, TimeZoneInfo zone)
+public sealed class UserClock
 {
-    public TimeZoneInfo Zone => zone;
+    private readonly TimeProvider _timeProvider;
 
-    public DateOnly Today => TodayAt(timeProvider.GetUtcNow());
+    public UserClock(TimeProvider timeProvider, TimeZoneInfo zone)
+    {
+        _timeProvider = timeProvider;
+        Zone = zone;
+    }
+
+    public TimeZoneInfo Zone { get; }
+
+    public DateOnly Today => TodayAt(_timeProvider.GetUtcNow());
 
     public int CurrentYear => Today.Year;
 
     public DateOnly TodayAt(DateTimeOffset utcNow) =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, zone).DateTime);
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(utcNow, Zone).DateTime);
 
     /// <summary>Resolves an IANA id; unknown or malformed ids are reported instead of silently using the machine zone.</summary>
     public static bool TryResolveZone(string? id, [NotNullWhen(true)] out TimeZoneInfo? zone)

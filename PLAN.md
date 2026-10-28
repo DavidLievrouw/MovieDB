@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** M0 (scaffold) and M1 (data) implemented; M1 awaiting owner review. M2 has not started. All §13 questions are answered.
+**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 has not started. All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -180,7 +180,7 @@ Single-record form, caption "Films", header "Database van films". The tab order 
 | d | Terms | `StoryScore` for "Film", `Medium` for "Gezien op/in", `Review` for "Opmerkingen". Dutch word for a viewing: **"Vertoning"**. |
 | e | Environments | Production runs on the Motorsports server (shared MariaDB instance, NPM proxy). Development uses the **local Docker MariaDB at `localhost:3306`**, with a dedicated `moviedb` database. The owner configures the production connection string through env vars in the compose stack. |
 | f | Production data | Import **locally**, then produce a **`.sql` data dump** that the owner runs on the production database. |
-| g | Users | Seed a default user **`admin` / `demodemo`** once. The owner may change the password after logging in. |
+| g | Users | Seed a default user **`admin`** once (when `users` is empty). Its password comes from the `Auth:DefaultPassword` setting (env `Auth__DefaultPassword`, set in the compose stack from `${MOVIEDB_DEFAULT_PASSWORD}`; the `http` launch profile and the characteristics tests set `demodemo`). It is never hard-coded in the app. Startup fails with a clear message when the table is empty and no password is configured. The owner may change the password after logging in. |
 | h | Formatting | CSharpier with **LF** line endings (as Motorsports). |
 | i | IDs | Vogen strongly typed IDs (as Motorsports). |
 | j | M1 implementation choices | `UserId` is a GUID string (`users.id` varchar(36)), as Motorsports. Auth throttle table is `auth_throttle_states`, DataProtection table `data_protection_keys`. The initial migration is hand-written with self-guarding `CREATE TABLE IF NOT EXISTS` / `DROP TABLE IF EXISTS` so it is retry-safe after a partial failure (the generated Designer and snapshot are kept). `UserClock` is a singleton and throws on an invalid `App:TimeZone`; this is validated at startup. `Health:PublicUrl` has no default; the public-host health check is registered only when set. The connection string must use `CharSet=utf8mb4` (validated at startup). Local dev port is 4200. |
@@ -360,11 +360,12 @@ auth throttle table(s).
   used by the import tool) and the startup path (migrate + seed). EF keeps its default history table
   `__EFMigrationsHistory` (§6.5 relies on it).
 - **Default user seeding** runs after the migrations, inside the same lock. If the `users` table is **empty**, create
-  user `admin` with password `demodemo` through `UserManager`/`PasswordHasher` (never store a literal hash). If any user
+  user `admin` with the password from `Auth:DefaultPassword` (env `Auth__DefaultPassword`; if it is missing, fail
+  startup) through `UserManager`/`PasswordHasher` (never store a literal hash). If any user
   exists, do nothing. So it happens exactly once per database.
   - While `admin` still has the default password, log a Warning at startup: "Default admin password is still in use".
-    Detect it after seeding by verifying `demodemo` against the stored hash with `PasswordHasher` (result not
-    `Failed`). Do not log the password itself. There is no UI banner.
+    Detect it after seeding by verifying the configured password against the stored hash with `PasswordHasher` (result
+    not `Failed`). Do not log the password itself. There is no UI banner.
 - MariaDB DDL is not transactional, so migrations must be safe to re-run after a partial failure (self-guarding SQL
   where needed). Test repeated and concurrent startup.
 - No `EnableRetryOnFailure` (it conflicts with user transactions; Motorsports gotcha).
@@ -524,6 +525,7 @@ every non-dropped source id is present with the same id.
 | `App:Culture` | – | fixed `nl-BE` (not configurable in the MVP) |
 | `Auth:SecureCookies` | `Auth__SecureCookies` | `true` in `appsettings.json`; `false` in `appsettings.Development.json` |
 | `Auth:Protection:*` | | as Motorsports |
+| `Auth:DefaultPassword` | `Auth__DefaultPassword` (compose: `${MOVIEDB_DEFAULT_PASSWORD:?…}`) | password of the seeded `admin`; only read when `users` is empty, then required (startup fails without it). Dev: set by the launch profile |
 | `DataProtection:CertificatePath` / `CertificatePassword` | compose: `DataProtection__CertificatePassword=${DATAPROTECTION_CERTIFICATE_PASSWORD}` | required outside Development |
 | `ForwardedHeaders:KnownProxies:0` | compose: `ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0}` | proxy container IP |
 | `Health:PublicUrl` | `Health__PublicUrl` | optional; when empty (dev, tests) the public-URL check is not registered |
@@ -749,8 +751,8 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 | # | Milestone | Done when |
 |---|---|---|
 | M0 | **Scaffold**: repo files (`global.json`, tools, `.csharpierrc.yaml`, `version.txt`, `.editorconfig` → LF), `src/` solution and projects, Directory props, empty test projects, architecture tests, README skeleton. The local `moviedb` database, user and user-secrets connection string already exist (§11.1, created by the owner); the `MovieDB.Web` project uses that `UserSecretsId` | Build and the (empty) test run pass |
-| M1 | **Data** (done, awaiting review): entities, `MovieDbContext`, configurations, initial migration (domain + auth tables), `DatabaseMigrator`, health endpoints, options validation, Serilog | Characteristics tests for migrations and constraints pass; the app migrates the local `moviedb` |
-| M2 | **Auth**: Identity Core stores, cookie auth, login/logout/access-denied/change-password pages, throttling, DataProtection, default `admin` seeding, fallback policy | Auth characteristics tests pass; local login as `admin` works |
+| M1 | **Data** (done): entities, `MovieDbContext`, configurations, initial migration (domain + auth tables), `DatabaseMigrator`, health endpoints, options validation, Serilog | Characteristics tests for migrations and constraints pass; the app migrates the local `moviedb` |
+| M2 | **Auth** (done, awaiting review): Identity Core stores, cookie auth, login/logout/access-denied/change-password pages, throttling, DataProtection, default `admin` seeding, fallback policy | Auth characteristics tests pass; local login as `admin` works |
 | M3 | **Import**: tool, `Import-Access.ps1` (`-Reset`, `-DryRun`, dump + dump verification), verification report. Run it against the local `FilmsBase.mdb` | Report matches §6.4; dump verification passes; unit tests for the rules pass |
 | M4 | **UI shell + overview**: theme, fonts, layout, login styling, overview with search/sort/paging/URL state, mobile cards | Characteristics + bUnit tests pass; manual check at 390px and 1440px |
 | M5 | **Edit/new**: form, ScoreInput, SuggestField, validation, duplicate check, save, concurrency, record navigation, unsaved-changes guard | §8.6 checklist ticked; tests pass |
@@ -770,7 +772,8 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 - Connection string in user-secrets (`dotnet user-secrets` on `MovieDB.Web`, `UserSecretsId`
   `9b46a74e-075e-4f32-b29a-dc9bd38c1cec`):
   `Server=localhost;Port=3306;Database=moviedb;User=moviedb;Password=…;CharSet=utf8mb4`.
-- On first start, the app migrates and seeds `admin` / `demodemo`.
+- On first start, the app migrates and seeds `admin` with the password from `Auth__DefaultPassword` (`demodemo`,
+  set by the `http` launch profile).
 - Import with `./scripts/Import-Access.ps1 -Source .\FilmsBase.mdb`. This also produces the production dump.
 - Development, tests and production all run MariaDB 12.3.3. Keep them aligned when upgrading.
 
@@ -787,7 +790,9 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
     `ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0:-172.18.0.3}` (the Nginx Proxy Manager
     container IP, confirmed by the owner),
     `DataProtection__CertificatePath=/run/secrets/dataprotection.pfx` and
-    `DataProtection__CertificatePassword=${DATAPROTECTION_CERTIFICATE_PASSWORD}`.
+    `DataProtection__CertificatePassword=${DATAPROTECTION_CERTIFICATE_PASSWORD}`, and
+    `Auth__DefaultPassword=${MOVIEDB_DEFAULT_PASSWORD:?…}` (initial `admin` password, only used when the database has
+    no users).
     The owner sets the values in the stack at deployment.
   - The PFX is bind-mounted read-only from `/etc/dalion/moviedb/secrets/`.
 - **Database**: the existing production MariaDB 12.3.3 instance (container `mariadb`, hostname `mariadb`, on
@@ -810,7 +815,8 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
      `artifacts/import/moviedb-data.sql`.
   2. Production: the owner has already created the database `moviedb` (utf8mb4, `utf8mb4_uca1400_ai_ci`) and its
      user, with a password different from the local one. Nothing to do for the agent.
-  3. Deploy the container. It migrates the schema and seeds `admin` / `demodemo`.
+  3. Deploy the container. It migrates the schema and seeds `admin` with the password from
+     `MOVIEDB_DEFAULT_PASSWORD`.
   4. Copy the dump to the server, `docker cp` it into the MariaDB container, and run it there with
      `docker exec -it mariadb sh -c "mariadb -u root -p moviedb < /tmp/moviedb-data.sql"`. The guard block refuses to
      run on a wrong schema version or non-empty tables.

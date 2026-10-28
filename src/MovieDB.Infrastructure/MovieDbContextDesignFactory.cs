@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Design;
 namespace MovieDB.Infrastructure;
 
 /// <summary>Design-time only (dotnet ef). Reads ConnectionStrings__MovieDb from the environment.</summary>
-public sealed class MovieDbContextDesignFactory : IDesignTimeDbContextFactory<MovieDbContext>
+internal sealed class MovieDbContextDesignFactory : IDesignTimeDbContextFactory<MovieDbContext>
 {
     public MovieDbContext CreateDbContext(string[] args)
     {

@@ -7,8 +7,15 @@ using Shouldly;
 namespace MovieDB.CharacteristicsTests;
 
 [Collection(MariaDbCollection.Name)]
-public sealed class MigrationTests(MariaDbFixture fixture)
+public sealed class MigrationTests
 {
+    private readonly MariaDbFixture _fixture;
+
+    public MigrationTests(MariaDbFixture fixture)
+    {
+        this._fixture = fixture;
+    }
+
     private static readonly string[] ExpectedTables =
     [
         "__EFMigrationsHistory",
@@ -19,6 +26,13 @@ public sealed class MigrationTests(MariaDbFixture fixture)
         "movies",
         "users",
     ];
+
+    private static readonly int MigrationCount = typeof(MovieDbContext)
+        .Assembly.GetTypes()
+        .Count(type => type.IsDefined(typeof(MigrationAttribute), inherit: false));
+
+    private static async Task<long> AppliedMigrationsAsync(string connectionString) =>
+        await CountAsync(connectionString, "SELECT COUNT(*) FROM `__EFMigrationsHistory`");
 
     private static Task<long> CountAsync(string connectionString, string sql) =>
         MariaDbFixture.ScalarAsync<long>(connectionString, sql);
@@ -43,16 +57,16 @@ public sealed class MigrationTests(MariaDbFixture fixture)
     [Fact]
     public async Task Fresh_database_gets_all_tables_in_snake_case()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
 
         (await TablesAsync(connectionString)).ShouldBe(ExpectedTables, ignoreOrder: true);
-        (await CountAsync(connectionString, "SELECT COUNT(*) FROM `__EFMigrationsHistory`")).ShouldBe(1);
+        (await AppliedMigrationsAsync(connectionString)).ShouldBe(MigrationCount);
     }
 
     [Fact]
     public async Task Model_matches_the_migrated_schema()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = MariaDbFixture.CreateFactory(connectionString).CreateDbContext();
 
         context.Database.HasPendingModelChanges().ShouldBeFalse();
@@ -63,19 +77,19 @@ public sealed class MigrationTests(MariaDbFixture fixture)
     [Fact]
     public async Task Running_the_migrator_again_is_a_no_op()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         var migrator = MariaDbFixture.CreateMigrator(connectionString);
 
         await migrator.MigrateAsync(TestContext.Current.CancellationToken);
         await migrator.MigrateAsync(TestContext.Current.CancellationToken);
 
-        (await CountAsync(connectionString, "SELECT COUNT(*) FROM `__EFMigrationsHistory`")).ShouldBe(1);
+        (await AppliedMigrationsAsync(connectionString)).ShouldBe(MigrationCount);
     }
 
     [Fact]
     public async Task Concurrent_migrators_serialise_on_the_named_lock()
     {
-        var connectionString = await fixture.CreateDatabaseAsync();
+        var connectionString = await _fixture.CreateDatabaseAsync();
 
         await Task.WhenAll(
             Enumerable
@@ -92,13 +106,13 @@ public sealed class MigrationTests(MariaDbFixture fixture)
         );
 
         (await TablesAsync(connectionString)).ShouldBe(ExpectedTables, ignoreOrder: true);
-        (await CountAsync(connectionString, "SELECT COUNT(*) FROM `__EFMigrationsHistory`")).ShouldBe(1);
+        (await AppliedMigrationsAsync(connectionString)).ShouldBe(MigrationCount);
     }
 
     [Fact]
     public async Task A_partially_applied_migration_can_be_retried()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `movies`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `users`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DELETE FROM `__EFMigrationsHistory`");
@@ -106,13 +120,16 @@ public sealed class MigrationTests(MariaDbFixture fixture)
         await MariaDbFixture.CreateMigrator(connectionString).MigrateAsync(TestContext.Current.CancellationToken);
 
         (await TablesAsync(connectionString)).ShouldBe(ExpectedTables, ignoreOrder: true);
-        (await CountAsync(connectionString, "SELECT COUNT(*) FROM `__EFMigrationsHistory`")).ShouldBe(1);
+        (await AppliedMigrationsAsync(connectionString)).ShouldBe(MigrationCount);
+        (
+            await CountAsync(connectionString, "SELECT COUNT(*) FROM `auth_throttle_states` WHERE `key` = 'global'")
+        ).ShouldBe(1);
     }
 
     [Fact]
     public async Task Down_removes_the_domain_and_auth_tables_and_up_can_be_applied_again()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using (var context = MariaDbFixture.CreateFactory(connectionString).CreateDbContext())
         {
             await context.GetService<IMigrator>().MigrateAsync("0", TestContext.Current.CancellationToken);
@@ -128,7 +145,7 @@ public sealed class MigrationTests(MariaDbFixture fixture)
     [Fact]
     public async Task Text_columns_use_the_uca1400_accent_and_case_insensitive_collation()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
 
         var collations = await CountAsync(
             connectionString,

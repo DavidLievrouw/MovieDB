@@ -10,10 +10,16 @@ namespace MovieDB.CharacteristicsTests;
 /// <summary>One MariaDB container per test run; every test gets its own empty database on it.</summary>
 public sealed class MariaDbFixture : IAsyncLifetime
 {
+    /// <summary>Password of the default user in tests; the hosts read it from the environment, like in production.</summary>
+    public const string DefaultPassword = "demodemo";
+
+    public const string DefaultPasswordVariable = "Auth__DefaultPassword";
+
     private readonly MariaDbContainer _container = new MariaDbBuilder("mariadb:12.3.3").Build();
 
     public async ValueTask InitializeAsync()
     {
+        Environment.SetEnvironmentVariable(DefaultPasswordVariable, DefaultPassword);
         await _container.StartAsync();
 
         // The default test user is limited to one database; tests create their own databases.
@@ -29,7 +35,11 @@ public sealed class MariaDbFixture : IAsyncLifetime
         }
     }
 
-    public async ValueTask DisposeAsync() => await _container.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        Environment.SetEnvironmentVariable(DefaultPasswordVariable, null);
+        await _container.DisposeAsync();
+    }
 
     /// <summary>Creates an empty database and returns a utf8mb4 connection string for it.</summary>
     public async Task<string> CreateDatabaseAsync()

@@ -52,8 +52,15 @@ public sealed class UserClockTests
         zone.ShouldNotBeNull();
     }
 
-    private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
+    private sealed class FixedTimeProvider : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => now;
+        private readonly DateTimeOffset _now;
+
+        public FixedTimeProvider(DateTimeOffset now)
+        {
+            _now = now;
+        }
+
+        public override DateTimeOffset GetUtcNow() => _now;
     }
 }

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="nl-BE" data-theme="@(DarkMode ? "dark" : "light")">
+
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <base href="/"/>
+    <ResourcePreloader/>
+    <link rel="stylesheet" href="@Assets["_content/MudBlazor/MudBlazor.min.css"]"/>
+    <link rel="stylesheet" href="@Assets["app.css"]"/>
+    <link rel="stylesheet" href="@Assets["MovieDB.Web.styles.css"]"/>
+    <link rel="stylesheet" href="@Assets["_content/MovieDB.Auth/auth.css"]"/>
+    <ImportMap nonce="@CspNonce"/>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+    <HeadOutlet @rendermode="PageRenderMode"/>
+</head>
+
+<body>
+<Routes @rendermode="PageRenderMode"/>
+<ReconnectModal/>
+<script nonce="@CspNonce" src="@Assets["_content/MudBlazor/MudBlazor.min.js"]"></script>
+<script nonce="@CspNonce" src="@Assets["_framework/blazor.web.js"]"></script>
+<script nonce="@CspNonce" src="@Assets["app.js"]"></script>
+</body>
+
+</html>
+
+@code {
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    // Auth and error pages stay static; the login and password forms post to endpoints that set cookies.
+    private IComponentRenderMode? PageRenderMode => HttpContext?.AcceptsInteractiveRouting() == false
+        ? null
+        : InteractiveServer;
+
+    // Dark unless the user picked light (cookie written by app.js).
+    private bool DarkMode => HttpContext?.Request.Cookies["films-theme"] != "light";
+
+    private string? CspNonce => HttpContext?.Items["CspNonce"] as string;
+}

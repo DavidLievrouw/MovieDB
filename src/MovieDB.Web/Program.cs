@@ -1,6 +1,14 @@
+using System.Globalization;
 using System.Net;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Options;
 using MovieDB.Auth;
 using MovieDB.Common;
@@ -8,6 +16,9 @@ using MovieDB.Infrastructure;
 using MovieDB.Infrastructure.Auth;
 using MovieDB.Movies;
 using MovieDB.Web;
+using MovieDB.Web.Components;
+using MudBlazor.Services;
+using MudBlazor.Translations;
 using Serilog;
 using Serilog.Events;
 
@@ -66,11 +77,6 @@ builder
         "App:TimeZone must be a valid IANA time zone id."
     )
     .ValidateOnStart();
-builder
-    .Services.AddOptions<AuthProtectionOptions>()
-    .Bind(builder.Configuration.GetSection(AuthProtectionOptions.Section))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
 
 var connectionString =
     builder.Configuration.GetConnectionString("MovieDb")
@@ -100,7 +106,62 @@ builder.Services.AddSingleton(sp => new UserClock(
     UserClock.ResolveZone(sp.GetRequiredService<IOptions<AppOptions>>().Value.TimeZone)
 ));
 
-builder.Services.AddAuthServices().AddMoviesServices();
+// Auth: Identity over the users table, cookie sign-in; everything requires login unless [AllowAnonymous].
+builder.Services.AddAuthServices(builder.Configuration).AddMoviesServices();
+builder.Services.AddOptions<DefaultUserOptions>().Bind(builder.Configuration.GetSection(DefaultUserOptions.Section));
+builder.Services.AddMovieDbIdentity().AddSignInManager();
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();
+builder
+    .Services.AddOptions<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme)
+    .Configure<IOptions<AuthOptions>>(
+        (cookie, auth) =>
+        {
+            cookie.Cookie.Name = "moviedb.auth";
+            cookie.Cookie.HttpOnly = true;
+            cookie.Cookie.SameSite = SameSiteMode.Lax;
+            cookie.Cookie.SecurePolicy = auth.Value.SecureCookies
+                ? CookieSecurePolicy.Always
+                : CookieSecurePolicy.SameAsRequest;
+            cookie.LoginPath = AuthEndpoints.LoginPath;
+            cookie.AccessDeniedPath = AuthEndpoints.AccessDeniedPath;
+            cookie.ReturnUrlParameter = "returnUrl";
+            cookie.ExpireTimeSpan = TimeSpan.FromDays(7);
+            cookie.SlidingExpiration = true;
+        }
+    );
+builder.Services.Configure<SecurityStampValidatorOptions>(o => o.ValidationInterval = TimeSpan.FromMinutes(5));
+builder
+    .Services.AddOptions<AntiforgeryOptions>()
+    .Configure<IOptions<AuthOptions>>(
+        (antiforgery, auth) =>
+            antiforgery.Cookie.SecurePolicy = auth.Value.SecureCookies
+                ? CookieSecurePolicy.Always
+                : CookieSecurePolicy.SameAsRequest
+    );
+builder
+    .Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingAuthStateProvider>();
+
+// Dutch (Belgium) only: dates, number formats and the MudBlazor component texts.
+var culture = new CultureInfo("nl-BE");
+builder.Services.AddLocalization();
+builder.Services.Configure<RequestLocalizationOptions>(o =>
+{
+    o.DefaultRequestCulture = new RequestCulture(culture);
+    o.SupportedCultures = [culture];
+    o.SupportedUICultures = [culture];
+});
+builder.Services.AddMudServices();
+builder.Services.AddMudTranslations();
+builder
+    .Services.AddRazorComponents()
+    .AddInteractiveServerComponents(o =>
+    {
+        o.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(5);
+        o.DisconnectedCircuitMaxRetained = 20;
+    });
 
 // Configure trusted proxies explicitly so clients cannot spoof X-Forwarded-For to bypass login rate limits.
 var knownProxyAddresses = builder.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
@@ -163,10 +224,58 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.Use(
+    async (context, next) =>
+    {
+        var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(16));
+        context.Items["CspNonce"] = nonce;
+        context.Response.Headers["Content-Security-Policy"] = string.Join(
+            "; ",
+            "default-src 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+            "form-action 'self'",
+            $"script-src 'self' 'nonce-{nonce}'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "font-src 'self' data:",
+            "connect-src 'self' ws: wss:"
+        );
+        context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+        context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        await next();
+    }
+);
 app.UseSerilogRequestLogging();
+app.UseRequestLocalization();
+app.UseRouting();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Error", createScopeForErrors: true);
+}
+
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseAntiforgery();
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapGet("/health/live", () => Results.Text(PublicHostHealthCheck.LivenessResponse)).AllowAnonymous();
+app.MapStaticAssets().AllowAnonymous();
+app.MapAuthEndpoints();
+app.MapRazorComponents<App>()
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(AuthModule.Assembly, MoviesModule.Assembly)
+    .Add(endpoint =>
+    {
+        if (endpoint is RouteEndpointBuilder route && route.RoutePattern.RawText == "/_framework/blazor.web.js")
+        {
+            endpoint.Metadata.Add(new AllowAnonymousAttribute());
+        }
+    });
 
 await app.RunAsync();
 return 0;

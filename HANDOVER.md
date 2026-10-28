@@ -7,7 +7,7 @@ milestones in §10) first. Update this file at the end of every milestone.
 
 - Do **one milestone at a time**, then stop and wait for the owner's review. Do not start the next milestone
   unprompted.
-- Do not commit unless asked. M1 is uncommitted in the working tree.
+- Do not commit unless asked. M1 is committed; M2 is uncommitted in the working tree.
 - Ask before taking product or schema decisions that the docs do not settle.
 
 ## Keeping this handover current (required)
@@ -15,9 +15,9 @@ milestones in §10) first. Update this file at the end of every milestone.
 After finishing a milestone, and before reporting to the owner, update this file as part of the end-of-task routine:
 
 1. Set the status table: mark the finished milestone "Done, awaiting owner review (uncommitted)" and name the next one.
-2. Replace "What M0 delivered" with a short "What Mx delivered" section (files, projects, tests, check results). Keep
-   a one-line summary of earlier milestones.
-3. Replace "Next: M1 – Data" with the plan for the next milestone, taken from PLAN.md §10 and the sections it
+2. Replace "What Mx delivered" with a short section for the finished milestone (files, projects, tests, check
+   results). Keep a one-line summary of earlier milestones.
+3. Replace "Next: Mx" with the plan for the next milestone, taken from PLAN.md §10 and the sections it
    references, with a suggested order and its done-when criteria.
 4. Update "Environment facts" if anything changed (databases, secrets, tools, scripts).
 5. Append new learnings, gotchas and deviations from PLAN.md/AGENTS.md. Move anything that has become a binding
@@ -30,36 +30,44 @@ After finishing a milestone, and before reporting to the owner, update this file
 | Milestone | State |
 |-----------|-------|
 | M0 Scaffold | Done (committed) |
-| M1 Data | Done, awaiting owner review (uncommitted) |
-| M2 Auth | **Next. Not started** |
-| M3–M6 | Not started |
+| M1 Data | Done (committed) |
+| M2 Auth | Done, awaiting owner review (uncommitted) |
+| M3 Import | **Next. Not started** |
+| M4–M6 | Not started |
 
-### What M1 delivered
+### What M2 delivered
 
-- **Common:** `Vogen.cs` (`MovieId`, `GenreId`, `MediumId` as int; `UserId` as GUID string), `UserClock` (time zone from
-  `App:TimeZone` only; `Today`, `CurrentYear`; throws on an invalid zone id).
-- **Infrastructure:** entities (`Movie`, `Genre`, `Medium`, `User`), `IEntityTypeConfiguration`s in `snake_case` with
-  plural tables, `MovieDbContext`, `DatabaseConfiguration.AddMovieDbDatabase` (+ `RequireUtf8mb4`),
-  `DatabaseMigrator` (hosted lifecycle `StartingAsync`, `GET_LOCK('moviedb-migrate', 120)` on a dedicated connection),
-  design-time factory, auth throttle types, DataProtection key store. Migration `20261028115529_Initial` creates
-  `genres`, `media`, `movies`, `users`, `auth_throttle_states`, `data_protection_keys`.
-  - The migration is **hand-written** with `CREATE TABLE IF NOT EXISTS` / `DROP TABLE IF EXISTS` (retry-safe after a
-    partial failure). The Designer and model snapshot are generated. If you add a migration with `dotnet ef`, expect
-    Roslynator `RCS1021` on the generated file: rewrite it by hand in the same style.
-- **Web:** `Program.cs` (Serilog, `--health-check` switch, validated `AppOptions`/`AuthProtectionOptions`, DB, migrator,
-  DataProtection with optional certificate via `KeyRingProtection`, forwarded headers from known proxies, HSTS outside
-  Development, `/health` and `/health/live`), `AppOptions`, `HealthChecks` (DB check; public-host check registered only
-  when `Health:PublicUrl` is set), appsettings files, launch profile on port **4200**.
-- **Tests (59 passing in total):** `UserClockTests`, `DatabaseConfigurationTests` (unit); `MigrationTests`
-  (fresh migrate, model = schema, re-run no-op, 5 concurrent migrators, partial-failure retry, `Down` + up again,
-  collation), `MovieConstraintTests` (unique Title+Year+Director ignoring case/accents, FK restrict, check constraints,
-  concurrency token, Unicode round trip, unique user name), `HealthEndpointTests` (live, healthy after migrating an
-  empty DB, invalid time zone stops startup).
+- **Common:** `LocalUrl` (`IsLocal`, `OrDefault`: single leading `/`, no `//`, `/\`, backslash or control characters).
+- **Infrastructure:** `AuthExtensions.AddMovieDbIdentity()` (Identity Core, min password length 8), `UserStore`,
+  `AuthThrottleStore` (DB-backed, fails closed), `DefaultUserSeeder` (creates `admin` when `users` is empty, with the
+  password from `Auth:DefaultPassword` / env `Auth__DefaultPassword`; fails startup if it is missing; warns while that
+  password is in use), `DbOperations`. `DatabaseMigrator.MigrateAndSeedAsync` seeds under the
+  migration lock; `MigrateAsync` (used by the import tool and tests) does not seed. Migration
+  `20261028123142_SeedAuthThrottleGlobalRow` inserts the `global` throttle row (hand-written, retry-safe).
+- **Auth** (`MovieDB.Auth`): `AuthEndpoints` (POST `/login`, POST `/logout`, POST `/account/wachtwoord`, all with
+  antiforgery), `AuthProtection` (concurrency guard, 429 page with `Retry-After`, `moviedb.device` cookie),
+  `AuthProtectionCleanup`, validators, `AuthOptions` (`Auth:SecureCookies`, `Auth:Protection:*`), static SSR pages
+  `/login`, `/account/wachtwoord`, `/accessdenied` on `AuthLayout` with `wwwroot/auth.css`.
+- **Web:** `App`/`Routes`/`MainLayout` (minimal; M4 restyles), `ReconnectModal`, `Error`, `NotFound`, placeholder `Home`
+  at `/` (M4 replaces it with a redirect to `/films`), `RevalidatingAuthStateProvider`, `Program.cs` wiring: identity
+  cookie `moviedb.auth` (Lax, HttpOnly, 7-day sliding, Secure unless `Auth:SecureCookies=false`, which only
+  Development sets), fallback authorization policy, nl-BE request localization, MudBlazor + `AddMudTranslations`,
+  Interactive Server with global routing, CSP with per-request nonce plus the other security headers.
+- **Tests (126 passing in total):** `LocalUrlTests`, `ValidatorTests` (unit); `AuthCharacteristicsTests` (anonymous
+  redirect, public paths, headers + nonce, login/remember-me/cookie flags, generic failures, case-insensitive user
+  name, local-only return URL, antiforgery, IP/device/account throttling, concurrency guard, logout, change password,
+  Production key ring encryption and fail-closed without a certificate, cookie shared across instances),
+  `DefaultUserSeedingTests` (once, untouched when users exist, concurrent startups, migrate-only), plus
+  `MigrationTests` now count the migrations dynamically and check the `global` throttle row.
 - Checks: `dotnet build src/MovieDB.slnx -warnaserror`, `dotnet csharpier check .` and
-  `dotnet test --solution src/MovieDB.slnx` pass. The app was run once against the local `moviedb`: the migration
-  applied and `/health` reported Healthy.
+  `dotnet test --solution src/MovieDB.slnx` pass. Smoke test against the local `moviedb` (curl): login as `admin`
+  works, `/` redirects anonymous users to `/login?returnUrl=%2F`, `GET /logout` is 404.
+- **Not verified in a browser:** interactive circuits and the Dutch `MudBlazor.Translations` strings. No MudBlazor
+  component is rendered yet in M2, so check both in M4 (global `InteractiveServer` routing is configured).
 
-Earlier: M0 delivered the scaffold (repo files, solution and projects, architecture tests, stub import tool).
+Earlier: M0 delivered the scaffold (repo files, solution and projects, architecture tests, stub import tool). M1
+delivered data: entities, `MovieDbContext`, `snake_case` mapping, the hand-written initial migration, `DatabaseMigrator`,
+health endpoints, options validation and Serilog.
 
 ### Environment facts
 
@@ -76,21 +84,47 @@ Earlier: M0 delivered the scaffold (repo files, solution and projects, architect
 - Playwright browsers are **not** installed yet (M6: build, then run `playwright.ps1 install chromium`).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M2 – Auth (PLAN.md §10, with §7.1, §5.3 and the Motorsports `Infrastructure/Auth` and `Auth` projects)
+## Next: M3 – Import (PLAN.md §10, with §6 and §2.3, and the stub in `src/tools/MovieDB.AccessImport`)
 
-Scope: Identity Core stores, cookie auth, login/logout/access-denied/change-password pages, login throttling,
-DataProtection, default `admin` seeding (once, under the migrator lock), fallback authorization policy, security
-headers (CSP nonce). Blazor setup (`App`, `Routes`, `MainLayout`, global `InteractiveServer` routing) is needed for
-the static SSR pages; keep the layout minimal until M4.
+Scope: the Access → MariaDB import into the **local** database. Platform-neutral cleanup, de-duplication and
+correction rules (unit-tested, synthetic data only), an ODBC reader behind a source abstraction (x64 Access driver,
+Windows only, read-only), `scripts/Import-Access.ps1` (`-Reset`, `-DryRun`, `-SkipDump`, `-DumpPath`, dump + dump
+verification) and the counts-only verification report (§6.4). The tool uses `DatabaseMigrator.MigrateAsync` (no seed).
+Recreate the `scripts/` folder. Never print rows or review text. The dump (§6.5) stays in git-ignored `artifacts/`.
 
-Done when: auth characteristics tests pass and a local login as `admin` works.
+Done when: the report matches §6.4 (1,203 movies from the current `.mdb`), dump verification passes, and the unit
+tests for the rules pass.
 
-Already in place from M1: `User` entity and `users` table, `auth_throttle_states` table and throttle types,
-`data_protection_keys` store, `AuthProtectionOptions` binding, `UserId`, `AddAuthServices()` (empty) in `MovieDB.Auth`.
+Suggested order: read PLAN.md §2.3, §6.1–6.5; model the source abstraction and the rules with unit tests first;
+then the ODBC reader, the loader (genres/media suggestion rows, preserved `FilmID` as `movie_id`), the report, the
+script and the dump check; run against the local `FilmsBase.mdb`; update docs; stop for review.
 
-Suggested order: read PLAN.md §7.1 and the Motorsports auth code, port the stores/sign-in/throttle services, add the
-seeder to the migrator, add the pages and middleware, then characteristics tests (login, lockout/throttle, return URL,
-anonymous redirect, security headers, seeding runs once), run once locally, update docs, stop for review.
+## Learnings from M2
+
+- **Code rules added after M2:** no primary constructors (explicit `_field` + constructor; positional records stay;
+  IDE0290 is off in `.editorconfig`), and only types used by another production assembly (plus `Program`) are public.
+  `PublicSurfaceTests` pins the public surface per assembly. Scaffolded EF migrations come out `public`: make them
+  `internal`. Razor components are always public. `DbOperations`/`DbFailure` are internal until the Movies slice needs
+  them (M4): make them public then and extend the allowed list.
+- **Default password is an env var.** `MariaDbFixture` sets `Auth__DefaultPassword=demodemo` for the whole
+  characteristics run (and clears it on dispose); the `http` launch profile sets the same. The compose stack (M6) must
+  map `Auth__DefaultPassword=${MOVIEDB_DEFAULT_PASSWORD:?…}`. Tests that need it absent unset the variable temporarily.
+- **Form models need `init` properties.** `[FromForm]` binds through the Blazor form data mapper, which returns 400
+  when a constructor parameter is missing. An unchecked checkbox is absent from the post, so a positional record
+  with `bool RememberMe` made every login fail. Use `init`-property types (`LoginForm`).
+- **Host tests:** `AuthApp` in `AuthCharacteristicsTests` passes the connection string through `UseSetting`; after the
+  run the local `moviedb` held only the 4 throttle rows of the manual smoke test, so the tests do use their per-test
+  databases. Production-environment tests need the
+  self-signed key-ring certificate from `TestDataProtectionCertificate`.
+- **Throttle behavior:** failures back off progressively per account/source before the hard limit, so tests that
+  assert a block loop until the first 429 instead of assuming an exact attempt count.
+- **Static SSR layout:** `MainLayout` also renders in static SSR (auth pages share the host), so the nav uses plain
+  HTML (a POST form for logout) instead of `MudMenu`. Revisit in M4.
+- Blazor adds a second `Content-Security-Policy: frame-ancestors 'self'` header next to ours. Harmless (the stricter
+  `'none'` still applies).
+- This machine has `core.autocrlf=true`, so working-tree files show CRLF (pre-existing files too); the index is LF
+  (`.gitattributes eol=lf`) and `csharpier check` passes, so this is harmless.
+- `MigrationTests` count migrations from the assembly, so adding a migration needs no test change.
 
 ## Learnings from M1
 

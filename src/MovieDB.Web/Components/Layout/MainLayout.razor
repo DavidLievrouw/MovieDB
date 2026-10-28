@@ -1,0 +1,33 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Dense="true">
+        <a class="films-brand" href="/">Films</a>
+        <MudSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <a class="films-nav-link" href="@AuthEndpoints.ChangePasswordPath">Wachtwoord wijzigen</a>
+                <form method="post" action="@AuthEndpoints.LogoutPath" class="films-logout">
+                    <AntiforgeryToken />
+                    <button type="submit" class="films-nav-link">Afmelden</button>
+                </form>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Er is een onverwachte fout opgetreden.
+    <a href="." class="reload">Opnieuw laden</a>
+    <span class="dismiss">🗙</span>
+</div>

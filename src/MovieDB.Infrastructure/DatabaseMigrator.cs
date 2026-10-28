@@ -4,23 +4,43 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MovieDB.Infrastructure.Auth;
 
 namespace MovieDB.Infrastructure;
 
 /// <summary>
 /// Applies pending EF migrations. Serialised across instances with a MariaDB named lock on a dedicated connection;
-/// every migration is itself self-guarding, so it is safe to run repeatedly. <see cref="MigrateAsync" /> is also used
-/// by the Access import tool; the host runs it before it starts listening.
+/// every migration is itself self-guarding, so it is safe to run repeatedly. <see cref="MigrateAsync" /> only migrates
+/// (used by the Access import tool); <see cref="MigrateAndSeedAsync" /> is the startup path that also seeds the default
+/// user under the same lock. The host runs it before it starts listening.
 /// </summary>
-public sealed class DatabaseMigrator(IDbContextFactory<MovieDbContext> factory, ILogger<DatabaseMigrator> logger)
-    : IHostedLifecycleService
+public sealed class DatabaseMigrator : IHostedLifecycleService
 {
     public const string LockName = "moviedb-migrate";
     private const int LockTimeoutSeconds = 120;
 
-    public async Task MigrateAsync(CancellationToken cancellationToken)
+    private readonly IDbContextFactory<MovieDbContext> _factory;
+    private readonly ILogger<DatabaseMigrator> _logger;
+    private readonly DefaultUserSeeder? _seeder;
+
+    public DatabaseMigrator(
+        IDbContextFactory<MovieDbContext> factory,
+        ILogger<DatabaseMigrator> logger,
+        DefaultUserSeeder? seeder = null
+    )
     {
-        await using var context = await factory.CreateDbContextAsync(cancellationToken);
+        _factory = factory;
+        _logger = logger;
+        _seeder = seeder;
+    }
+
+    public Task MigrateAsync(CancellationToken cancellationToken) => RunAsync(seed: false, cancellationToken);
+
+    public Task MigrateAndSeedAsync(CancellationToken cancellationToken) => RunAsync(seed: true, cancellationToken);
+
+    private async Task RunAsync(bool seed, CancellationToken cancellationToken)
+    {
+        await using var context = await _factory.CreateDbContextAsync(cancellationToken);
         var connection = context.Database.GetDbConnection();
         await connection.OpenAsync(cancellationToken);
         try
@@ -35,12 +55,18 @@ public sealed class DatabaseMigrator(IDbContextFactory<MovieDbContext> factory, 
                 var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
                 if (pending.Count == 0)
                 {
-                    logger.LogInformation("Database is up to date.");
-                    return;
+                    _logger.LogInformation("Database is up to date.");
+                }
+                else
+                {
+                    _logger.LogInformation("Applying {Count} migration(s): {Migrations}", pending.Count, pending);
+                    await context.Database.MigrateAsync(cancellationToken);
                 }
 
-                logger.LogInformation("Applying {Count} migration(s): {Migrations}", pending.Count, pending);
-                await context.Database.MigrateAsync(cancellationToken);
+                if (seed && _seeder is not null)
+                {
+                    await _seeder.SeedAsync(cancellationToken);
+                }
             }
             finally
             {
@@ -84,7 +110,7 @@ public sealed class DatabaseMigrator(IDbContextFactory<MovieDbContext> factory, 
     }
 
     /// <summary>Runs before the host starts listening, so no request ever sees an unmigrated schema.</summary>
-    public Task StartingAsync(CancellationToken cancellationToken) => MigrateAsync(cancellationToken);
+    public Task StartingAsync(CancellationToken cancellationToken) => MigrateAndSeedAsync(cancellationToken);
 
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

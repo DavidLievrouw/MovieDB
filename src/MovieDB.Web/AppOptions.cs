@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MovieDB.Web;
 
-public sealed class AppOptions
+internal sealed class AppOptions
 {
     public const string Section = "App";
 

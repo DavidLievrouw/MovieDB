@@ -8,8 +8,15 @@ using Shouldly;
 namespace MovieDB.CharacteristicsTests;
 
 [Collection(MariaDbCollection.Name)]
-public sealed class MovieConstraintTests(MariaDbFixture fixture)
+public sealed class MovieConstraintTests
 {
+    private readonly MariaDbFixture _fixture;
+
+    public MovieConstraintTests(MariaDbFixture fixture)
+    {
+        this._fixture = fixture;
+    }
+
     private static readonly DateTime Now = new(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc);
 
     private static MovieDbContext NewContext(string connectionString) =>
@@ -52,7 +59,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [Fact]
     public async Task A_movie_round_trips_with_unicode_and_optional_values_empty()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using (var context = NewContext(connectionString))
         {
             var genre = await AddGenreAsync(context);
@@ -76,7 +83,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [Fact]
     public async Task Title_year_and_director_are_unique_ignoring_case_and_accents()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         var genre = await AddGenreAsync(context);
         context.Movies.Add(NewMovie(genre, "Léon", 1994, "Luc Besson"));
@@ -93,7 +100,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [InlineData("Léon 2", 1994, "Luc Besson")]
     public async Task A_different_year_director_or_title_is_a_different_movie(string title, int year, string director)
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         var genre = await AddGenreAsync(context);
         context.Movies.Add(NewMovie(genre, "Léon", 1994, "Luc Besson"));
@@ -107,7 +114,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [Fact]
     public async Task Genre_and_medium_names_are_unique_ignoring_case_and_accents()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         context.Genres.Add(new Genre { Name = "Thriller", CreatedAt = Now });
         context.Media.Add(new Medium { Name = "Café", CreatedAt = Now });
@@ -124,7 +131,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [Fact]
     public async Task A_genre_or_medium_that_is_in_use_cannot_be_deleted()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         var genre = await AddGenreAsync(context);
         var medium = new Medium { Name = "Bioscoop", CreatedAt = Now };
@@ -147,7 +154,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [Fact]
     public async Task A_movie_needs_an_existing_genre()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         var movie = NewMovie(new Genre());
         movie.GenreId = GenreId.From(9999);
@@ -161,7 +168,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [InlineData(1000)]
     public async Task Runtime_must_be_between_1_and_999_minutes(int runtime)
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         var movie = NewMovie(await AddGenreAsync(context));
         movie.RuntimeMinutes = runtime;
@@ -179,7 +186,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [InlineData("extras")]
     public async Task Scores_must_be_between_1_and_10_or_empty(string score)
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         foreach (var invalid in new[] { 0, 11 })
         {
             await using var context = NewContext(connectionString);
@@ -231,7 +238,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [Fact]
     public async Task Version_is_a_concurrency_token()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using (var seed = NewContext(connectionString))
         {
             seed.Movies.Add(NewMovie(await AddGenreAsync(seed)));
@@ -262,7 +269,7 @@ public sealed class MovieConstraintTests(MariaDbFixture fixture)
     [Fact]
     public async Task Users_are_unique_on_normalized_user_name()
     {
-        var connectionString = await fixture.CreateMigratedDatabaseAsync();
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         context.Users.Add(NewUser("ADMIN"));
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);

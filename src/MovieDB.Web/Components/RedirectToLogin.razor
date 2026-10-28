@@ -1,0 +1,19 @@
+@inject NavigationManager Navigation
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? State { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var signedIn = State is not null && (await State).User.Identity?.IsAuthenticated == true;
+        if (signedIn)
+        {
+            Navigation.NavigateTo(MovieDB.Auth.AuthEndpoints.AccessDeniedPath, forceLoad: true);
+            return;
+        }
+
+        var returnUrl = Uri.EscapeDataString("/" + Navigation.ToBaseRelativePath(Navigation.Uri));
+        Navigation.NavigateTo($"{MovieDB.Auth.AuthEndpoints.LoginPath}?returnUrl={returnUrl}", forceLoad: true);
+    }
+}

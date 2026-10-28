@@ -7,7 +7,7 @@ namespace MovieDB.Web;
 /// The certificate must be stored outside the database (file or secret mount) so a database copy alone is not enough
 /// to recover the keys that protect the authentication cookie.
 /// </summary>
-public sealed class KeyRingProtectionOptions
+internal sealed class KeyRingProtectionOptions
 {
     public const string Section = "DataProtection";
 

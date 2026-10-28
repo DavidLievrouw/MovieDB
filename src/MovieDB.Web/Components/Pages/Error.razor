@@ -1,0 +1,24 @@
+@page "/Error"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@attribute [ExcludeFromInteractiveRouting]
+@using System.Diagnostics
+
+<PageTitle>Fout – Films</PageTitle>
+
+<h1>Er ging iets mis</h1>
+<p class="auth-error" role="alert">Bij het verwerken van je aanvraag is een fout opgetreden.</p>
+@if (!string.IsNullOrEmpty(RequestId))
+{
+    <p>Aanvraag-ID: <code>@RequestId</code></p>
+}
+<p><a href="/" class="auth-button">Naar overzicht</a></p>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+
+    protected override void OnInitialized() => RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}
