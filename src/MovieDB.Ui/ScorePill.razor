@@ -1,0 +1,38 @@
+@namespace MovieDB.Ui
+
+@if (Value is { } value)
+{
+    <span class="score-pill @BandClass(value)" aria-label="@AriaLabel(value)">@value</span>
+}
+else
+{
+    <span class="score-pill score-pill-empty" aria-label="@AriaLabel(null)">–</span>
+}
+
+@code {
+    /// <summary>The score (1–10), or <c>null</c> for an empty score.</summary>
+    [Parameter]
+    public int? Value { get; set; }
+
+    /// <summary>Optional name of the score, used in the accessible label (for example "Totaal").</summary>
+    [Parameter]
+    public string? Label { get; set; }
+
+    /// <summary>The colour band of a score: 1–4 error, 5–6 warning, 7–8 primary, 9–10 success.</summary>
+    /// <param name="value">The score.</param>
+    /// <returns>The CSS class of the band.</returns>
+    public static string BandClass(int value) =>
+        value switch
+        {
+            <= 4 => "score-pill-error",
+            <= 6 => "score-pill-warning",
+            <= 8 => "score-pill-primary",
+            _ => "score-pill-success",
+        };
+
+    private string AriaLabel(int? value)
+    {
+        var text = value is { } v ? $"{v} op 10" : "geen score";
+        return string.IsNullOrEmpty(Label) ? text : $"{Label}: {text}";
+    }
+}

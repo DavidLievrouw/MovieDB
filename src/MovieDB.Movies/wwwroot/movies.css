@@ -1,0 +1,471 @@
+.films-page {
+    margin: 0 auto;
+    max-width: 1600px;
+    padding: 1rem;
+}
+
+.films-page-narrow {
+    max-width: 1280px;
+}
+
+.films-header {
+    align-items: flex-end;
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.films-title {
+    font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.films-summary {
+    color: var(--mud-palette-text-secondary);
+    font-variant-numeric: tabular-nums;
+    margin: 0.25rem 0 0;
+    min-height: 1.5rem;
+}
+
+.films-stats {
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+.films-total {
+    border-right: 1px solid var(--mud-palette-lines-default);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    margin: 0;
+    min-width: 11rem;
+    padding: 0.75rem 1.5rem;
+}
+
+.films-total-value {
+    color: var(--mud-palette-primary);
+    font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
+    font-size: 2.25rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.films-total-label {
+    color: var(--mud-palette-text-secondary);
+}
+
+.stats-carousel {
+    display: flex;
+    flex: 1 1 20rem;
+    flex-direction: column;
+    gap: 0.25rem;
+    justify-content: center;
+    min-width: 0;
+    padding: 0.5rem 1rem;
+}
+
+.stats-skeleton {
+    transform: none;
+}
+
+.stats-stage {
+    display: grid;
+}
+
+.stats-slide {
+    grid-area: 1 / 1;
+    opacity: 0;
+    transform: translateY(8px);
+    transition:
+        opacity 0.45s ease,
+        transform 0.45s ease,
+        visibility 0s linear 0.45s;
+    visibility: hidden;
+}
+
+.stats-slide-active {
+    opacity: 1;
+    transform: none;
+    transition:
+        opacity 0.45s ease,
+        transform 0.45s ease,
+        visibility 0s;
+    visibility: visible;
+}
+
+.stats-slide-title {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    margin: 0 0 0.25rem;
+    text-transform: uppercase;
+}
+
+.stats-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.stats-item {
+    align-items: baseline;
+    display: flex;
+    gap: 0.4rem;
+}
+
+.stats-value {
+    font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
+    font-size: 1.35rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.stats-label {
+    color: var(--mud-palette-text-secondary);
+}
+
+.stats-controls {
+    align-items: center;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.stats-dots {
+    display: flex;
+}
+
+.stats-dot {
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    height: 1.5rem;
+    padding: 0;
+    position: relative;
+    width: 1.25rem;
+}
+
+.stats-dot::before {
+    background: var(--mud-palette-lines-inputs);
+    border-radius: 50%;
+    content: '';
+    height: 0.5rem;
+    left: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    transition: background 0.3s ease;
+    width: 0.5rem;
+}
+
+.stats-dot-active::before {
+    background: var(--mud-palette-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stats-slide,
+    .stats-slide-active {
+        transform: none;
+        transition: none;
+    }
+}
+
+@media (max-width: 599px) {
+    .films-total {
+        align-items: baseline;
+        border-bottom: 1px solid var(--mud-palette-lines-default);
+        border-right: 0;
+        flex-direction: row;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        width: 100%;
+    }
+
+    .films-total-value {
+        font-size: 1.75rem;
+    }
+}
+
+.films-toolbar {
+    align-items: center;
+    background: var(--mud-palette-background);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    position: sticky;
+    top: var(--mud-appbar-height, 56px);
+    z-index: 5;
+}
+
+.films-search {
+    flex: 1 1 16rem;
+    max-width: 32rem;
+}
+
+.films-sort-mobile {
+    align-items: center;
+    display: flex;
+    flex: 1 1 100%;
+    gap: 0.25rem;
+}
+
+.films-progress {
+    margin-bottom: -4px;
+}
+
+.films-skeleton {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.films-empty {
+    color: var(--mud-palette-text-secondary);
+    padding: 3rem 1rem;
+    text-align: center;
+}
+
+.films-num {
+    font-variant-numeric: tabular-nums;
+}
+
+.films-grid {
+    background: transparent;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+}
+
+/* Fixed layout keeps the column widths stable when the data changes (e.g. when sorting). */
+.films-grid table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+.films-grid td {
+    overflow-wrap: anywhere;
+}
+
+.films-nowrap {
+    white-space: nowrap;
+}
+
+.films-grid .films-c-date {
+    width: 14rem;
+}
+
+.films-grid .films-c-year {
+    width: 5.5rem;
+}
+
+.films-grid .films-c-director {
+    width: 14rem;
+}
+
+.films-grid .films-c-genre {
+    width: 11rem;
+}
+
+.films-grid .films-c-runtime {
+    width: 6.5rem;
+}
+
+.films-grid .films-c-medium {
+    width: 10rem;
+}
+
+.films-grid .films-c-score {
+    width: 6rem;
+}
+
+.films-sort-rank {
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.films-grid .films-row {
+    cursor: pointer;
+}
+
+.films-link {
+    color: var(--mud-palette-text-primary);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.films-link:hover,
+.films-link:focus-visible {
+    color: var(--mud-palette-primary);
+    text-decoration: underline;
+}
+
+.films-sort {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    font: inherit;
+    font-weight: 600;
+    gap: 0.25rem;
+    min-height: 2.75rem;
+    padding: 0;
+}
+
+.films-sort:hover {
+    color: var(--mud-palette-primary);
+}
+
+@media (max-width: 1099.98px) {
+    .films-col-lg {
+        display: none;
+    }
+}
+
+@media (max-width: 1399.98px) {
+    .films-col-xl {
+        display: none;
+    }
+}
+
+.films-cards {
+    display: grid;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 0.5rem 0 0;
+    padding: 0;
+}
+
+.films-card {
+    align-items: center;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--mud-default-borderradius);
+    color: inherit;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+    min-height: 3.5rem;
+    padding: 0.75rem;
+    text-decoration: none;
+}
+
+.films-card-main {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.films-card-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.films-card-meta {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.875rem;
+}
+
+.films-card-genre {
+    justify-self: start;
+    margin: 0;
+}
+
+.films-footer {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    margin-top: 1rem;
+}
+
+.films-size {
+    max-width: 8rem;
+}
+
+.films-fab {
+    bottom: 1rem;
+    position: fixed;
+    right: 1rem;
+    z-index: 6;
+}
+
+.films-back {
+    align-items: center;
+    color: var(--mud-palette-text-secondary);
+    display: inline-flex;
+    gap: 0.25rem;
+    min-height: 2.75rem;
+    text-decoration: none;
+}
+
+.films-back:hover {
+    color: var(--mud-palette-primary);
+}
+
+.films-facts {
+    display: grid;
+    gap: 0.75rem 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    margin: 0 0 1.25rem;
+}
+
+.films-facts dt {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.films-facts dd {
+    margin: 0.125rem 0 0;
+}
+
+.films-scores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+}
+
+.films-scores > div {
+    align-items: center;
+    display: grid;
+    gap: 0.25rem;
+    justify-items: start;
+}
+
+.films-scores span:first-child {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.8125rem;
+}
+
+.films-section {
+    font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
+    font-size: 1.125rem;
+    margin: 1.5rem 0 0.5rem;
+}
+
+.films-review {
+    line-height: 1.6;
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.films-hint {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.875rem;
+    margin-top: 0.75rem;
+}

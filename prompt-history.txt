@@ -1,1 +1,28 @@
 Read AGENTS.md and PLAN.md and HANDOVER.md. You are an expert full stack web developer, assigned this task. Implement the next milestone. If you have any questions, ask them first.
+
+----------
+
+Fixes and changes:
+1. The column widths are changing every time I sort a column. Very annoying.
+2. I would like to be able to apply sort on multiple columns, when holding CTRL.
+3. The date format is now DD/MM/YYYY, I would prefer it in the form of "Sa, June 15th, 2022".
+4. Instead of just the total number of films, add some statistics on the number of films per genre and director, and the number of films watched via streaming or download. Use a carrousel to show these, but always show the total number of films.
+
+----------
+
+"Gezien op/in" should include "Streaming" and "Download" as options. It doesn't matter that there are no films yet with those values, there will be some added in the future. "Andere" should remain as is.
+"Streaming / download" stat is a bit unclear. I am looking for more something like "104 streamed, 55 in bioscoop, 32 op DVD" or something. Animation is allowed. your other suggestions are fine. Suggest some more useful stats.
+stats should cover the whole db indeed, not just visible data
+
+----------
+
+Changes:
+- Allow multi-select on genre, and add more well-known genres to the list.
+- Allow selecting multiple directors for a film.
+
+Finishing:
+
+Performance is key, every cpu cycle costs, and every byte in memory too.
+Check if there are any performance gains you can find in code. Also achieve the most effective memory usage possible.
+Check usage of the mariadb database. Which indexes make sense? Add them in a on-startup ef core migration.
+When you do database changes, make sure you also keep the Import-Access.ps1 script updated to reflect those changes.

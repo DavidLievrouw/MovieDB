@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 (import) implemented and run against the local `.mdb`; awaiting owner review. M4 has not started. All §13 questions are answered.
+**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 (import) implemented and run against the local `.mdb`; awaiting owner review. M4 (UI shell + overview) implemented; awaiting owner review. M5 has not started. All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -95,7 +95,7 @@ Single-record form, caption "Films", header "Database van films". The tab order 
 | 4 | `Jaar:` | text box | Mask `0000` |
 | 5 | `Regisseur:` | text box | |
 | 6 | `Datum:` | text box | Short date, default today |
-| 7 | `Gezien op/in:` | combo | List: Blu-ray, DVD, Video, TV, Bioscoop, Andere. Free text allowed |
+| 7 | `Gezien op/in:` | combo | List: Blu-ray, DVD, Video, TV, Bioscoop, Streaming, Download, Andere. Free text allowed |
 | 8 | `Opmerkingen:` | multiline text, vertical scrollbar | |
 | – | `EVALUATIE` | section header (white on maroon) | |
 | 9 | `Totaal (geen gemiddelde):` | combo 1–10 | |
@@ -329,7 +329,8 @@ Typed values are trimmed and validated to 1–50 characters ("Genre mag maximaal
 Suggestions are listed alphabetically (collation order) and there is no UI to rename or remove them in the MVP.
 
 - The import fills them: the Access form lists (21 genres including "Documentaire"; Blu-ray, DVD, Video, TV, Bioscoop,
-  Andere) plus any other value found in the data. They are not seeded by a migration, so the production dump can
+  Streaming, Download, Andere) plus any other value found in the data. "Streaming" and "Download" are suggestions
+  only; no Access film has them yet. They are not seeded by a migration, so the production dump can
   insert them into empty tables.
 - Their values are Dutch domain data.
 
@@ -543,7 +544,9 @@ every non-dropped source id is present with the same id.
   the browser time zone after first render and forbids using it for validation; MovieDB has no browser-zone
   detection, so the same clock is used for the default Datum, the validators (max `watched_on`, max `release_year`)
   and display. Register it as a singleton.
-- Formatting: dates `dd/MM/yyyy`, thousands separator `.` (for example "1.203 films").
+- Formatting: dates "Sa, June 15th, 2022" (English weekday abbreviation, month name and ordinal day, by explicit
+  owner request, even though the UI is Dutch; the date picker in §8.4 stays `dd/MM/yyyy`), thousands separator `.`
+  (for example "1.203 films").
 
 ### 7.3 Logging and health
 
@@ -617,14 +620,20 @@ The designer spec is for a modern, hi-tech look with a dark-first theme. MudBlaz
 - **Sticky toolbar**:
   - `MudTextField` with `Immediate`, `DebounceInterval=300` and placeholder "Zoek op titel…". The search starts
     without Enter and has a clear button.
-  - A live count: "1.203 films", or "12 van 1.203 films" when filtered.
+  - A live total: "1.203 films", or "338 van 1.203 films" when filtered. It is always visible, next to the
+    statistics carousel (below).
   - The primary button "Nieuwe film" (a FAB on xs/sm).
+- **Statistics carousel** (beside the total, over the whole database, never the search filter; loaded once after the
+  first render): slides "Gezien op/in" (films per medium, e.g. "104 Streaming · 55 Bioscoop · 32 DVD"), "Top genres",
+  "Top regisseurs" (top 5 each), "Recent gezien" (this month / this year / last year) and "In cijfers" (total runtime
+  in hours, average "Totaal", count of 9 or higher). Auto-advance every 7 s with a fade, pausing on hover/focus,
+  prev/next, dots and a pause button; respects `prefers-reduced-motion`.
 - **md and up**: `MudDataGrid` with `ServerData`, `FixedHeader`, `Dense`, row hover and `RowClick` → `/films/{id}`.
   The title is also a real link (keyboard and middle-click). The pager offers 25/50/100, default 50.
 
   | Column | Header | Sortable | Notes |
   |---|---|---|---|
-  | WatchedOn | Datum | ✓ | `dd/MM/yyyy` |
+  | WatchedOn | Datum | ✓ | `Sa, June 15th, 2022` |
   | Title | Filmtitel | ✓ | link |
   | ReleaseYear | Jaar | ✓ | |
   | Director | Regisseur | ✓ | hidden < lg |
@@ -634,17 +643,23 @@ The designer spec is for a modern, hi-tech look with a dark-first theme. MudBlaz
   | OverallScore | Totaal | ✓ | score pill, NULLs last |
 
 - **xs/sm**: a card list (title, year, date, genre, total pill) with `MudPagination`, a "Sorteren op" select and a
-  direction toggle.
+  direction toggle (single-column sort only).
 - **Paging, not virtualization.** All filtering, sorting and paging run server-side with no-tracking projections.
-- **Default sort**: `watched_on DESC, title ASC, id DESC` (id makes the order stable). Clicking a column sorts by it,
-  then by `id` in the same direction. Genre and Medium sort by name. **NULLs sort last in both directions**
-  (Totaal, Gezien op/in), i.e. order by `(column IS NULL), column, id`.
+- **Fixed table layout**: the grid uses `table-layout: fixed` with explicit header widths (title takes the rest), so
+  column widths never change when the data (e.g. after sorting) changes.
+- **Default sort**: `watched_on DESC, title ASC, id DESC` (id makes the order stable). A plain click on a header sorts
+  by that column alone (a second click reverses it). **CTRL+click (or Cmd+click)** adds the column as a further sort
+  key (add → reverse → remove; removing the last key restores the default); keys show an arrow and a priority number.
+  Ties fall back to `id` in the direction of the first key (and to title when Datum is a key but Title is not). Genre
+  and Medium sort by name. **NULLs sort last in both directions** (Totaal, Gezien op/in), i.e. order by
+  `(column IS NULL), column`.
 - **Search**: case- and accent-insensitive `title LIKE %q%` through the collation; escape `%`, `_` and `\`. Trim the
   query and cap it at 100 chars.
-- **URL state**: `?q=&sort=&dir=&page=&size=` (`NavigationManager`, replace history). Reload, back and share must
-  restore the view. `sort` uses the C# property names in camelCase (`watchedOn`, `title`, …), `dir` is `asc`/`desc`,
-  `size` is 25/50/100. Unknown values fall back to the defaults; a `page` beyond the last page clamps to the last page.
-  Default values are omitted from the URL.
+- **URL state**: `?q=&sort=&page=&size=` (`NavigationManager`, replace history). Reload, back and share must
+  restore the view. `sort` is a comma-separated list of `column[:asc|:desc]` using the C# property names in camelCase
+  (`sort=genre,title:desc`); the direction is written only when it differs from the column default (Datum descending,
+  everything else ascending). `size` is 25/50/100. Unknown or duplicate values are ignored and fall back to the
+  defaults; a `page` beyond the last page clamps to the last page. Default values are omitted from the URL.
 - Empty states: "Nog geen films." and "Geen films gevonden voor ‘{q}’." with a "Zoekopdracht wissen" button.
 - Loading: a skeleton or progress bar. Errors: an alert with "Opnieuw proberen".
 
@@ -657,7 +672,7 @@ The layout is equivalent to `frmFilms`, modernised:
 - **Record navigation** button group: `Eerste`, `Vorige`, `Volgende`, `Laatste` and `Nieuw`, with the tooltips from
   §2.2 and Dutch aria-labels ("Eerste film", …). The position indicator reads "12 van 1.203".
   - Navigation follows the **overview's current sort and search**, passed through the query string as
-    `?q=&sort=&dir=` (same names and defaults as §8.3). The edit page also passes `page` and `size` through
+    `?q=&sort=` (same format and defaults as §8.3; no `dir`). The edit page also passes `page` and `size` through
     untouched, so "← Overzicht" restores the exact overview view. Without context it uses the default sort.
     Eerste/Vorige are disabled on the first record; Volgende/Laatste on the last.
   - Each move runs a server query by sort-key seek, not by loading all ids (same ordering, including NULLs-last and
@@ -829,7 +844,8 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 
 ## 12. Later phases (not now; shape decisions so they stay possible)
 
-- Statistics (per year, genre, director, medium), charts.
+- Statistics: charts and per-year statistics (the overview carousel already covers media, genre, director, recent and
+  summary figures).
 - Filters (genre, medium, score range, year), full-text search in reviews.
 - TMDb/IMDb metadata and posters; directors as a separate table (many-to-many).
 - Delete with confirmation; export (CSV).

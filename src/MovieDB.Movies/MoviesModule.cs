@@ -6,5 +6,6 @@ public static class MoviesModule
 {
     public static System.Reflection.Assembly Assembly => typeof(MoviesModule).Assembly;
 
-    public static IServiceCollection AddMoviesServices(this IServiceCollection services) => services;
+    public static IServiceCollection AddMoviesServices(this IServiceCollection services) =>
+        services.AddScoped<MovieQueries>();
 }

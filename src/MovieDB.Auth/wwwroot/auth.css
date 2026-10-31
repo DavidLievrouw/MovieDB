@@ -36,15 +36,34 @@ html[data-theme='light'] .auth-shell {
     border: 1px solid var(--auth-border);
     border-radius: 12px;
     box-sizing: border-box;
-    max-width: 24rem;
+    max-width: 25rem;
+    overflow: hidden;
     padding: 1.5rem;
+    position: relative;
     width: 100%;
 }
 
+/* Film-strip perforation along the top edge of the card. */
+.auth-card::before {
+    background: repeating-linear-gradient(90deg, var(--auth-border) 0 10px, transparent 10px 20px);
+    content: '';
+    height: 6px;
+    left: 0;
+    opacity: 0.8;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+
 .auth-card h1 {
+    background: linear-gradient(90deg, #ff8a3d, #ffc83d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
     font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
-    font-size: 1.5rem;
-    margin: 0 0 0.25rem;
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0.5rem 0 0.25rem;
 }
 
 .auth-card .auth-subtitle {
@@ -142,3 +161,12 @@ ul.auth-error {
     min-height: 60vh;
     padding: 0;
 }
+
+.auth-shell.auth-embedded .auth-card h1 {
+    background: none;
+    color: inherit;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 0.25rem;
+}
+

@@ -1,0 +1,339 @@
+@page "/films"
+@attribute [Authorize]
+@implements IDisposable
+@inject MovieQueries Queries
+@inject NavigationManager Navigation
+@inject ILogger<Overview> Logger
+
+<PageTitle>Films</PageTitle>
+
+<div class="films-page">
+    <div class="films-header">
+        <h1 class="films-title">Films</h1>
+        <MudButton Href="/films/nieuw" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Class="d-none d-sm-inline-flex">
+            Nieuwe film
+        </MudButton>
+    </div>
+
+    <section class="films-stats" aria-label="Statistieken">
+        <p class="films-total" aria-live="polite">
+            <span class="films-total-value">@TotalValue</span>
+            <span class="films-total-label">@TotalLabel</span>
+        </p>
+        <StatisticsCarousel/>
+    </section>
+
+    <div class="films-toolbar">
+        <MudTextField T="string" Value="_searchText" ValueChanged="OnSearchChanged" Immediate="true"
+                      DebounceInterval="300" Clearable="true" MaxLength="@OverviewState.MaxSearchLength"
+                      Placeholder="Zoek op titel…" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search" AdornmentAriaLabel="Zoeken"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" aria-label="Zoek op titel"
+                      Class="films-search"/>
+        <div class="films-sort-mobile d-md-none">
+            <MudSelect T="OverviewSortField" Value="_state.PrimarySort.Field" ValueChanged="OnSortFieldSelected"
+                       Label="Sorteren op" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
+                @foreach (var field in _sortFields)
+                {
+                    <MudSelectItem Value="@field">@SortTitle(field)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudIconButton Icon="@(_state.PrimarySort.Descending ? Icons.Material.Filled.ArrowDownward : Icons.Material.Filled.ArrowUpward)"
+                           OnClick="ToggleDirection"
+                           aria-label="@(_state.PrimarySort.Descending ? "Aflopend gesorteerd" : "Oplopend gesorteerd")"/>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="films-progress"/>
+    }
+
+    @if (_error)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-4">
+            De films konden niet worden geladen.
+            <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="RetryAsync">Opnieuw proberen</MudButton>
+        </MudAlert>
+    }
+    else if (_page is null)
+    {
+        <div class="films-skeleton" aria-hidden="true">
+            @for (var i = 0; i < 8; i++)
+            {
+                <MudSkeleton Height="44px" Animation="Animation.Wave"/>
+            }
+        </div>
+    }
+    else if (_page.Rows.Count == 0)
+    {
+        <div class="films-empty">
+            <p>@(_state.Search.Length > 0 ? "Geen films gevonden voor deze zoekopdracht." : "Er zijn nog geen films.")</p>
+            @if (_state.Search.Length > 0)
+            {
+                <MudButton Variant="Variant.Outlined" OnClick="ClearSearch">Zoekopdracht wissen</MudButton>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="d-none d-md-block">
+            <MudDataGrid T="MovieOverviewRow" Items="_page.Rows" Hover="true" Dense="true" Elevation="0"
+                         RowClass="films-row" RowClick="OnRowClick" SortMode="SortMode.None"
+                         Class="films-grid">
+                <Columns>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Datum" HeaderClass="films-c-date">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.WatchedOn)</HeaderTemplate>
+                        <CellTemplate><span class="films-num films-nowrap">@Formats.Date(context.Item.WatchedOn)</span></CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Titel">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.Title)</HeaderTemplate>
+                        <CellTemplate>
+                            <a class="films-link" href="@DetailUrl(context.Item.Id)" @onclick="NoOp" @onclick:stopPropagation="true">@context.Item.Title</a>
+                        </CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Jaar" HeaderClass="films-c-year">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.ReleaseYear)</HeaderTemplate>
+                        <CellTemplate><span class="films-num">@context.Item.ReleaseYear</span></CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Regisseur" HeaderClass="films-col-lg films-c-director" CellClass="films-col-lg">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.Director)</HeaderTemplate>
+                        <CellTemplate>@context.Item.Director</CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Genre" HeaderClass="films-col-lg films-c-genre" CellClass="films-col-lg">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.Genre)</HeaderTemplate>
+                        <CellTemplate>@context.Item.Genre</CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Duur" HeaderClass="films-col-xl films-c-runtime" CellClass="films-col-xl">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.RuntimeMinutes)</HeaderTemplate>
+                        <CellTemplate><span class="films-num">@Formats.Runtime(context.Item.RuntimeMinutes)</span></CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Gezien op/in" HeaderClass="films-col-xl films-c-medium" CellClass="films-col-xl">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.Medium)</HeaderTemplate>
+                        <CellTemplate>@context.Item.Medium</CellTemplate>
+                    </TemplateColumn>
+                    <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Totaal" HeaderClass="films-c-score">
+                        <HeaderTemplate>@SortHeader(OverviewSortField.OverallScore)</HeaderTemplate>
+                        <CellTemplate><ScorePill Value="context.Item.OverallScore" Label="Totaal"/></CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+            </MudDataGrid>
+        </div>
+
+        <ul class="films-cards d-md-none">
+            @foreach (var row in _page.Rows)
+            {
+                <li>
+                    <a class="films-card" href="@DetailUrl(row.Id)">
+                        <span class="films-card-main">
+                            <span class="films-card-title">@row.Title</span>
+                            <span class="films-card-meta">
+                                <span class="films-num">@row.ReleaseYear</span> · <span class="films-num">@Formats.Date(row.WatchedOn)</span>
+                            </span>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="films-card-genre">@row.Genre</MudChip>
+                        </span>
+                        <ScorePill Value="row.OverallScore" Label="Totaal"/>
+                    </a>
+                </li>
+            }
+        </ul>
+
+        <div class="films-footer">
+            <MudSelect T="int" Value="_state.PageSize" ValueChanged="OnPageSizeChanged" Label="Per pagina"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true" Class="films-size">
+                @foreach (var size in OverviewState.PageSizes)
+                {
+                    <MudSelectItem Value="@size">@size</MudSelectItem>
+                }
+            </MudSelect>
+            @if (_page.PageCount > 1)
+            {
+                <MudPagination Count="_page.PageCount" Selected="_page.Page" SelectedChanged="OnPageSelected"
+                               ShowFirstButton="true" ShowLastButton="true" BoundaryCount="1" MiddleCount="3"/>
+            }
+        </div>
+    }
+</div>
+
+<MudFab Href="/films/nieuw" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Label="Nieuwe film"
+        Class="films-fab d-sm-none" aria-label="Nieuwe film"/>
+
+@code {
+    private static readonly OverviewSortField[] _sortFields = Enum.GetValues<OverviewSortField>();
+
+    private OverviewState _state = OverviewState.Default;
+    private MovieOverviewPage? _page;
+    private string _searchText = "";
+    private bool _loaded;
+    private bool _loading;
+    private bool _error;
+    private CancellationTokenSource? _cts;
+
+    [SupplyParameterFromQuery(Name = "q")]
+    private string? Q { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sort")]
+    private string? Sort { get; set; }
+
+    [SupplyParameterFromQuery(Name = "page")]
+    private string? PageNumber { get; set; }
+
+    [SupplyParameterFromQuery(Name = "size")]
+    private string? PageSizeQuery { get; set; }
+
+    private string TotalValue =>
+        _page is null ? "–" : Formats.Count(_state.Search.Length > 0 ? _page.TotalMatching : _page.TotalMovies);
+
+    private string TotalLabel =>
+        _page is not null && _state.Search.Length > 0 ? $"van {Formats.Count(_page.TotalMovies)} films" : "films";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var parsed = OverviewState.FromQuery(Q, Sort, PageNumber, PageSizeQuery);
+        if (OverviewState.NormalizeSearch(_searchText) != parsed.Search)
+        {
+            _searchText = parsed.Search;
+        }
+
+        // During prerendering only the skeleton is shown, so the data is loaded once, by the circuit.
+        if (!RendererInfo.IsInteractive)
+        {
+            _state = parsed;
+            return;
+        }
+
+        if (_loaded && parsed == _state)
+        {
+            return;
+        }
+
+        _state = parsed;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+        var cts = _cts = new CancellationTokenSource();
+        _loading = true;
+        _error = false;
+        try
+        {
+            var page = await Queries.ListOverviewAsync(_state, cts.Token);
+            if (cts.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _page = page;
+            _loaded = true;
+            if (page.Page != _state.Page)
+            {
+                _state = _state with { Page = page.Page };
+                Navigation.NavigateTo("/films" + _state.ToQueryString(), replace: true);
+            }
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Superseded by a newer load.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Loading the movie overview failed.");
+            _error = true;
+        }
+        finally
+        {
+            if (ReferenceEquals(_cts, cts))
+            {
+                _loading = false;
+            }
+        }
+    }
+
+    private Task RetryAsync() => LoadAsync();
+
+    private void Go(OverviewState next, bool replace = false) =>
+        Navigation.NavigateTo("/films" + next.ToQueryString(), replace: replace);
+
+    private string DetailUrl(MovieDB.Common.MovieId id) =>
+        $"/films/{((int)id).ToString(System.Globalization.CultureInfo.InvariantCulture)}{_state.ToQueryString()}";
+
+    private void OnRowClick(DataGridRowClickEventArgs<MovieOverviewRow> args) =>
+        Navigation.NavigateTo(DetailUrl(args.Item.Id));
+
+    private static void NoOp() { }
+
+    private void OnSearchChanged(string? text)
+    {
+        _searchText = text ?? "";
+        var search = OverviewState.NormalizeSearch(text);
+        if (search != _state.Search)
+        {
+            Go(_state with { Search = search, Page = 1 }, replace: true);
+        }
+    }
+
+    private void ClearSearch() => Go(_state with { Search = "", Page = 1 });
+
+    private void OnPageSelected(int page) => Go(_state with { Page = page });
+
+    private void OnPageSizeChanged(int size) => Go(_state with { PageSize = size, Page = 1 });
+
+    private void OnSortFieldSelected(OverviewSortField field) => Go(_state.SortedOn(field));
+
+    private void ToggleDirection() => Go(_state.WithPrimaryDirectionReversed());
+
+    private void SortBy(OverviewSortField field, MouseEventArgs e) =>
+        Go(_state.WithHeaderClick(field, additive: e.CtrlKey || e.MetaKey));
+
+    private RenderFragment SortHeader(OverviewSortField field) =>
+        @<button type="button" class="films-sort" @onclick="e => SortBy(field, e)" aria-label="@SortLabel(field)"
+                 title="CTRL+klik om op meerdere kolommen te sorteren">
+            <span>@SortTitle(field)</span>
+            @if (_state.SortIndexOf(field) is var index and >= 0)
+            {
+                <MudIcon Icon="@(_state.Sorts[index].Descending ? Icons.Material.Filled.ArrowDownward : Icons.Material.Filled.ArrowUpward)" Size="Size.Small"/>
+                @if (_state.Sorts.Count > 1)
+                {
+                    <sup class="films-sort-rank">@(index + 1)</sup>
+                }
+            }
+        </button>;
+
+    private string SortLabel(OverviewSortField field)
+    {
+        var index = _state.SortIndexOf(field);
+        if (index < 0)
+        {
+            return $"Sorteren op {SortTitle(field).ToLowerInvariant()}";
+        }
+
+        var direction = _state.Sorts[index].Descending ? "aflopend" : "oplopend";
+        return _state.Sorts.Count > 1
+            ? $"{SortTitle(field)}, {direction} gesorteerd, prioriteit {index + 1}"
+            : $"{SortTitle(field)}, {direction} gesorteerd";
+    }
+
+    private static string SortTitle(OverviewSortField field) =>
+        field switch
+        {
+            OverviewSortField.WatchedOn => "Datum",
+            OverviewSortField.Title => "Titel",
+            OverviewSortField.ReleaseYear => "Jaar",
+            OverviewSortField.Director => "Regisseur",
+            OverviewSortField.Genre => "Genre",
+            OverviewSortField.RuntimeMinutes => "Duur",
+            OverviewSortField.Medium => "Gezien op/in",
+            OverviewSortField.OverallScore => "Totaal",
+            _ => field.ToString(),
+        };
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

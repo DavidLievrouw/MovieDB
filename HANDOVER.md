@@ -7,7 +7,7 @@ milestones in §10) first. Update this file at the end of every milestone.
 
 - Do **one milestone at a time**, then stop and wait for the owner's review. Do not start the next milestone
   unprompted.
-- Do not commit unless asked. M1 is committed; M2 is uncommitted in the working tree.
+- Do not commit unless asked. M1 is committed; M2, M3 and M4 are uncommitted in the working tree.
 - Ask before taking product or schema decisions that the docs do not settle.
 
 ## Keeping this handover current (required)
@@ -33,8 +33,43 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M1 Data | Done (committed) |
 | M2 Auth | Done, awaiting owner review (uncommitted) |
 | M3 Import | Done, awaiting owner review (uncommitted) |
-| M4 Overview + edit | **Next. Not started** |
-| M5–M6 | Not started |
+| M4 UI shell + overview | Done, awaiting owner review (uncommitted) |
+| M5 Edit/new | **Next. Not started** |
+| M6 | Not started |
+
+### What M4 delivered
+
+Scope follows PLAN.md §10 (M4 = shell + overview; M5 = edit/new). The older HANDOVER text that put edit in M4 was
+wrong; the owner confirmed the PLAN split.
+
+- **Ui:** `FilmsTheme` (dark-first palette, light toggle), `ScorePill` (bands error/warning/primary/success, "–" when
+  empty, aria-label), `wwwroot/ui.css`.
+- **Movies:** `OverviewState` (URL-backed multi-column sort `sort=genre,title:desc` / search / page / size with
+  validation and defaults omitted from the
+  query string), `MovieQueries` (no-tracking projection; NULLs last in both directions; stable paging via id
+  tie-break; `LIKE` search with escaped `%`, `_`, `\`; page clamping; `FindAsync`), `Formats` (dates as
+  "Sa, June 15th, 2022" by owner request), pages `/films`
+  (`Overview.razor`: debounced search, sortable desktop table with fixed column widths and CTRL+click multi-sort,
+  mobile cards with a single-column sort dropdown, an always-visible total plus a **statistics carousel**
+  (`Components/StatisticsCarousel.razor`, `MovieQueries.GetStatisticsAsync`, `StatisticSlides`; whole DB, loaded after
+  first render, auto-advance with pause/prev/next/dots),
+  floating "Nieuwe film" button on mobile), `/films/{id}` (**read-only placeholder**, M5 replaces it) and
+  `/films/nieuw` (**stub**), `wwwroot/movies.css`.
+- **Host:** new `MainLayout` (app bar, theme toggle, user menu with change password and logout POST form), `/` redirects
+  to `/films`, self-hosted fonts in `wwwroot/fonts` (Inter, Space Grotesk, latin + latin-ext woff2, OFL licences; CSP
+  `font-src 'self'`), `app.css`/`app.js`, restyled `auth.css`.
+- **Tests (307 total, all passing):** unit `OverviewStateTests`, `MovieFormatTests`, `StatisticSlidesTests`, bUnit
+  `ScorePillTests`;
+  characteristics `MovieOverviewQueryTests` (13) and `MovieStatisticsQueryTests` (7), real MariaDB, plus a host test
+  for the redirect, local fonts and CSP.
+  Existing auth tests now use `/films` as the authenticated page (`/` redirects).
+- **Browser check (throwaway Playwright script against the local DB, 390px and 1440px):** fonts load, no horizontal
+  overflow, search/sort/paging update the URL, back from detail restores state, theme toggle persists across reload,
+  user menu shows both entries, Dutch "Per pagina" appears. Checks that remain for M6's suite: row-click versus title
+  link, the static (non-interactive) theme-toggle fallback.
+- Checks: build `-warnaserror`, XML-doc build (0 warnings), `csharpier check`, full test run pass.
+
+Earlier: M3 delivered the import (summary below).
 
 ### What M3 delivered
 
@@ -107,18 +142,38 @@ health endpoints, options validation and Serilog.
 - PowerShell 7 is installed at `C:\Users\David\AppData\Local\Microsoft\WindowsApps\pwsh.exe`. The default tool shell
   is Windows PowerShell 5.1.
 - Git needs `git -c safe.directory=C:/_git/MovieDB …`.
-- Playwright browsers are **not** installed yet (M6: build, then run `playwright.ps1 install chromium`).
+- Playwright chromium is installed (via `playwright.ps1 install chromium` after a build).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M4 – Overview + edit (PLAN.md §10, with §7 and §8)
+## Next: M5 – Edit/new (PLAN.md §10, with §5, §7 and §8.4–8.6)
 
-Read PLAN.md §10 for M4, the UI spec in §8 and the Movies slice in §4.2/§7. M4 builds the `MovieDB.Movies` slice
-(queries, commands, validators, `MoviesModule`), the `MovieDB.Ui` components (`ScoreInput`, `SuggestField`,
-`ScorePill`, dialogs), the theme, the `/films` overview (sortable, debounced title search, paging), `/films/nieuw`
-and `/films/{id}` with the sticky save bar, and the redirect from `/`. Real data is now in the local `moviedb`, so
-develop against it (never print rows or reviews). Make `DbOperations`/`DbFailure` public if the slice needs them
-and extend `PublicSurfaceTests`. Verify the Dutch `MudBlazor.Translations` strings and interactive circuits in a
-browser (not yet verified). Add bUnit tests. Stop for owner review afterwards.
+Replace the placeholder `/films/{id}` and the `/films/nieuw` stub with the real form: `ScoreInput`, `SuggestField`,
+dialogs in `MovieDB.Ui`; commands and FluentValidation validators (Dutch messages; "today"/current year from
+`UserClock`); duplicate check (Title + Year + Director, collation-based), new genre/medium rows inserted in the save
+transaction, `version` concurrency token, sticky save bar, record navigation, unsaved-changes guard. Map unique-key
+and concurrency conflicts to `Result`/`Error`. Make `DbOperations`/`DbFailure` public if the slice needs them and
+extend `PublicSurfaceTests`. Done when the §8.6 checklist is ticked and tests pass. Develop against the imported local
+data (never print rows or reviews). Stop for owner review afterwards.
+
+## Learnings from M4
+
+- **MudBlazor deviations from PLAN §8.3:** `MudDataGrid` is used with `Items` only (the page is one bounded query,
+  with the built-in pager and sort) instead of `ServerData`; sorting and paging are driven by `OverviewState` and the
+  URL. Mobile uses cards, not the grid.
+- **Name clashes:** a component parameter called `Size` collides with the MudBlazor `Size` enum; `HideLabel` is not
+  valid on `MudTextField`.
+- **`/` redirects** (`NavigateTo(..., replace: true)` in static prerender becomes a 302). Tests that need an
+  authenticated page must request `/films`, not `/`.
+- **Font preloads removed:** `@Assets[...]` preload hrefs are fingerprinted while the CSS `url()` is not, so the
+  browser downloaded twice and warned. The `@font-face` rules load the fonts; the CSP allows `font-src 'self'`.
+- **Internal types in tests:** test members exposing internal types must be non-public; use primitives in
+  `[InlineData]`.
+- **Running the host for a browser check:** a `Start-Job` does not survive between tool calls. Start the host in an
+  async shell (`dotnet run --no-build --no-launch-profile --urls http://localhost:5099` with
+  `ASPNETCORE_ENVIRONMENT=Development` and `Auth__DefaultPassword` set), run Playwright, then stop the process by id.
+  Playwright chromium is now installed.
+- **CRLF:** the `create`/`edit` tools wrote CRLF here; new files were normalised to LF before finishing.
+- Full test run: 274 pass (95+ unit, 116 characteristics, architecture, browser placeholder).
 
 ## Learnings from M3
 

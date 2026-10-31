@@ -258,7 +258,39 @@ public sealed partial class AuthCharacteristicsTests
         cookie.ShouldContain("samesite=lax", Case.Insensitive);
         cookie.ShouldContain("secure", Case.Insensitive);
         cookie.ShouldNotContain("expires=", Case.Insensitive);
-        (await client.GetAsync("/", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await client.GetAsync("/films", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task The_home_page_redirects_to_the_overview_and_the_shell_serves_local_fonts()
+    {
+        await using var app = await StartAsync();
+        var client = app.NewClient();
+        await LoginAsync(client, "admin", "demodemo");
+
+        var home = await client.GetAsync("/", TestContext.Current.CancellationToken);
+        var overview = await client.GetAsync("/films", TestContext.Current.CancellationToken);
+        var detail = await client.GetAsync("/films/999999", TestContext.Current.CancellationToken);
+        var markup = await overview.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        home.StatusCode.ShouldBe(HttpStatusCode.Redirect);
+        LocationPathOf(home).ShouldBe("/films");
+        overview.StatusCode.ShouldBe(HttpStatusCode.OK);
+        detail.StatusCode.ShouldBe(HttpStatusCode.OK);
+        markup.ShouldContain("Nieuwe film");
+        markup.ShouldContain("rel=\"stylesheet\"");
+        markup.ShouldNotContain("fonts.googleapis");
+        overview
+            .Headers.GetValues("Content-Security-Policy")
+            .Single(p => p.Contains("default-src 'self'", StringComparison.Ordinal))
+            .ShouldContain("font-src 'self'");
+        foreach (
+            var font in new[] { "inter-latin", "inter-latin-ext", "space-grotesk-latin", "space-grotesk-latin-ext" }
+        )
+        {
+            var response = await client.GetAsync($"/fonts/{font}.woff2", TestContext.Current.CancellationToken);
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, font);
+        }
     }
 
     [Fact]
@@ -281,7 +313,7 @@ public sealed partial class AuthCharacteristicsTests
         var client = app.NewClient();
         await LoginAsync(client, "admin", "demodemo");
 
-        var markup = await client.GetStringAsync("/", TestContext.Current.CancellationToken);
+        var markup = await client.GetStringAsync("/films", TestContext.Current.CancellationToken);
 
         markup.ShouldContain("href=\"/account/wachtwoord\"");
         markup.ShouldContain("action=\"/logout\"");
@@ -458,7 +490,7 @@ public sealed partial class AuthCharacteristicsTests
         await using var app = await StartAsync();
         var client = app.NewClient();
         await LoginAsync(client, "admin", "demodemo");
-        var token = await TokenAsync(client, "/");
+        var token = await TokenAsync(client, "/films");
 
         (await client.GetAsync("/logout", TestContext.Current.CancellationToken)).StatusCode.ShouldNotBe(
             HttpStatusCode.OK
@@ -466,7 +498,7 @@ public sealed partial class AuthCharacteristicsTests
         (
             await client.PostAsync("/logout", new FormUrlEncodedContent([]), TestContext.Current.CancellationToken)
         ).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await client.GetAsync("/", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await client.GetAsync("/films", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
         var response = await client.PostAsync(
             "/logout",
@@ -529,7 +561,7 @@ public sealed partial class AuthCharacteristicsTests
 
         ok.StatusCode.ShouldBe(HttpStatusCode.Redirect);
         LocationPathOf(ok).ShouldBe("/");
-        (await client.GetAsync("/", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await client.GetAsync("/films", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
         LocationPathOf(await LoginAsync(app.NewClient(), "admin", "demodemo")).ShouldBe("/login?error=1");
         LocationPathOf(await LoginAsync(app.NewClient(), "admin", "brand new password")).ShouldBe("/");
     }
@@ -649,7 +681,7 @@ public sealed partial class AuthCharacteristicsTests
             .Single(cookie => cookie.StartsWith("moviedb.auth=", StringComparison.Ordinal))
             .Split(';', 2)[0];
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/");
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/films");
         request.Headers.Add("Cookie", authCookie);
         var response = await second.NewClient().SendAsync(request, TestContext.Current.CancellationToken);
 

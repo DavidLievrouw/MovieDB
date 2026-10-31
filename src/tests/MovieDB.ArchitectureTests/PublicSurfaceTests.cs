@@ -4,6 +4,7 @@ using MovieDB.Auth;
 using MovieDB.Common;
 using MovieDB.Infrastructure;
 using MovieDB.Movies;
+using MovieDB.Ui;
 using Shouldly;
 
 namespace MovieDB.ArchitectureTests;
@@ -50,6 +51,7 @@ public class PublicSurfaceTests
         ],
         [typeof(AuthModule).Assembly] = ["AuthEndpoints", "AuthModule", "AuthOptions"],
         [typeof(MoviesModule).Assembly] = ["MoviesModule"],
+        [typeof(FilmsTheme).Assembly] = ["FilmsTheme"],
     };
 
     /// <summary>Public types emitted by generators that cannot be made internal.</summary>

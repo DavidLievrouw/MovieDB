@@ -1,28 +1,50 @@
 @inherits LayoutComponentBase
+@inject IJSRuntime JS
 
-<MudThemeProvider IsDarkMode="true" />
+<MudThemeProvider Theme="FilmsTheme.Instance" IsDarkMode="_dark" ObserveSystemDarkModeChange="false" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
+<a class="films-skip" href="#main-content">Naar inhoud</a>
+
 <MudLayout>
-    <MudAppBar Elevation="0" Dense="true">
-        <a class="films-brand" href="/">Films</a>
+    <MudAppBar Elevation="0" Dense="true" Class="films-appbar">
+        <a class="films-brand" href="/films" aria-label="Films, naar het overzicht">Films</a>
         <MudSpacer />
+        @if (RendererInfo.IsInteractive)
+        {
+            <button type="button" class="films-icon-button" @onclick="ToggleThemeAsync" aria-label="@ThemeLabel" title="@ThemeLabel">
+                <MudIcon Icon="@(_dark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" />
+            </button>
+        }
+        else
+        {
+            <button type="button" class="films-icon-button" data-static-theme-toggle aria-label="@ThemeLabel" title="@ThemeLabel">
+                <MudIcon Icon="@(_dark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" />
+            </button>
+        }
         <AuthorizeView>
             <Authorized>
-                <a class="films-nav-link" href="@AuthEndpoints.ChangePasswordPath">Wachtwoord wijzigen</a>
-                <form method="post" action="@AuthEndpoints.LogoutPath" class="films-logout">
-                    <AntiforgeryToken />
-                    <button type="submit" class="films-nav-link">Afmelden</button>
-                </form>
+                <details class="films-user-menu">
+                    <summary class="films-icon-button" aria-label="Gebruikersmenu" title="@context.User.Identity?.Name">
+                        <MudIcon Icon="@Icons.Material.Filled.AccountCircle" />
+                    </summary>
+                    <div class="films-user-panel">
+                        <a class="films-menu-item" href="@AuthEndpoints.ChangePasswordPath">Wachtwoord wijzigen</a>
+                        <form method="post" action="@AuthEndpoints.LogoutPath">
+                            <AntiforgeryToken />
+                            <button type="submit" class="films-menu-item">Afmelden</button>
+                        </form>
+                    </div>
+                </details>
             </Authorized>
         </AuthorizeView>
     </MudAppBar>
     <MudMainContent>
-        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
+        <main id="main-content" tabindex="-1">
             @Body
-        </MudContainer>
+        </main>
     </MudMainContent>
 </MudLayout>
 
@@ -31,3 +53,29 @@
     <a href="." class="reload">Opnieuw laden</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool _dark = true;
+
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    // Read from the cookie while prerendering; the circuit has no HttpContext, so the value travels with the page state.
+    [PersistentState]
+    public bool? Dark { get; set; }
+
+    private string ThemeLabel => _dark ? "Overschakelen naar licht thema" : "Overschakelen naar donker thema";
+
+    protected override void OnInitialized()
+    {
+        Dark ??= HttpContext is null ? true : HttpContext.Request.Cookies["films-theme"] != "light";
+        _dark = Dark.Value;
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        _dark = !_dark;
+        Dark = _dark;
+        await JS.InvokeVoidAsync("filmsSetCookie", "films-theme", _dark ? "dark" : "light");
+    }
+}

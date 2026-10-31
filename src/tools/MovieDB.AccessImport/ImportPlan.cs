@@ -46,8 +46,21 @@ internal static class ImportPlanner
         "Andere",
     ];
 
-    /// <summary>Medium suggestions known from the Access form's value list.</summary>
-    public static readonly IReadOnlyList<string> KnownMedia = ["Blu-ray", "DVD", "Video", "TV", "Bioscoop", "Andere"];
+    /// <summary>
+    /// Medium suggestions: the Access form's value list, plus "Streaming" and "Download", which the Access form did
+    /// not have but later viewings use. No imported movie has them; they exist so the suggestions are complete.
+    /// </summary>
+    public static readonly IReadOnlyList<string> KnownMedia =
+    [
+        "Blu-ray",
+        "DVD",
+        "Video",
+        "TV",
+        "Bioscoop",
+        "Streaming",
+        "Download",
+        "Andere",
+    ];
 
     public static ImportPlan Plan(IReadOnlyList<SourceFilm> rows)
     {

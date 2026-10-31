@@ -1,0 +1,156 @@
+@implements IDisposable
+@inject MovieQueries Queries
+@inject UserClock Clock
+@inject ILogger<StatisticsCarousel> Logger
+
+@if (_loading)
+{
+    <div class="stats-carousel" aria-hidden="true">
+        <MudSkeleton Height="5.5rem" Animation="Animation.Wave" Class="stats-skeleton"/>
+    </div>
+}
+else if (_slides.Count > 0)
+{
+    <div class="stats-carousel" role="group" aria-roledescription="carrousel" aria-label="Statistieken"
+         @onmouseenter="() => _hovering = true" @onmouseleave="() => _hovering = false"
+         @onfocusin="() => _focused = true" @onfocusout="() => _focused = false">
+        <div class="stats-stage">
+            @for (var i = 0; i < _slides.Count; i++)
+            {
+                var slide = _slides[i];
+                var active = i == _index;
+                <div class="stats-slide@(active ? " stats-slide-active" : "")" role="group" aria-roledescription="dia"
+                     aria-label="@($"{i + 1} van {_slides.Count}: {slide.Title}")"
+                     aria-hidden="@(active ? null : "true")">
+                    <h2 class="stats-slide-title">@slide.Title</h2>
+                    <ul class="stats-items">
+                        @foreach (var item in slide.Items)
+                        {
+                            <li class="stats-item">
+                                <span class="stats-value">@item.Value</span>
+                                <span class="stats-label">@item.Label</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+        <div class="stats-controls">
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronLeft" Size="Size.Small" aria-label="Vorige statistiek"
+                           OnClick="() => Move(-1)"/>
+            <div class="stats-dots">
+                @for (var i = 0; i < _slides.Count; i++)
+                {
+                    var target = i;
+                    <button type="button" class="stats-dot@(i == _index ? " stats-dot-active" : "")"
+                            aria-label="@($"Toon statistiek {i + 1}: {_slides[i].Title}")"
+                            aria-current="@(i == _index ? "true" : null)" @onclick="() => Show(target)"></button>
+                }
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" aria-label="Volgende statistiek"
+                           OnClick="() => Move(1)"/>
+            @if (Interval > TimeSpan.Zero)
+            {
+                <MudIconButton Icon="@(_stopped ? Icons.Material.Filled.PlayArrow : Icons.Material.Filled.Pause)"
+                               Size="Size.Small" OnClick="() => _stopped = !_stopped"
+                               aria-label="@(_stopped ? "Automatisch wisselen hervatten" : "Automatisch wisselen pauzeren")"/>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<StatisticSlide> _slides = [];
+    private CancellationTokenSource? _cts;
+    private int _index;
+    private bool _loading = true;
+    private bool _hovering;
+    private bool _focused;
+    private bool _stopped;
+    private bool _skipTick;
+
+    /// <summary>The time between automatic slide changes; zero or less turns automatic changing off.</summary>
+    [Parameter]
+    public TimeSpan Interval { get; set; } = TimeSpan.FromSeconds(7);
+
+    // OnAfterRenderAsync only runs interactively, so the data is loaded once and never during prerendering.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _cts = new CancellationTokenSource();
+        try
+        {
+            var statistics = await Queries.GetStatisticsAsync(Clock.Today, _cts.Token);
+            _slides = StatisticSlides.Build(statistics);
+        }
+        catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Loading the movie statistics failed.");
+        }
+
+        _loading = false;
+        StateHasChanged();
+        if (Interval > TimeSpan.Zero)
+        {
+            _ = AutoAdvanceAsync(Interval, _cts.Token);
+        }
+    }
+
+    private async Task AutoAdvanceAsync(TimeSpan interval, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(interval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (_hovering || _focused || _stopped || _slides.Count < 2)
+                {
+                    continue;
+                }
+
+                if (_skipTick)
+                {
+                    _skipTick = false;
+                    continue;
+                }
+
+                _index = (_index + 1) % _slides.Count;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The component was disposed.
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit ended while a tick was in flight.
+        }
+    }
+
+    private void Move(int step)
+    {
+        _skipTick = true;
+        _index = (_index + step + _slides.Count) % _slides.Count;
+    }
+
+    private void Show(int index)
+    {
+        _skipTick = true;
+        _index = index;
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

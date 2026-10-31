@@ -1,6 +1,6 @@
 @page "/"
+@inject NavigationManager Navigation
 
-<PageTitle>Films</PageTitle>
-
-<h1>Films</h1>
-<p>Je bent aangemeld. Het overzicht van de films volgt in een volgende mijlpaal.</p>
+@code {
+    protected override void OnInitialized() => Navigation.NavigateTo("/films", replace: true);
+}
