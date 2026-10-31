@@ -5,7 +5,7 @@ using MySqlConnector;
 
 namespace MovieDB.Infrastructure;
 
-internal enum DbFailure
+public enum DbFailure
 {
     None = 0,
     Duplicate = 1,
@@ -15,7 +15,7 @@ internal enum DbFailure
 }
 
 /// <summary>One context + one transaction per operation, with database errors mapped to results (never a 500).</summary>
-internal static class DbOperations
+public static class DbOperations
 {
     private const int MaxAttempts = 5;
 
@@ -23,6 +23,9 @@ internal static class DbOperations
     public const string DuplicateMessage = "The same item was created or changed by someone else at the same time.";
     public const string ReferencedMessage = "The item is in use or was changed by someone else at the same time.";
 
+    /// <summary>Recognizes the database failures that have an application-level meaning.</summary>
+    /// <param name="exception">The exception, whose inner exceptions are inspected too.</param>
+    /// <returns>The kind of failure, or <see cref="DbFailure.None"/> when it is not one of the known ones.</returns>
     public static DbFailure Classify(Exception exception)
     {
         for (var current = exception; current is not null; current = current.InnerException)

@@ -16,9 +16,20 @@ stats should cover the whole db indeed, not just visible data
 
 ----------
 
+Director should be a search when typing. I want to avoid duplicates or typos, so selecting an existing one should be easy. However, new directors can be added, just by typing in the name.
+Any questions? ask them first
+
+----------
+
+If I enter a movie title that is already in the database, and is form the same year, pop up a warning when saving. It should contain a link that opens a new tab with the possible conflict.
+Allow for either saving to continue, or cancel the entering of the data entirely.
+
+----------
+
 Changes:
 - Allow multi-select on genre, and add more well-known genres to the list.
 - Allow selecting multiple directors for a film.
+- "Extra's" is hardly ever used, so drop it completely, from the database and the UI.
 
 Finishing:
 
@@ -26,3 +37,6 @@ Performance is key, every cpu cycle costs, and every byte in memory too.
 Check if there are any performance gains you can find in code. Also achieve the most effective memory usage possible.
 Check usage of the mariadb database. Which indexes make sense? Add them in a on-startup ef core migration.
 When you do database changes, make sure you also keep the Import-Access.ps1 script updated to reflect those changes.
+
+I want to be able to fill in the filter by entering an imdb.com url, and it would fetch the details in the background and fill in the form automatically. Make sure to handle errors gracefully if the URL is invalid or if the data cannot be fetched.
+Title, Genre(s), duration in minutes, year, and director(s) should be fetched from the IMDb page. If the film is not found, display a user-friendly error message.

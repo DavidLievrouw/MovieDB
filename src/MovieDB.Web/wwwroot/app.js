@@ -24,6 +24,14 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key.toLowerCase() === 's') {
+        if (window.filmsSaveHandler) {
+            event.preventDefault();
+            window.filmsSaveHandler();
+        }
+        return;
+    }
+
     if (event.key === 'Escape') {
         document.querySelectorAll('details.films-user-menu[open]').forEach((menu) => {
             menu.removeAttribute('open');
@@ -31,3 +39,18 @@ document.addEventListener('keydown', (event) => {
         });
     }
 });
+
+// The edit page registers a handler so that Ctrl+S saves (and the browser's own "save page" is suppressed).
+// The focused field is blurred first, so that a value that is still being typed is committed before saving.
+window.filmsRegisterSave = (dotNetRef) => {
+    window.filmsSaveHandler = () => {
+        if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+        }
+        window.setTimeout(() => dotNetRef.invokeMethodAsync('SaveFromShortcut'), 50);
+    };
+};
+
+window.filmsUnregisterSave = () => {
+    window.filmsSaveHandler = null;
+};

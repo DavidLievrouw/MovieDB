@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 (import) implemented and run against the local `.mdb`; awaiting owner review. M4 (UI shell + overview) implemented; awaiting owner review. M5 has not started. All §13 questions are answered.
+**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 (import) implemented and run against the local `.mdb`; awaiting owner review. M4 (UI shell + overview) implemented; awaiting owner review. M5 (edit/new) implemented; awaiting owner review. M6 has not started. All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -728,13 +728,13 @@ The layout is equivalent to `frmFilms`, modernised:
 
 ### 8.6 Equivalence checklist (acceptance for "functionally equivalent")
 
-- [ ] All 14 Access fields are viewable and editable with the same labels, order and defaults (Datum = today).
-- [ ] Genre and Gezien op/in offer the Access lists and accept new values, which then become suggestions.
-- [ ] Scores 1–10 plus empty; Extra's empty = "n.v.t."; Totaal is manual (no averaging).
-- [ ] Eerste / Vorige / Nieuw / Volgende / Laatste work, including at the boundaries.
+- [x] All 14 Access fields are viewable and editable with the same labels, order and defaults (Datum = today).
+- [x] Genre and Gezien op/in offer the Access lists and accept new values, which then become suggestions.
+- [x] Scores 1–10 plus empty; Extra's empty = "n.v.t."; Totaal is manual (no averaging).
+- [x] Eerste / Vorige / Nieuw / Volgende / Laatste work, including at the boundaries.
 - [ ] Every imported record shows the same values as in Access (after the documented cleanup and the 6 IMDb
   corrections; dropped duplicates are the newer rows listed in §2.3).
-- [ ] Unicode text round-trips unchanged.
+- [x] Unicode text round-trips unchanged.
 
 ---
 

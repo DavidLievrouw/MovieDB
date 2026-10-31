@@ -7,7 +7,7 @@ milestones in §10) first. Update this file at the end of every milestone.
 
 - Do **one milestone at a time**, then stop and wait for the owner's review. Do not start the next milestone
   unprompted.
-- Do not commit unless asked. M1 is committed; M2, M3 and M4 are uncommitted in the working tree.
+- Do not commit unless asked. M1 is committed; M2, M3, M4 and M5 are uncommitted in the working tree.
 - Ask before taking product or schema decisions that the docs do not settle.
 
 ## Keeping this handover current (required)
@@ -34,10 +34,47 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M2 Auth | Done, awaiting owner review (uncommitted) |
 | M3 Import | Done, awaiting owner review (uncommitted) |
 | M4 UI shell + overview | Done, awaiting owner review (uncommitted) |
-| M5 Edit/new | **Next. Not started** |
-| M6 | Not started |
+| M5 Edit/new | Done, awaiting owner review (uncommitted) |
+| M6 Browser tests, Docker, compose, backup, docs | **Next. Not started** |
 
-### What M4 delivered
+### What M5 delivered
+
+- **Ui:** ScoreInput (toggle group "–", 1–10 on desktop, a select below 600px), SuggestField (debounced
+  MudAutocomplete that accepts any text), UnsavedChangesDialog + UnsavedChangesChoice (Stay/Save/Discard).
+- **Movies:** MovieInput + MovieInputValidator (Dutch messages; year 1888..current+5, date 1900..tomorrow, from
+  UserClock), MovieCommands.SaveAsync (validate, duplicate check, resolve-or-insert genre/medium, version check,
+  all in one ReadCommitted transaction; returns Result<SavedMovie>: Validation per field, NotFound, Conflict),
+  MovieQueries additions (FindForEditAsync, FindDuplicateAsync, SuggestGenresAsync/SuggestMediaAsync,
+  GetNavigationAsync using raw-SQL window functions that mirror the overview ORDER BY), OverviewState.WithoutSearch.
+  Pages/MovieEditPage.razor serves /films/nieuw and /films/{id} (record navigation Eerste/Vorige/Volgende/Laatste
+  with "n van N" that keeps the overview's search/sort, Gegevens + Vertoning panels, sticky Evaluatie panel, sticky save
+  bar, inline duplicate hint with a link, validation summary and focus on the first invalid field, Ctrl/Cmd+S,
+  unsaved-changes guard on in-app navigation, conflict alert with Herladen / Toch opslaan, not-found card).
+  The M4 placeholders MovieDetailPage/NewMoviePage are gone.
+- **Infrastructure:** DbOperations/DbFailure are now public; PublicSurfaceTests updated.
+- **Follow-up:** Regisseur is a `SuggestField` too (`MovieQueries.SuggestDirectorsAsync`: distinct by collation, most
+  used first, contains match); new names can still be typed freely.
+  Saving snaps the director to the spelling other movies already use (case/accent per collation, most-used spelling;
+  `MovieCommands.ResolveDirectorAsync`); a director only used by the movie itself keeps the typed spelling.
+- **Host:** snackbars at top-center; pp.js Ctrl+S helper.
+- **Follow-up:** saving a new film (or one whose title/year changed) whose Title + Year already exists under another
+  director shows `SameTitleDialog` ("Bestaat deze film al?"): links to the possible conflicts (new tab) and three
+  choices: "Terug naar formulier", "Invoer annuleren" (discard, back to the overview), "Toch opslaan"
+  (`MovieQueries.FindSameTitleAndYearAsync`; a failed lookup never blocks saving). Exact duplicates keep the existing
+  inline/server error.
+- **Tests (381 total):** unit MovieInputTests, bUnit ScoreInputTests; characteristics MovieCommandTests
+  (create/update, versions, conflict + retry, not found, duplicates by case/accent, races, lookup reuse, Unicode,
+  suggestions with %/_ escaping) and MovieNavigationQueryTests (boundaries, every sort column both directions,
+  multi-sort, search, search fallback, consistency with ListOverviewAsync).
+- **Browser check (throwaway Playwright against the local DB, 1440px and 390px):** validation, create + redirect,
+  Ctrl+S, dirty-navigation dialog, duplicate hint, concurrency alert + "Toch opslaan", not found, no console errors,
+  no horizontal overflow. Synthetic rows removed afterwards (1,203 movies). Not yet in the automated browser suite (M6).
+- Checks: build -warnaserror, XML-doc build (0 warnings), csharpier check, full test run pass.
+- **Open for the owner:** the §8.6 item "every imported record shows the same values as in Access" is not ticked; the
+  form shows the database values, but the comparison against the .mdb was done only by M3's counts and rules.
+
+Earlier: M4 delivered the shell + overview (summary below).
+### What M4 delivered (summary)
 
 Scope follows PLAN.md §10 (M4 = shell + overview; M5 = edit/new). The older HANDOVER text that put edit in M4 was
 wrong; the owner confirmed the PLAN split.
@@ -145,16 +182,25 @@ health endpoints, options validation and Serilog.
 - Playwright chromium is installed (via `playwright.ps1 install chromium` after a build).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M5 – Edit/new (PLAN.md §10, with §5, §7 and §8.4–8.6)
+## Next: M6 – Browser tests, Docker, compose, backup, docs (PLAN.md §10, with §9 and §11)
 
-Replace the placeholder `/films/{id}` and the `/films/nieuw` stub with the real form: `ScoreInput`, `SuggestField`,
-dialogs in `MovieDB.Ui`; commands and FluentValidation validators (Dutch messages; "today"/current year from
-`UserClock`); duplicate check (Title + Year + Director, collation-based), new genre/medium rows inserted in the save
-transaction, `version` concurrency token, sticky save bar, record navigation, unsaved-changes guard. Map unique-key
-and concurrency conflicts to `Result`/`Error`. Make `DbOperations`/`DbFailure` public if the slice needs them and
-extend `PublicSurfaceTests`. Done when the §8.6 checklist is ticked and tests pass. Develop against the imported local
-data (never print rows or reviews). Stop for owner review afterwards.
+Playwright .NET browser tests against a real HTTP listener with a Testcontainers DB and synthetic seed data
+(login, search -> open -> edit -> save, new film, duplicate, record navigation, unsaved-changes dialog, validation,
+change password; 390px and 1440px), the Dockerfile and compose stack, backup script, README and deployment notes.
+Follow PLAN.md §9 and §11. Done when the §10 M6 criteria hold. Stop for owner review afterwards.
 
+## Learnings from M5
+
+- **MudBlazor v9:** AutoGrow is gone (use Sizing="InputSizing.Auto"); ShowAsync<T>(null, options) is ambiguous
+  (use (string?)null). Do not capture a or loop variable in a Razor child content (copy it first).
+- **.films-card** belongs to the overview's mobile cards; the edit page uses ilms-panel.
+- **Save of a new film:** after the redirect the page reloads by id (the baseline is set first, so it is not dirty);
+  keeping _id null would make a second save insert a duplicate.
+- **Navigation SQL** is raw (SqlQueryRaw<NavigationRow>) with fixed ORDER BY fragments and parameters for values;
+  a test checks it against the overview order for every sort column.
+- **MudBlazor + bUnit:** JSInterop.Mode = Loose, AddMudServices() and a rendered MudPopoverProvider.
+- **Evaluatie header** uses the PLAN maroon gradient (#7A1F2B -> #B0263F); the label "Film" replaces M4's "Verhaal".
+- The create tool wrote CRLF again; normalise new files to LF.
 ## Learnings from M4
 
 - **MudBlazor deviations from PLAN §8.3:** `MudDataGrid` is used with `Items` only (the page is one bounded query,

@@ -41,6 +41,8 @@ public class PublicSurfaceTests
             "AuthThrottleStore",
             "DatabaseConfiguration",
             "DatabaseMigrator",
+            "DbFailure",
+            "DbOperations",
             "DefaultUserOptions",
             "DefaultUserSeeder",
             "Genre",
@@ -51,7 +53,7 @@ public class PublicSurfaceTests
         ],
         [typeof(AuthModule).Assembly] = ["AuthEndpoints", "AuthModule", "AuthOptions"],
         [typeof(MoviesModule).Assembly] = ["MoviesModule"],
-        [typeof(FilmsTheme).Assembly] = ["FilmsTheme"],
+        [typeof(FilmsTheme).Assembly] = ["FilmsTheme", "UnsavedChangesChoice"],
     };
 
     /// <summary>Public types emitted by generators that cannot be made internal.</summary>

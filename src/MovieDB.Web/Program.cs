@@ -153,7 +153,9 @@ builder.Services.Configure<RequestLocalizationOptions>(o =>
     o.SupportedCultures = [culture];
     o.SupportedUICultures = [culture];
 });
-builder.Services.AddMudServices();
+builder.Services.AddMudServices(config =>
+    config.SnackbarConfiguration.PositionClass = MudBlazor.Defaults.Classes.Position.TopCenter
+);
 builder.Services.AddMudTranslations();
 builder
     .Services.AddRazorComponents()

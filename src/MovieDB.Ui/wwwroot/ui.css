@@ -35,3 +35,44 @@
     border-color: var(--mud-palette-lines-default);
     color: var(--mud-palette-text-secondary);
 }
+
+.score-input {
+    align-items: center;
+    display: grid;
+    gap: 0.25rem 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.score-input-label {
+    font-weight: 500;
+}
+
+.score-input-select {
+    display: none;
+    grid-column: 1 / -1;
+}
+
+.score-input-toggles .mud-toggle-group {
+    width: 100%;
+}
+
+.score-input-toggles .mud-toggle-item {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.25rem;
+}
+
+@media (max-width: 599.98px) {
+    .score-input {
+        grid-template-columns: 1fr;
+    }
+
+    .score-input-label,
+    .score-input-toggles {
+        display: none;
+    }
+
+    .score-input-select {
+        display: block;
+    }
+}

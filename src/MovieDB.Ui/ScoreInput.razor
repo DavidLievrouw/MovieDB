@@ -1,0 +1,58 @@
+@namespace MovieDB.Ui
+
+<div class="score-input" role="group" aria-label="@Label">
+    <span class="score-input-label">@Label</span>
+    <div class="score-input-toggles">
+        <MudToggleGroup T="int" Value="Current" ValueChanged="Changed" SelectionMode="SelectionMode.SingleSelection"
+                        Color="Color.Primary" Size="Size.Small" Outlined="true" Delimiters="true" Disabled="Disabled">
+            <MudToggleItem T="int" Value="0" Text="@EmptyText"/>
+            @for (var score = MinScore; score <= MaxScore; score++)
+            {
+                <MudToggleItem T="int" Value="score" Text="@score.ToString()"/>
+            }
+        </MudToggleGroup>
+    </div>
+    <div class="score-input-select">
+        <MudSelect T="int" Label="@Label" Value="Current" ValueChanged="Changed" Variant="Variant.Outlined"
+                   Margin="Margin.Dense" Disabled="Disabled" AnchorOrigin="Origin.BottomCenter">
+            <MudSelectItem T="int" Value="0">@EmptyText</MudSelectItem>
+            @for (var score = MinScore; score <= MaxScore; score++)
+            {
+                var shown = score;
+                <MudSelectItem T="int" Value="shown">@shown</MudSelectItem>
+            }
+        </MudSelect>
+    </div>
+</div>
+
+@code {
+    /// <summary>The lowest score.</summary>
+    public const int MinScore = 1;
+
+    /// <summary>The highest score.</summary>
+    public const int MaxScore = 10;
+
+    /// <summary>The score (1–10), or <c>null</c> for an empty score.</summary>
+    [Parameter]
+    public int? Value { get; set; }
+
+    /// <summary>Raised when the user picks another score; <c>null</c> when the empty option is picked.</summary>
+    [Parameter]
+    public EventCallback<int?> ValueChanged { get; set; }
+
+    /// <summary>The name of the score; also its accessible name.</summary>
+    [Parameter]
+    public string Label { get; set; } = "";
+
+    /// <summary>The text of the option that clears the score.</summary>
+    [Parameter]
+    public string EmptyText { get; set; } = "–";
+
+    /// <summary>Whether the input is disabled.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private int Current => Value ?? 0;
+
+    private Task Changed(int score) => ValueChanged.InvokeAsync(score == 0 ? null : score);
+}

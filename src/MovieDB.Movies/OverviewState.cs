@@ -81,6 +81,10 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
         return -1;
     }
 
+    /// <summary>Drops the search, keeping the sort order. Goes back to the first page.</summary>
+    /// <returns>The new state.</returns>
+    public OverviewState WithoutSearch() => this with { Search = "", Page = 1 };
+
     /// <summary>Sorts on a single column only, in its default direction. Goes back to the first page.</summary>
     /// <param name="field">The sort column.</param>
     /// <returns>The new state.</returns>

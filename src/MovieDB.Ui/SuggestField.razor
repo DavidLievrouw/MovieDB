@@ -1,0 +1,75 @@
+@namespace MovieDB.Ui
+
+<MudAutocomplete T="string" @ref="_input" Label="@Label" Value="Value" ValueChanged="ValueChanged" SearchFunc="SearchAsync"
+                 CoerceValue="true" CoerceText="true" ResetValueOnEmptyText="true" DebounceInterval="DebounceMs"
+                 MinCharacters="0" OpenOnFocus="true" MaxItems="MaxItems" Variant="Variant.Outlined" Required="Required"
+                 Error="Error" ErrorText="@ErrorText" MaxLength="MaxLength" Clearable="false" OnBlur="OnBlur"
+                 Disabled="Disabled" @attributes="AdditionalAttributes"/>
+
+@code {
+    /// <summary>The debounce interval, in milliseconds, between typing and a suggestion lookup.</summary>
+    public const int DebounceMs = 150;
+
+    private MudAutocomplete<string>? _input;
+
+    /// <summary>The text. Any text is allowed; the suggestions only help to pick an existing value.</summary>
+    [Parameter]
+    public string? Value { get; set; }
+
+    /// <summary>Raised when the text changes.</summary>
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    /// <summary>The label of the field.</summary>
+    [Parameter]
+    public string Label { get; set; } = "";
+
+    /// <summary>Looks up the suggestions for the typed text (empty text asks for the most common ones).</summary>
+    [Parameter, EditorRequired]
+    public Func<string, CancellationToken, Task<IReadOnlyList<string>>> Suggestions { get; set; } = null!;
+
+    /// <summary>The largest number of suggestions that is shown.</summary>
+    [Parameter]
+    public int MaxItems { get; set; } = 10;
+
+    /// <summary>The largest number of characters that can be typed.</summary>
+    [Parameter]
+    public int MaxLength { get; set; } = 50;
+
+    /// <summary>Whether the field is marked as required.</summary>
+    [Parameter]
+    public bool Required { get; set; }
+
+    /// <summary>Whether the field shows an error.</summary>
+    [Parameter]
+    public bool Error { get; set; }
+
+    /// <summary>The error message.</summary>
+    [Parameter]
+    public string? ErrorText { get; set; }
+
+    /// <summary>Raised when the field loses focus.</summary>
+    [Parameter]
+    public EventCallback<FocusEventArgs> OnBlur { get; set; }
+
+    /// <summary>Whether the field is disabled.</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Extra attributes, passed on to the autocomplete component.</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    /// <summary>Moves the focus to the input.</summary>
+    /// <returns>A task that completes when the focus has been set.</returns>
+    public async Task FocusAsync()
+    {
+        if (_input is not null)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
+    private async Task<IEnumerable<string>> SearchAsync(string? text, CancellationToken cancellationToken) =>
+        await Suggestions(text?.Trim() ?? "", cancellationToken);
+}

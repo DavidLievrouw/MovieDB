@@ -1,0 +1,785 @@
+@page "/films/nieuw"
+@page "/films/{Id:int}"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject MovieQueries Queries
+@inject MovieCommands Commands
+@inject UserClock Clock
+@inject NavigationManager Navigation
+@inject IDialogService Dialogs
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject ILogger<MovieEditPage> Logger
+
+<PageTitle>@PageHeading</PageTitle>
+
+<NavigationLock OnBeforeInternalNavigation="OnBeforeNavigationAsync" ConfirmExternalNavigation="@Dirty"/>
+
+<div class="films-page films-edit">
+    <div class="films-edit-top">
+        <a class="films-back" href="@BackUrl">
+            <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small"/> Overzicht
+        </a>
+        @if (_state == LoadState.Ready)
+        {
+            <nav class="films-record-nav" aria-label="Navigatie tussen films">
+                <MudTooltip Text="Eerste record">
+                    <MudButton Href="@LinkTo(_nav?.FirstId)" Disabled="@(_nav is null || _nav.Position <= 1)" Size="Size.Small"
+                               Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.FirstPage" aria-label="Eerste film">
+                        <span class="films-nav-text">Eerste</span>
+                    </MudButton>
+                </MudTooltip>
+                <MudTooltip Text="Vorige record">
+                    <MudButton Href="@LinkTo(_nav?.PreviousId)" Disabled="@(_nav?.PreviousId is null)" Size="Size.Small"
+                               Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ChevronLeft" aria-label="Vorige film">
+                        <span class="films-nav-text">Vorige</span>
+                    </MudButton>
+                </MudTooltip>
+                <MudTooltip Text="Record toevoegen">
+                    <MudButton Href="@NewUrl" Disabled="@IsNew" Size="Size.Small" Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.Add" aria-label="Nieuwe film">
+                        <span class="films-nav-text">Nieuw</span>
+                    </MudButton>
+                </MudTooltip>
+                <MudTooltip Text="Volgende record">
+                    <MudButton Href="@LinkTo(_nav?.NextId)" Disabled="@(_nav?.NextId is null)" Size="Size.Small"
+                               Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.ChevronRight" aria-label="Volgende film">
+                        <span class="films-nav-text">Volgende</span>
+                    </MudButton>
+                </MudTooltip>
+                <MudTooltip Text="Laatste record">
+                    <MudButton Href="@LinkTo(_nav?.LastId)" Disabled="@(_nav is null || _nav.Position >= _nav.Total)" Size="Size.Small"
+                               Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.LastPage" aria-label="Laatste film">
+                        <span class="films-nav-text">Laatste</span>
+                    </MudButton>
+                </MudTooltip>
+                @if (_nav is not null)
+                {
+                    <span class="films-position" aria-live="polite">@Formats.Count(_nav.Position) van @Formats.Count(_nav.Total)</span>
+                }
+            </nav>
+        }
+    </div>
+
+    @if (_state == LoadState.Error)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-4">
+            De film kon niet worden geladen.
+            <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="ReloadAsync">Opnieuw proberen</MudButton>
+        </MudAlert>
+    }
+    else if (_state == LoadState.Loading)
+    {
+        <div class="films-skeleton" aria-hidden="true">
+            <MudSkeleton Height="44px" Animation="Animation.Wave"/>
+            <MudSkeleton Height="44px" Animation="Animation.Wave"/>
+            <MudSkeleton Height="44px" Animation="Animation.Wave"/>
+        </div>
+    }
+    else if (_state == LoadState.NotFound)
+    {
+        <MudPaper Class="films-notfound pa-6 mt-4" Outlined="true" Elevation="0">
+            <h1 class="films-title">@MovieMessages.NotFound</h1>
+            <MudButton Href="@BackUrl" Variant="Variant.Outlined" Class="mt-4">Naar overzicht</MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <h1 class="films-title mt-2">@PageHeading</h1>
+        @if (!IsNew)
+        {
+            <p class="films-meta">Film #@_id · aangemaakt @LocalTime(_createdAt), gewijzigd @LocalTime(_updatedAt)</p>
+        }
+
+        @if (_conflict)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-3" role="alert">
+                @MovieMessages.Changed
+                <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="ReloadAsync">Herladen</MudButton>
+                <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="SaveAnywayAsync">Toch opslaan</MudButton>
+            </MudAlert>
+        }
+
+        @if (_formError is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3" role="alert">@_formError</MudAlert>
+        }
+
+        @if (_errors.Count > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3" role="alert">Controleer de gemarkeerde velden.</MudAlert>
+        }
+
+        <MudGrid Class="mt-1" Spacing="3">
+            <MudItem xs="12" md="8">
+                <MudPaper Class="films-panel pa-4" Outlined="true" Elevation="0">
+                    <h2 class="films-section">Gegevens</h2>
+                    <div class="films-fields">
+                        <MudTextField @ref="_title" T="string" @bind-Value="_model.Title" Label="Filmtitel" Immediate="true"
+                                      MaxLength="MovieInput.TitleMaxLength" Variant="Variant.Outlined" Required="true"
+                                      Error="@HasError(nameof(MovieInput.Title))" ErrorText="@ErrorOf(nameof(MovieInput.Title))"
+                                      OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Title)))" Class="films-field-wide"/>
+                        @if (_duplicateId is { } duplicateId)
+                        {
+                            <p class="films-duplicate films-field-wide" role="status">
+                                <a href="@LinkTo(duplicateId)">Bekijk bestaande film</a>
+                            </p>
+                        }
+
+                        <SuggestField @ref="_genre" @bind-Value="_model.Genre" Label="Genre" Required="true"
+                                      Suggestions="SuggestGenresAsync" Error="@HasError(nameof(MovieInput.Genre))"
+                                      ErrorText="@ErrorOf(nameof(MovieInput.Genre))"
+                                      OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Genre)))"/>
+
+                        <MudNumericField @ref="_runtime" T="int?" @bind-Value="_model.RuntimeMinutes" Label="Duur"
+                                         HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="min"
+                                         Variant="Variant.Outlined" Required="true" Min="0" Max="9999"
+                                         Error="@HasError(nameof(MovieInput.RuntimeMinutes))"
+                                         ErrorText="@ErrorOf(nameof(MovieInput.RuntimeMinutes))"
+                                         OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.RuntimeMinutes)))"/>
+
+                        <MudNumericField @ref="_year" T="int?" @bind-Value="_model.ReleaseYear" Label="Jaar"
+                                         HideSpinButtons="true" Variant="Variant.Outlined" Required="true" Min="0" Max="9999"
+                                         Error="@HasError(nameof(MovieInput.ReleaseYear))"
+                                         ErrorText="@ErrorOf(nameof(MovieInput.ReleaseYear))"
+                                         OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.ReleaseYear)))"/>
+
+                        <SuggestField @ref="_director" @bind-Value="_model.Director" Label="Regisseur" Required="true"
+                                      Suggestions="SuggestDirectorsAsync" MaxLength="MovieInput.DirectorMaxLength"
+                                      Error="@HasError(nameof(MovieInput.Director))"
+                                      ErrorText="@ErrorOf(nameof(MovieInput.Director))"
+                                      OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Director)))" Class="films-field-wide"/>
+                    </div>
+
+                    <h3 class="films-subsection">Vertoning</h3>
+                    <div class="films-fields">
+                        <MudDatePicker @ref="_date" Date="WatchedOnDate" DateChanged="OnDateChanged" Label="Datum"
+                                       Editable="true" DateFormat="dd/MM/yyyy" Mask="@(new DateMask("dd/MM/yyyy"))"
+                                       FirstDayOfWeek="DayOfWeek.Monday" Variant="Variant.Outlined" Required="true"
+                                       Error="@HasError(nameof(MovieInput.WatchedOn))"
+                                       ErrorText="@ErrorOf(nameof(MovieInput.WatchedOn))"/>
+
+                        <SuggestField @ref="_medium" @bind-Value="_model.Medium" Label="Gezien op/in"
+                                      Suggestions="SuggestMediaAsync" Error="@HasError(nameof(MovieInput.Medium))"
+                                      ErrorText="@ErrorOf(nameof(MovieInput.Medium))"
+                                      OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Medium)))"/>
+
+                        <MudTextField @ref="_review" T="string" @bind-Value="_model.Review" Label="Opmerkingen"
+                                      Immediate="true" Lines="8" Sizing="InputSizing.Auto" MaxLines="30"
+                                      MaxLength="MovieInput.ReviewMaxLength" Counter="MovieInput.ReviewMaxLength"
+                                      Variant="Variant.Outlined" Error="@HasError(nameof(MovieInput.Review))"
+                                      ErrorText="@ErrorOf(nameof(MovieInput.Review))"
+                                      OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Review)))" Class="films-field-wide"/>
+                    </div>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="4">
+                <MudPaper Class="films-panel films-eval" Outlined="true" Elevation="0">
+                    <h2 class="films-eval-header">Evaluatie</h2>
+                    <div class="films-eval-body">
+                        <ScoreInput @bind-Value="_model.OverallScore" Label="Totaal (geen gemiddelde)"/>
+                        <ScoreInput @bind-Value="_model.StoryScore" Label="Film"/>
+                        <ScoreInput @bind-Value="_model.PictureScore" Label="Beeld"/>
+                        <ScoreInput @bind-Value="_model.MusicScore" Label="Muziek"/>
+                        <ScoreInput @bind-Value="_model.SoundScore" Label="Geluid"/>
+                        <ScoreInput @bind-Value="_model.ExtrasScore" Label="Extra's" EmptyText="n.v.t."/>
+                    </div>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+        <div class="films-savebar" role="region" aria-label="Opslaan">
+            <span class="films-savebar-state" aria-live="polite">@(Dirty ? "Niet-opgeslagen wijzigingen" : "")</span>
+            <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="@(!Dirty || _saving)">Annuleren</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => SaveAsync())" Disabled="@_saving"
+                       StartIcon="@(_saving ? null : Icons.Material.Filled.Save)">
+                @if (_saving)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2"/>
+                }
+                Opslaan
+            </MudButton>
+        </div>
+    }
+</div>
+
+@code {
+    private enum LoadState
+    {
+        Loading,
+        Ready,
+        NotFound,
+        Error,
+    }
+
+    private static readonly string[] FieldOrder =
+    [
+        nameof(MovieInput.Title),
+        nameof(MovieInput.Genre),
+        nameof(MovieInput.RuntimeMinutes),
+        nameof(MovieInput.ReleaseYear),
+        nameof(MovieInput.Director),
+        nameof(MovieInput.WatchedOn),
+        nameof(MovieInput.Medium),
+        nameof(MovieInput.Review),
+    ];
+
+    private readonly Dictionary<string, string> _errors = [];
+    private LoadState _state = LoadState.Loading;
+    private MovieInput _model = new();
+    private MovieInput _baseline = new();
+    private MovieNavigation? _nav;
+    private MovieId? _id;
+    private int _version = 1;
+    private DateTime _createdAt;
+    private DateTime _updatedAt;
+    private MovieId? _duplicateId;
+    private bool _conflict;
+    private string? _formError;
+    private bool _saving;
+    private int _loadedKey = -1;
+    private DotNetObjectReference<MovieEditPage>? _self;
+    private bool _registered;
+
+    private MudTextField<string>? _title;
+    private SuggestField? _genre;
+    private MudNumericField<int?>? _runtime;
+    private MudNumericField<int?>? _year;
+    private SuggestField? _director;
+    private MudDatePicker? _date;
+    private SuggestField? _medium;
+    private MudTextField<string>? _review;
+
+    [Parameter]
+    public int? Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "q")]
+    private string? Q { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sort")]
+    private string? Sort { get; set; }
+
+    [SupplyParameterFromQuery(Name = "page")]
+    private string? PageNumber { get; set; }
+
+    [SupplyParameterFromQuery(Name = "size")]
+    private string? PageSizeQuery { get; set; }
+
+    private bool IsNew => Id is null;
+
+    private bool Dirty => _state == LoadState.Ready && !_model.SameAs(_baseline);
+
+    private string PageHeading => IsNew ? "Nieuwe film" : _baseline.Title is { Length: > 0 } title ? title : "Film";
+
+    private OverviewState QueryState => OverviewState.FromQuery(Q, Sort, PageNumber, PageSizeQuery);
+
+    private OverviewState LinkState => _nav?.State ?? QueryState;
+
+    private string BackUrl
+    {
+        get
+        {
+            var state = LinkState;
+            if (_nav is not null)
+            {
+                state = state with { Page = Math.Max(1, (_nav.Position - 1) / state.PageSize + 1) };
+            }
+
+            return "/films" + state.ToQueryString();
+        }
+    }
+
+    private string LinkQuery => (LinkState with { Page = 1 }).ToQueryString();
+
+    private string NewUrl => "/films/nieuw" + LinkQuery;
+
+    private string? LinkTo(MovieId? id) =>
+        id is { } movieId ? $"/films/{movieId.Value}{LinkQuery}" : null;
+
+    private string LocalTime(DateTime utc) =>
+        TimeZoneInfo
+            .ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Clock.Zone)
+            .ToString("dd/MM/yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+
+    private DateTime? WatchedOnDate => _model.WatchedOn?.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Prerendering shows the skeleton only; the circuit loads the movie once per movie.
+        var key = Id ?? 0;
+        if (!RendererInfo.IsInteractive || _loadedKey == key)
+        {
+            return;
+        }
+
+        _loadedKey = key;
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (RendererInfo.IsInteractive && !_registered)
+        {
+            _registered = true;
+            _self = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("filmsRegisterSave", _self);
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _state = LoadState.Loading;
+        ClearFeedback();
+        try
+        {
+            if (Id is { } rawId)
+            {
+                if (!MovieId.TryFrom(rawId, out var movieId))
+                {
+                    _state = LoadState.NotFound;
+                    return;
+                }
+
+                var edit = await Queries.FindForEditAsync(movieId, CancellationToken.None);
+                if (edit is null)
+                {
+                    _state = LoadState.NotFound;
+                    return;
+                }
+
+                _id = edit.Id;
+                _version = edit.Version;
+                _createdAt = edit.CreatedAt;
+                _updatedAt = edit.UpdatedAt;
+                _model = edit.Input;
+                _nav = await Queries.GetNavigationAsync(movieId, QueryState, CancellationToken.None);
+            }
+            else
+            {
+                _id = null;
+                _version = 1;
+                _nav = null;
+                _model = new MovieInput { WatchedOn = Clock.Today };
+            }
+
+            _baseline = _model.Clone();
+            _state = LoadState.Ready;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Loading movie {MovieId} failed.", Id);
+            _state = LoadState.Error;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+
+    private void ClearFeedback()
+    {
+        _errors.Clear();
+        _duplicateId = null;
+        _conflict = false;
+        _formError = null;
+    }
+
+    private void Cancel()
+    {
+        _model = _baseline.Clone();
+        ClearFeedback();
+    }
+
+    private bool HasError(string field) => _errors.ContainsKey(field);
+
+    private string? ErrorOf(string field) => _errors.GetValueOrDefault(field);
+
+    private Task<IReadOnlyList<string>> SuggestGenresAsync(string text, CancellationToken cancellationToken) =>
+        Queries.SuggestGenresAsync(text, 10, cancellationToken);
+
+    private Task<IReadOnlyList<string>> SuggestDirectorsAsync(string text, CancellationToken cancellationToken) =>
+        Queries.SuggestDirectorsAsync(text, 10, cancellationToken);
+
+    private Task<IReadOnlyList<string>> SuggestMediaAsync(string text, CancellationToken cancellationToken) =>
+        Queries.SuggestMediaAsync(text, 10, cancellationToken);
+
+    private async Task OnDateChanged(DateTime? date)
+    {
+        _model.WatchedOn = date is { } value ? DateOnly.FromDateTime(value) : null;
+        await CheckFieldAsync(nameof(MovieInput.WatchedOn));
+    }
+
+    /// <summary>Validates one field after the user left it, and checks Title + Year + Director for a duplicate.</summary>
+    /// <param name="field">The property name of the field.</param>
+    private async Task CheckFieldAsync(string field)
+    {
+        if (_saving)
+        {
+            return;
+        }
+
+        var messages = Commands.Validate(_model.Normalized());
+        _errors.Remove(field);
+        if (messages.TryGetValue(field, out var fieldMessages))
+        {
+            _errors[field] = fieldMessages[0];
+        }
+
+        if (field is nameof(MovieInput.Title) or nameof(MovieInput.ReleaseYear) or nameof(MovieInput.Director))
+        {
+            await CheckDuplicateAsync(messages);
+        }
+    }
+
+    private async Task CheckDuplicateAsync(IReadOnlyDictionary<string, string[]> messages)
+    {
+        _duplicateId = null;
+        if (_errors.GetValueOrDefault(nameof(MovieInput.Title)) == MovieMessages.Duplicate)
+        {
+            _errors.Remove(nameof(MovieInput.Title));
+        }
+
+        if (
+            messages.ContainsKey(nameof(MovieInput.Title))
+            || messages.ContainsKey(nameof(MovieInput.ReleaseYear))
+            || messages.ContainsKey(nameof(MovieInput.Director))
+        )
+        {
+            return;
+        }
+
+        try
+        {
+            var values = _model.Normalized();
+            _duplicateId = await Queries.FindDuplicateAsync(
+                values.Title!,
+                values.ReleaseYear!.Value,
+                values.Director!,
+                _id,
+                CancellationToken.None
+            );
+        }
+        catch (Exception ex)
+        {
+            // The check is a convenience: saving validates again on the server.
+            Logger.LogWarning(ex, "Checking for a duplicate movie failed.");
+        }
+
+        if (_duplicateId is not null && !_errors.ContainsKey(nameof(MovieInput.Title)))
+        {
+            _errors[nameof(MovieInput.Title)] = MovieMessages.Duplicate;
+        }
+    }
+
+    [JSInvokable]
+    public async Task SaveFromShortcut()
+    {
+        if (_state == LoadState.Ready && !_saving)
+        {
+            await SaveAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SaveAnywayAsync()
+    {
+        try
+        {
+            var current = _id is { } id ? await Queries.FindForEditAsync(id, CancellationToken.None) : null;
+            if (current is null)
+            {
+                _state = LoadState.NotFound;
+                return;
+            }
+
+            _version = current.Version;
+            _conflict = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Reloading movie {MovieId} failed.", _id);
+            _formError = "Opslaan is mislukt. Probeer het opnieuw.";
+            return;
+        }
+
+        await SaveAsync();
+    }
+
+    /// <summary>Validates and saves the movie.</summary>
+    /// <param name="redirectNew">Whether a newly created movie replaces the page with its own page.</param>
+    /// <returns><c>true</c> when the movie was saved.</returns>
+    private async Task<bool> SaveAsync(bool redirectNew = true)
+    {
+        if (_saving)
+        {
+            return false;
+        }
+
+        _formError = null;
+        var values = _model.Normalized();
+        var errors = Commands.Validate(values);
+        _errors.Clear();
+        _duplicateId = null;
+        if (errors.Count > 0)
+        {
+            foreach (var (field, messages) in errors)
+            {
+                _errors[field] = messages[0];
+            }
+
+            await FocusFirstInvalidAsync();
+            return false;
+        }
+
+        _saving = true;
+        try
+        {
+            if (await ConfirmSameTitleAsync(values) is not SameTitleChoice.Save and not null)
+            {
+                return false;
+            }
+
+            var result = await Commands.SaveAsync(_id, _version, values, CancellationToken.None);
+            if (result.IsSuccess)
+            {
+                return await OnSavedAsync(result.Value, values, redirectNew);
+            }
+
+            await ShowFailureAsync(result.Error, values);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Saving movie {MovieId} failed.", _id);
+            _formError = "Opslaan is mislukt. Probeer het opnieuw.";
+            return false;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    /// <summary>
+    /// Warns when another movie has the same title and release year (a different director), unless an existing
+    /// movie keeps its title and year. The lookup is a convenience: when it fails, saving continues.
+    /// </summary>
+    /// <param name="values">The normalized, valid input.</param>
+    /// <returns>The choice of the user, or <c>null</c> when there was nothing to warn about.</returns>
+    private async Task<SameTitleChoice?> ConfirmSameTitleAsync(MovieInput values)
+    {
+        if (
+            !IsNew
+            && string.Equals(values.Title, _baseline.Title?.Trim(), StringComparison.OrdinalIgnoreCase)
+            && values.ReleaseYear == _baseline.ReleaseYear
+        )
+        {
+            return null;
+        }
+
+        IReadOnlyList<SameTitleMovie> matches;
+        try
+        {
+            matches = await Queries.FindSameTitleAndYearAsync(
+                values.Title!,
+                values.ReleaseYear!.Value,
+                values.Director!,
+                _id,
+                5,
+                CancellationToken.None
+            );
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Checking for movies with the same title and year failed.");
+            return null;
+        }
+
+        if (matches.Count == 0)
+        {
+            return null;
+        }
+
+        var parameters = new DialogParameters<SameTitleDialog>
+        {
+            { x => x.Title, values.Title! },
+            { x => x.Year, values.ReleaseYear!.Value },
+            { x => x.Matches, matches.Select(m => KeyValuePair.Create(m.Id.Value, m.Director)).ToList() },
+        };
+        var dialog = await Dialogs.ShowAsync<SameTitleDialog>(
+            (string?)null,
+            parameters,
+            new DialogOptions { CloseOnEscapeKey = true, BackdropClick = false, MaxWidth = MaxWidth.Small }
+        );
+        var result = await dialog.Result;
+        var choice = result is { Canceled: false, Data: SameTitleChoice picked } ? picked : SameTitleChoice.Back;
+        if (choice == SameTitleChoice.Cancel)
+        {
+            _model = _baseline.Clone();
+            _errors.Clear();
+            _duplicateId = null;
+            Navigation.NavigateTo(BackUrl);
+        }
+
+        return choice;
+    }
+
+    private async Task<bool> OnSavedAsync(SavedMovie saved, MovieInput values, bool redirectNew)
+    {
+        _conflict = false;
+        Snackbar.Add("Film opgeslagen.", Severity.Success);
+        if (IsNew)
+        {
+            _model = values;
+            _baseline = values.Clone();
+            if (redirectNew)
+            {
+                Navigation.NavigateTo($"/films/{saved.Id.Value}{(QueryState with { Page = 1 }).ToQueryString()}", replace: true);
+            }
+            else
+            {
+                _id = saved.Id;
+                _version = saved.Version;
+                if (await Queries.FindForEditAsync(saved.Id, CancellationToken.None) is { } created)
+                {
+                    _model = created.Input;
+                    _baseline = created.Input.Clone();
+                    _createdAt = created.CreatedAt;
+                    _updatedAt = created.UpdatedAt;
+                }
+            }
+
+            return true;
+        }
+
+        var edit = await Queries.FindForEditAsync(saved.Id, CancellationToken.None);
+        if (edit is null)
+        {
+            _state = LoadState.NotFound;
+            return true;
+        }
+
+        _version = edit.Version;
+        _createdAt = edit.CreatedAt;
+        _updatedAt = edit.UpdatedAt;
+        _model = edit.Input;
+        _baseline = edit.Input.Clone();
+        return true;
+    }
+
+    private async Task ShowFailureAsync(Error error, MovieInput values)
+    {
+        switch (error.Kind)
+        {
+            case ErrorKind.Validation:
+                foreach (var (field, messages) in error.Fields ?? new Dictionary<string, string[]>())
+                {
+                    _errors[field] = messages[0];
+                }
+
+                if (_errors.GetValueOrDefault(nameof(MovieInput.Title)) == MovieMessages.Duplicate)
+                {
+                    _duplicateId = await Queries.FindDuplicateAsync(
+                        values.Title!,
+                        values.ReleaseYear!.Value,
+                        values.Director!,
+                        _id,
+                        CancellationToken.None
+                    );
+                }
+
+                await FocusFirstInvalidAsync();
+                break;
+            case ErrorKind.NotFound:
+                _state = LoadState.NotFound;
+                break;
+            case ErrorKind.Conflict when error.Message == MovieMessages.Changed:
+                _conflict = true;
+                break;
+            default:
+                _formError = "Opslaan is niet gelukt omdat de gegevens tegelijk werden gewijzigd. Probeer het opnieuw.";
+                break;
+        }
+    }
+
+    private async Task FocusFirstInvalidAsync()
+    {
+        var field = FieldOrder.FirstOrDefault(_errors.ContainsKey);
+        if (field is null)
+        {
+            return;
+        }
+
+        // The error text must be rendered first, otherwise the focus moves before the field changes.
+        await InvokeAsync(StateHasChanged);
+        Task? focus = field switch
+        {
+            nameof(MovieInput.Title) => _title?.FocusAsync().AsTask(),
+            nameof(MovieInput.Genre) => _genre?.FocusAsync(),
+            nameof(MovieInput.RuntimeMinutes) => _runtime?.FocusAsync().AsTask(),
+            nameof(MovieInput.ReleaseYear) => _year?.FocusAsync().AsTask(),
+            nameof(MovieInput.Director) => _director?.FocusAsync(),
+            nameof(MovieInput.WatchedOn) => _date?.FocusAsync().AsTask(),
+            nameof(MovieInput.Medium) => _medium?.FocusAsync(),
+            nameof(MovieInput.Review) => _review?.FocusAsync().AsTask(),
+            _ => null,
+        };
+        if (focus is not null)
+        {
+            await focus;
+        }
+    }
+
+    private async Task OnBeforeNavigationAsync(LocationChangingContext context)
+    {
+        if (!Dirty)
+        {
+            return;
+        }
+
+        context.PreventNavigation();
+        var dialog = await Dialogs.ShowAsync<UnsavedChangesDialog>(
+            (string?)null,
+            new DialogOptions { CloseOnEscapeKey = true, BackdropClick = false, MaxWidth = MaxWidth.Small }
+        );
+        var result = await dialog.Result;
+        var choice = result is { Canceled: false, Data: UnsavedChangesChoice picked }
+            ? picked
+            : UnsavedChangesChoice.Stay;
+
+        switch (choice)
+        {
+            case UnsavedChangesChoice.Save when await SaveAsync(redirectNew: false):
+                Navigation.NavigateTo(context.TargetLocation, replace: context.HistoryEntryState is not null);
+                break;
+            case UnsavedChangesChoice.Discard:
+                _baseline = _model.Clone();
+                Navigation.NavigateTo(context.TargetLocation);
+                break;
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_registered)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("filmsUnregisterSave");
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit is gone, so there is no handler left to remove.
+            }
+            catch (InvalidOperationException)
+            {
+                // Static rendering has no JavaScript.
+            }
+        }
+
+        _self?.Dispose();
+    }
+}
