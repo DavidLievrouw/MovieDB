@@ -208,6 +208,45 @@ public class ChipMultiSelectTests : BunitContext
     }
 
     [Fact]
+    public void A_required_field_marks_the_placeholder_with_an_asterisk()
+    {
+        var cut = Render<ChipMultiSelect>(parameters =>
+            parameters
+                .Add(p => p.Values, [])
+                .Add(p => p.Label, "Genre")
+                .Add(p => p.Placeholder, "Kies een genre")
+                .Add(p => p.Required, true)
+                .Add(p => p.Suggestions, (_, _) => Task.FromResult<IReadOnlyList<string>>([.. Genres]))
+        );
+
+        cut.Find("input").GetAttribute("placeholder").ShouldBe("Kies een genre*");
+    }
+
+    [Fact]
+    public void The_label_can_be_hidden_while_it_stays_the_accessible_name()
+    {
+        var cut = Render<ChipMultiSelect>(parameters =>
+            parameters
+                .Add(p => p.Values, [])
+                .Add(p => p.Label, "Genre")
+                .Add(p => p.HideLabel, true)
+                .Add(p => p.Suggestions, (_, _) => Task.FromResult<IReadOnlyList<string>>([.. Genres]))
+        );
+
+        cut.FindAll("legend").ShouldBeEmpty();
+        cut.FindAll(".chip-multi-select-label").ShouldBeEmpty();
+        cut.Find("input").GetAttribute("aria-label").ShouldBe("Genre");
+    }
+
+    [Fact]
+    public void The_label_is_drawn_inside_the_box_and_the_box_knows_whether_it_has_values()
+    {
+        RenderWithBlur([], () => { }).Find(".chip-multi-select-label").TextContent.ShouldBe("Genre");
+        RenderWithBlur([], () => { }).Find("fieldset").ClassList.ShouldNotContain("chip-multi-select-filled");
+        RenderWithBlur(["Actie"], () => { }).Find("fieldset").ClassList.ShouldContain("chip-multi-select-filled");
+    }
+
+    [Fact]
     public void Leaving_the_input_raises_the_blur_after_a_short_delay()
     {
         var blurred = 0;

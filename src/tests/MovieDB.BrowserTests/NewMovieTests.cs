@@ -45,7 +45,7 @@ public sealed class NewMovieTests
         await using var session = await _fixture.OpenAsync(width, height);
         await session.OpenNewAsync();
         var input = session.ChipInput("genre-field");
-        await Expect(input).ToHaveAttributeAsync("placeholder", "Kies een genre");
+        await Expect(input).ToHaveAttributeAsync("placeholder", "Kies een genre*");
 
         await input.ClickAsync();
         var item = session.Page.Locator(".mud-popover-open .mud-list-item").First;
@@ -62,7 +62,7 @@ public sealed class NewMovieTests
         await Expect(session.Chips("genre-field").GetByText(name, new() { Exact = true })).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Kies minstens één genre.")).ToHaveCountAsync(0);
         await Expect(session.Page.GetByText("Controleer de gemarkeerde velden.")).ToHaveCountAsync(0);
-        await Expect(input).Not.ToHaveAttributeAsync("placeholder", "Kies een genre");
+        await Expect(input).Not.ToHaveAttributeAsync("placeholder", "Kies een genre*");
     }
 
     [Fact]
@@ -78,22 +78,54 @@ public sealed class NewMovieTests
         await AssertSameRowAsync(genre, duration);
     }
 
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task The_genre_label_sits_inside_the_empty_box_like_the_other_labels_and_floats_when_used(
+        int width,
+        int height
+    )
+    {
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        var label = session.Page.Locator("[data-testid=genre-field] .chip-multi-select-label");
+        var titleControl = session.Page.Locator(".mud-input-control").Filter(new() { HasText = "Filmtitel" }).First;
+        var titleBox = (await titleControl.Locator(".mud-input").First.BoundingBoxAsync())!;
+        var title = await TextLeftAsync(titleControl.Locator("label"));
+        var box = (await session.ChipBox("genre-field").BoundingBoxAsync())!;
+
+        await Expect(label).ToBeVisibleAsync();
+        await Expect(label).ToHaveTextAsync("Genre*");
+        var at = (await label.BoundingBoxAsync())!;
+        (await TextLeftAsync(label) - box.X).ShouldBe(title - titleBox.X, 1);
+        (at.Y + (at.Height / 2)).ShouldBe(box.Y + (box.Height / 2), 1);
+
+        await session.ChipInput("genre-field").ClickAsync();
+        await Expect(label).ToBeVisibleAsync();
+        await Expect(session.Page.Locator("[data-testid=genre-field] legend")).ToHaveTextAsync("Genre*");
+
+        // The border opens a gap for the floated label, and the label animates there instead of jumping.
+        var legend = session.Page.Locator("[data-testid=genre-field] legend");
+        await Expect(legend).ToHaveCSSAsync("max-width", "100%");
+        (await label.EvaluateAsync<string>("el => getComputedStyle(el).transitionDuration")).ShouldContain("0.2s");
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        var floated = (await label.BoundingBoxAsync())!;
+        var outline = (
+            await session.Page.Locator("[data-testid=genre-field] .chip-multi-select-outline").BoundingBoxAsync()
+        )!;
+        (floated.Y + (floated.Height / 2)).ShouldBe(outline.Y + 5, 2);
+    }
+
     [Fact]
-    public async Task The_genre_placeholder_has_the_same_gray_as_the_labels_of_the_other_fields()
+    public async Task The_genre_filter_on_the_overview_has_no_label_like_the_search_box()
     {
         await using var session = await _fixture.OpenAsync(1440, 900);
-        await session.OpenNewAsync();
+        await session.GotoAsync("/films");
+        var filter = session.Page.Locator(".films-genre-filter");
 
-        var placeholder = await session
-            .ChipInput("genre-field")
-            .EvaluateAsync<string>(
-                "el => { const s = getComputedStyle(el, '::placeholder'); return `${s.color}/${s.opacity}`; }"
-            );
-        var label = await session
-            .Page.Locator("label:has-text('Jaar')")
-            .First.EvaluateAsync<string>("el => `${getComputedStyle(el).color}/1`");
-
-        placeholder.ShouldBe(label);
+        await Expect(filter.Locator(".chip-multi-select-input")).ToBeVisibleAsync();
+        await Expect(filter.Locator("legend")).ToHaveCountAsync(0);
+        await Expect(filter.Locator(".chip-multi-select-label")).ToHaveCountAsync(0);
     }
 
     [Theory]
@@ -110,6 +142,11 @@ public sealed class NewMovieTests
         await AssertCenteredAsync(box, session.Chips("genre-field").First);
         await AssertCenteredAsync(box, session.ChipInput("genre-field"));
     }
+
+    private static async Task<double> TextLeftAsync(ILocator element) =>
+        await element.EvaluateAsync<double>(
+            "el => { const r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().left; }"
+        );
 
     private static async Task AssertCenteredAsync(ILocator box, ILocator inner)
     {

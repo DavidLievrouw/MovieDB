@@ -32,7 +32,7 @@
                       Variant="Variant.Outlined" Margin="Margin.Dense" aria-label="Zoek op titel"
                       Class="films-search"/>
         <div class="films-genre-filter">
-            <ChipMultiSelect Label="Genre" Dense="true" Placeholder="Alle genres" Values="SelectedGenreNames" ValuesChanged="OnGenresChanged"
+            <ChipMultiSelect Label="Genre" HideLabel="true" Dense="true" Placeholder="Alle genres" Values="SelectedGenreNames" ValuesChanged="OnGenresChanged"
                              Suggestions="SuggestGenres" AllowNew="false" MaxItems="40" data-testid="genre-filter"/>
             @if (_state.Genres.Count > 0)
             {

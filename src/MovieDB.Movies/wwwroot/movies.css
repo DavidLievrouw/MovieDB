@@ -500,12 +500,6 @@
     margin-top: 8px;
 }
 
-/* In the form, the placeholder uses the same gray as the labels of the neighbouring fields. */
-.films-fields > .chip-multi-select input::placeholder {
-    color: var(--mud-palette-text-secondary);
-    opacity: 1;
-}
-
 .films-subsection {
     font-family: 'Space Grotesk', Inter, system-ui, sans-serif;
     font-size: 1rem;

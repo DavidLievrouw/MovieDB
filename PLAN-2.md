@@ -237,15 +237,17 @@ matching rows in PLAN.md §6.3 and §6.4.
 - Both fields go into `Ui` as one reusable generic component (`ChipMultiSelect`; strings in, strings out, `AllowNew`
   flag, `MaxSelected`, Dutch texts), independent of Movies and Infrastructure. bUnit tests cover it.
 - **In-box chips (M8 extension, applies to Regisseur(s) in M9):** the chips are rendered **inside** the outlined input
-  box, like a tag input, followed by the text input that fills the remaining space (a `fieldset` with a `legend` gives
-  the native notched label border). A chip is removed **only** by clicking the X on the chip itself; Backspace in an
+  box, like a tag input, followed by the text input that fills the remaining space (the label notch is a separate absolutely positioned, aria-hidden outline `fieldset` + `legend`, like MudBlazor,
+  so the border opens behind the floated label). The label looks like on the other outlined fields: inside the empty, unfocused
+  box (same position as "Filmtitel*"), floating into the notch on focus or when chips exist. The overview filter
+  has no label (`HideLabel`), only a placeholder, like the title search. A chip is removed **only** by clicking the X on the chip itself; Backspace in an
   empty input never removes a chip. Clicking anywhere in the box focuses the input. Focus, hover, error and
   disabled states follow the MudBlazor outlined look; the `Hint` or error text sits under the box. The Regisseur(s)
   field must use this same control (including the free-entry chips and the "Nieuw" marker). There are no other
   multi-selects in the app: `ScoreInput`, the sort select and the page-size select are single selects and
   `SuggestField` (Gezien op/in) is single-valued.
 - **Placeholder and deferred blur (lesson from M8, applies to Regisseur(s) in M9):** the control has a `Placeholder`
-  (shown only while nothing is selected; "Kies een genre" on the edit page, "Alle genres" on the filter). Its `OnBlur`
+  (shown only while nothing is selected; "Kies een genre*" on the edit page, with the "*" because the field is required, like the other required fields; "Alle genres" on the filter). Its `OnBlur`
   is raised 250 ms late and cancelled when a value is added meanwhile: mouse-down on a suggestion blurs the input, and
   an immediate blur error shifts the layout so that the mouse-up misses the item (the first pick on "Nieuwe film" was
   lost). For the same reason the "Controleer de gemarkeerde velden." banner shows only after a Save attempt, never

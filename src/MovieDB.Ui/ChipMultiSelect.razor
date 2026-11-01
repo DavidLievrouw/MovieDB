@@ -3,7 +3,16 @@
 
 <div class="chip-multi-select" @attributes="AdditionalAttributes">
     <fieldset class="@BoxClass" disabled="@Disabled" @onclick="FocusAsync">
-        <legend>@LabelText</legend>
+        <fieldset class="chip-multi-select-outline" aria-hidden="true">
+            @if (!HideLabel)
+            {
+                <legend><span>@LabelText</span></legend>
+            }
+        </fieldset>
+        @if (!HideLabel)
+        {
+            <span class="chip-multi-select-label" aria-hidden="true">@LabelText</span>
+        }
         @foreach (var value in Values)
         {
             var item = value;
@@ -24,7 +33,7 @@
                          DebounceInterval="DebounceMs" MinCharacters="0" OpenOnFocus="true" MaxItems="MaxItems"
                          SelectValueOnTab="false" Variant="Variant.Text" Underline="false" Margin="Margin.Dense"
                          MaxLength="MaxLength" Clearable="false" OnBlur="OnInputBlurAsync" Disabled="Disabled || AtMaximum"
-                         Placeholder="@(Values.Count == 0 ? Placeholder : null)"
+                         Placeholder="@PlaceholderText"
                          RelativeWidth="DropdownWidth.Adaptive" PopoverClass="chip-multi-select-popover"
                          Class="chip-multi-select-input" aria-label="@Label"/>
     </fieldset>
@@ -93,6 +102,13 @@
     [Parameter]
     public string? Placeholder { get; set; }
 
+    /// <summary>
+    /// Whether the label is not shown, like the search box next to it: only the placeholder is. The label is still the
+    /// accessible name of the input.
+    /// </summary>
+    [Parameter]
+    public bool HideLabel { get; set; }
+
     /// <summary>The largest number of suggestions that is shown.</summary>
     [Parameter]
     public int MaxItems { get; set; } = 40;
@@ -133,8 +149,19 @@
     // chips are selected. Whether a value is missing is decided by the parent, through Error.
     private string LabelText => Required ? Label + "*" : Label;
 
+    // The placeholder gets the same required marker as the label, like the other required fields of the form.
+    private string? PlaceholderText =>
+        Values.Count > 0 ? null
+        : Required && !string.IsNullOrEmpty(Placeholder) ? Placeholder + "*"
+        : Placeholder;
+
     private string BoxClass =>
-        "chip-multi-select-box" + (Dense ? " chip-multi-select-dense" : "") + (Error ? " chip-multi-select-invalid" : "") + (Disabled ? " chip-multi-select-disabled" : "");
+        "chip-multi-select-box"
+        + (HideLabel ? "" : " chip-multi-select-labelled")
+        + (Values.Count > 0 ? " chip-multi-select-filled" : "")
+        + (Dense ? " chip-multi-select-dense" : "")
+        + (Error ? " chip-multi-select-invalid" : "")
+        + (Disabled ? " chip-multi-select-disabled" : "");
 
     private static void Ignore() { }
 
