@@ -17,7 +17,6 @@ namespace MovieDB.AccessImport;
 /// <param name="PictureScore">The picture score (1-10), if any.</param>
 /// <param name="MusicScore">The music score (1-10), if any.</param>
 /// <param name="SoundScore">The sound score (1-10), if any.</param>
-/// <param name="ExtrasScore">The extras score (1-10), if any.</param>
 /// <param name="Review">The review text, if any.</param>
 internal sealed record CleanMovie(
     int Id,
@@ -33,7 +32,6 @@ internal sealed record CleanMovie(
     int? PictureScore,
     int? MusicScore,
     int? SoundScore,
-    int? ExtrasScore,
     string? Review
 );
 
@@ -104,7 +102,6 @@ internal static class MovieCleaner
         var picture = Score(row.PictureScore, row.FilmId, "PictureScore", errors);
         var music = Score(row.MusicScore, row.FilmId, "MusicScore", errors);
         var sound = Score(row.SoundScore, row.FilmId, "SoundScore", errors);
-        var extras = ExtrasScore(row.Extras, row.FilmId, errors);
 
         var review = CleanReview(row.Review);
         if (review is not null && CharCount(review) > MaxReviewLength)
@@ -131,7 +128,6 @@ internal static class MovieCleaner
             picture,
             music,
             sound,
-            extras,
             review
         );
         return new CleanResult(row.FilmId, movie, errors, titleExtra, directorExtra, whitespaceCleaned);
@@ -256,33 +252,5 @@ internal static class MovieCleaner
                 errors.Add(new RowError(filmId, field, "is out of range"));
                 return null;
         }
-    }
-
-    private static int? ExtrasScore(string? raw, int filmId, List<RowError> errors)
-    {
-        var text = raw?.Trim();
-        if (string.IsNullOrEmpty(text) || string.Equals(text, "n/a", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        if (!int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
-        {
-            errors.Add(new RowError(filmId, "ExtrasScore", "is not a number"));
-            return null;
-        }
-
-        if (value == 0)
-        {
-            return null;
-        }
-
-        if (value is < 1 or > 10)
-        {
-            errors.Add(new RowError(filmId, "ExtrasScore", "is out of range"));
-            return null;
-        }
-
-        return value;
     }
 }

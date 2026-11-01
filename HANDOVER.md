@@ -39,12 +39,12 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M4 UI shell + overview | Done (committed) |
 | M5 Edit/new | Done (committed) |
 | M6 Browser tests, Docker, compose, backup, docs | Done (committed) |
-| M7 Drop Extra's, mandatory scores | **Planned** (next) |
-| M8 Multi-genre + genre filter | Planned |
+| M7 Drop Extra's, mandatory scores | **Done, awaiting owner review (uncommitted)** |
+| M8 Multi-genre + genre filter | Planned (next) |
 | M9 Multi-director | Planned |
 | M10 Phase 2 wrap-up | Planned |
 
-## Phase 2: planned, nothing implemented yet
+## Phase 2: M7 done, M8-M10 planned
 
 The owner has reached feature parity with Access and asked for improvements. [`PLAN-2.md`](PLAN-2.md) holds the
 decisions, data model, UI and import changes and the milestones. All questions are answered. Summary:
@@ -54,7 +54,7 @@ decisions, data model, UI and import changes and the milestones. All questions a
 - **Directors:** 1-5 per film (`directors` + `movie_directors` with position), free entry of new names, entered order
   kept for display. Uniqueness is Title + Year + the **order-insensitive** set of directors, enforced by
   `movies.directors_key` (sorted director ids) with a unique index. The 4 current "A, B" values are split on import.
-- **Extra's** is dropped everywhere (the 16 existing values are lost, confirmed). The five other scores are required
+- **Extra's** is dropped everywhere (done in M7; the 16 existing values are lost, confirmed). The five other scores are required
   in the UI and validator; DB columns stay nullable (9 existing films miss a score and must be completed on edit).
 - **Migrations:** no production exists, so no data-preserving EF migration. The `Initial` migration is edited in place
   (same id; Designers and snapshot too), the local `moviedb` is **dropped and recreated** (dev only), then migrated
@@ -70,6 +70,32 @@ decisions, data model, UI and import changes and the milestones. All questions a
 
 Local data facts used for the plan (counts only): 1,203 movies; 21 genres used; 4 director values contain a comma;
 9 movies miss at least one score; 16 movies have an Extra's value.
+
+### What M7 delivered (uncommitted, awaiting owner review)
+
+- **Extra's removed** from the entity, `MovieConfiguration` (column + CHECK), the hand-written `Initial` migration, both
+  Designers (`Initial`, `SeedAuthThrottleGlobalRow`) and the snapshot (edited in place; AGENTS.md now records the
+  phase 2 exception), `MovieInput`/validator, `MovieCommands`, `MovieQueries`, the edit page and the import tool
+  (`SourceFilm`, `OdbcFilmSource`, `MovieCleaner`, `ImportLoader`, `DataStats`; the ODBC SELECT no longer reads Extras).
+- **Mandatory scores:** the five scores must be 1-10 ("Totaal/Film/Beeld/Muziek/Geluid is verplicht.", "Kies een score
+  van 1 tot 10."), validated in the UI (`MovieInputValidator`) and on the server (`MovieCommands` runs the validator).
+  DB columns stay nullable with their 1-10 CHECKs. `ScoreInput` has `AllowEmpty` (default true; the edit page passes
+  false: no "–" option, new films start unselected, legacy NULL scores open unselected), plus `Error`/`ErrorText`/
+  `Placeholder` and `FocusAsync()`; the edit page validates a score on change and focuses the first invalid field
+  (scores are last in the field order). Overview score pills still show "–" for a legacy NULL.
+- **Tests:** unit (MovieInputTests, ScoreInputTests, import tests), characteristics (`MovieConstraintTests` asserts the
+  column is gone, `MovieCommandTests` rejects a film without scores and writes nothing; navigation tests seed all
+  scores and null the total afterwards where needed), browser (`SetAllScoresAsync`; the seed sets all five scores; new
+  tests: a form without scores is rejected and picking a score clears its message; a legacy film with a missing score
+  must be completed before it can be saved). The browser `SetScoreAsync` score argument is now 1-10 (no empty option).
+- **Local DB rebuilt:** `moviedb` was dropped and recreated (utf8mb4 / `utf8mb4_uca1400_ai_ci`, via `docker exec` as root
+  inside the container; the moviedb user cannot drop its own database and `dotnet ef database drop` has no credentials),
+  then `Import-Access.ps1 -Reset`: 1,222 source rows, 19 dropped duplicates, 1,203 movies, 21 genres, 6 corrections, plan
+  figures equal database figures, dump verification passed. Note: the media table holds 8 seeded values of which 6 are
+  used; earlier docs say "6 media" (the number in use). `users` was recreated empty, so `admin` is seeded again on the
+  next app start.
+- Checks: build `-warnaserror`, XML-doc build (0 warnings), `csharpier check` and the full test run pass.
+- Not done: the actual edit page was exercised only by the automated browser tests, not by a manual look at 390/1440px.
 
 ### What M6 delivered
 
@@ -225,7 +251,8 @@ health endpoints, options validation and Serilog.
 ### Environment facts
 
 - The local MariaDB database `moviedb`, its user, and the user-secret `ConnectionStrings:MovieDb` already exist. The
-  owner created them; the agent never needs the root password. Check that the key exists without printing its value:
+  owner created them; the agent does not need the root password for normal work (a database drop/recreate is done as root
+  inside the container, see "Learnings from M7"). Check that the key exists without printing its value:
   `dotnet user-secrets list --id 9b46a74e-075e-4f32-b29a-dc9bd38c1cec | ForEach-Object { ($_ -split '=')[0] }`.
   The owner granted the user rights on `moviedb.*` and `moviedb_dumpcheck.*`.
 - Production database and user also exist (owner-managed). Nothing for the agent to do there.
@@ -238,29 +265,36 @@ health endpoints, options validation and Serilog.
 - Playwright chromium is installed (via `playwright.ps1 install chromium` after a build).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M7 (PLAN-2.md §9)
+## Next: M8 (PLAN-2.md §9, §4, §6, §7)
 
-Start with M7, then stop for the owner's review. Suggested order:
+Start with M8, then stop for the owner's review. Read PLAN-2 §4.1-4.3 (tables, rules, the 35-genre list), §5 (import and
+dump), §6 (edit and overview UI), §7 (notes and risks) and §8 (tests) first. Summary:
 
-1. Remove `ExtrasScore` / `extras_score` from the entity, configuration (including the CHECK), the hand-written `Initial`
-   migration, **both Designers (`Initial` and `SeedAuthThrottleGlobalRow`)** and the snapshot (keep
-   `HasPendingModelChanges` green). Add the one-time AGENTS.md exception for editing `Initial` (PLAN-2 §7).
-2. Remove it from `MovieInput` + validator, `MovieCommands`, `MovieQueries`, `MovieStatistics`/`StatisticSlides` if used,
-   `MovieEditPage` and the import tool (`SourceFilm`, `OdbcFilmSource`, `MovieCleaner`, `ImportLoader`, `DataStats`).
-3. Make the five scores required in the validator (Dutch messages, PLAN-2 §6.1); add `ScoreInput.AllowEmpty` (default
-   true) and pass `false` from the edit page; new films start unselected.
-4. Update tests (unit, bUnit, characteristics, browser: every save now needs five scores) and docs (README, PLAN-2,
-   AGENTS.md domain rules, PLAN.md pointer).
-5. Rebuild the local database: **drop and recreate the `moviedb` database** (or drop every table including
-   `__EFMigrationsHistory` and `users`), let the migrator recreate the schema and re-seed `admin`, then run
-   `scripts/Import-Access.ps1 -Reset`. Expect the previous import numbers (1,203 movies, 19 dropped duplicates).
+1. Closed genre list `MovieGenres` (35), seeded by the hand-written `Initial` migration (edit in place, both Designers
+   and snapshot; rewrite `Down`); `movie_genres` (1-4 per film) replaces `movies.genre_id`; remove genre suggestions
+   and the "new genre inserted on save" behavior.
+2. Ui multi-select component (chips, closed list) for the edit page; validation 1-4 genres; overview column, filter (a film
+   must have ALL selected genres, URL `genre=3,7`), navigation SQL and statistics adapted.
+3. Import tool maps onto the seeded genres (no genre inserts); dump order and guard change (the five data tables must be
+   empty and `genres` equal the seed).
+3a. Edit-form suggestions are sorted alphabetically by name (PLAN-2 decision 3b): the genre list in `ListGenresAsync` (M8)
+   and `SuggestDirectorsAsync` (M9). Media already is (`SuggestMediaAsync`, done after M7).
+4. Rebuild the local DB (`docker exec mariadb` as root inside the container: drop and create `moviedb` with
+   `utf8mb4` / `utf8mb4_uca1400_ai_ci`), then `scripts/Import-Access.ps1 -Source .\FilmsBase.mdb -Reset` (pipe `RESET`
+   to the prompt). Expect 1,203 movies and 35 genres.
 
-Done when: build `-warnaserror`, CSharpier check and the full test run pass, no `Extras` remains in `src` or the docs
-(except history), and saving without a score is rejected in the UI and on the server. Then update this file (status
-table, "What M7 delivered", next = M8).
+Done when: see the M8 row in PLAN-2 §9.
 
 The first deployment (README, PLAN.md §11.2) is owner-driven and should wait for the phase 2 structure.
 
+## Learnings from M7
+
+- Editing `Initial` in place is safe as long as the snapshot and both Designers agree (`HasPendingModelChanges` test).
+  The entity said `int?` while the snapshot said `sbyte?`; removing a score from all three kept them aligned.
+- `@bind-Value:after` on the `ScoreInput` `Value` parameter works for per-field validation.
+- Seeding through `MovieCommands` now needs five scores. To get a legacy row with a NULL score, save normally and
+  `ExecuteUpdate` the column to NULL (see `BrowserFixture.ClearStoryScoreAsync`).
+- The `moviedb` DB user cannot `DROP DATABASE`; do it as root inside the container (no password is typed or stored).
 ## Learnings from M6
 
 - `WebApplicationFactory` in .NET 10 can host Kestrel (`UseKestrel(0)`, `StartServer()`), so Playwright can drive it.

@@ -18,7 +18,6 @@ internal static class SyntheticFilms
         int? picture = 5,
         int? music = 4,
         int? sound = 3,
-        string? extras = "8",
         string? medium = "DVD",
         string? review = "Synthetic review."
     ) =>
@@ -35,7 +34,6 @@ internal static class SyntheticFilms
             picture,
             music,
             sound,
-            extras,
             medium,
             review
         );
@@ -61,7 +59,6 @@ public sealed class MovieCleanerTests
         movie.ReleaseYear.ShouldBe(1999);
         movie.WatchedOn.ShouldBe(new DateOnly(2020, 5, 17));
         movie.OverallScore.ShouldBe(7);
-        movie.ExtrasScore.ShouldBe(8);
         movie.Medium.ShouldBe("DVD");
     }
 
@@ -132,23 +129,6 @@ public sealed class MovieCleanerTests
             .Clean(SyntheticFilms.Film(9, music: raw))
             .Errors.ShouldHaveSingleItem()
             .Field.ShouldBe("MusicScore");
-
-    [Theory]
-    [InlineData("n/a", null)]
-    [InlineData("N/A", null)]
-    [InlineData("", null)]
-    [InlineData(null, null)]
-    [InlineData("0", null)]
-    [InlineData("7", 7)]
-    [InlineData(" 10 ", 10)]
-    public void Extras_text_is_parsed(string? raw, int? expected) =>
-        Cleaned(SyntheticFilms.Film(1, extras: raw)).ExtrasScore.ShouldBe(expected);
-
-    [Theory]
-    [InlineData("11")]
-    [InlineData("good")]
-    public void Invalid_extras_is_an_error(string raw) =>
-        MovieCleaner.Clean(SyntheticFilms.Film(1, extras: raw)).Errors.ShouldContain(e => e.Field == "ExtrasScore");
 
     [Fact]
     public void Missing_required_values_are_all_reported()

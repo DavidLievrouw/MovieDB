@@ -61,6 +61,10 @@ public sealed class MovieCommandTests
             RuntimeMinutes = 170,
             WatchedOn = new DateOnly(2026, 3, 1),
             OverallScore = 8,
+            StoryScore = 7,
+            PictureScore = 6,
+            MusicScore = 5,
+            SoundScore = 4,
             Review = "synthetic",
         };
 
@@ -91,7 +95,7 @@ public sealed class MovieCommandTests
         edit.Input.Genre.ShouldBe("Thriller");
         edit.Input.Medium.ShouldBe("Bioscoop");
         edit.Input.OverallScore.ShouldBe(8);
-        edit.Input.StoryScore.ShouldBeNull();
+        edit.Input.StoryScore.ShouldBe(7);
         edit.CreatedAt.ShouldBe(Now.UtcDateTime);
         edit.UpdatedAt.ShouldBe(Now.UtcDateTime);
     }
@@ -279,6 +283,28 @@ public sealed class MovieCommandTests
     }
 
     [Fact]
+    public async Task A_movie_without_scores_is_rejected_and_nothing_is_written()
+    {
+        var setup = await CreateAsync();
+        var input = Input();
+        input.OverallScore = null;
+        input.StoryScore = null;
+        input.PictureScore = null;
+        input.MusicScore = null;
+        input.SoundScore = null;
+
+        var result = await setup.Commands.SaveAsync(null, 1, input, TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeFalse();
+        result.Error.Kind.ShouldBe(ErrorKind.Validation);
+        result.Error.Fields!.Keys.ShouldBe(
+            ["OverallScore", "StoryScore", "PictureScore", "MusicScore", "SoundScore"],
+            ignoreOrder: true
+        );
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movies")).ShouldBe(0);
+    }
+
+    [Fact]
     public async Task Typed_genres_and_media_match_existing_rows_by_collation_instead_of_creating_new_ones()
     {
         var setup = await CreateAsync();
@@ -364,6 +390,7 @@ public sealed class MovieCommandTests
         var underscore = await setup.Queries.SuggestGenresAsync("_", 10, TestContext.Current.CancellationToken);
         var limited = await setup.Queries.SuggestGenresAsync("", 2, TestContext.Current.CancellationToken);
         var media = await setup.Queries.SuggestMediaAsync("o", 10, TestContext.Current.CancellationToken);
+        var allMedia = await setup.Queries.SuggestMediaAsync("", 10, TestContext.Current.CancellationToken);
 
         all[0].ShouldBe("Drama");
         all.Count.ShouldBe(3);
@@ -372,6 +399,7 @@ public sealed class MovieCommandTests
         underscore.ShouldBe(["100%_Genre"]);
         limited.Count.ShouldBe(2);
         media.ShouldBe(["Bioscoop"]);
+        allMedia.ShouldBe(["Bioscoop", "dvd", "Netflix"]);
     }
 
     [Fact]

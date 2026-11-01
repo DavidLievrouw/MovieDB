@@ -81,19 +81,29 @@ public sealed class BrowserSession : IAsyncDisposable
 
     /// <summary>Picks a score, using the toggle buttons on a wide screen and the select on a narrow one.</summary>
     /// <param name="label">The label of the score.</param>
-    /// <param name="score">The score; 0 picks the empty option.</param>
+    /// <param name="score">The score, from 1 to 10.</param>
     public async Task SetScoreAsync(string label, int score)
     {
         var group = ScoreGroup(label);
         var toggles = group.Locator(".score-input-toggles");
         if (await toggles.IsVisibleAsync())
         {
-            await toggles.Locator(".mud-toggle-item").Nth(score).ClickAsync();
+            await toggles.Locator(".mud-toggle-item").Nth(score - 1).ClickAsync();
             return;
         }
 
         await group.Locator("div.mud-select").First.ClickAsync();
-        await Page.Locator(".mud-popover-open .mud-list-item").Nth(score).ClickAsync();
+        await Page.Locator(".mud-popover-open .mud-list-item").Nth(score - 1).ClickAsync();
+    }
+
+    /// <summary>Picks the same score for all five scores.</summary>
+    /// <param name="score">The score, from 1 to 10.</param>
+    public async Task SetAllScoresAsync(int score)
+    {
+        foreach (var label in new[] { "Totaal (geen gemiddelde)", "Film", "Beeld", "Muziek", "Geluid" })
+        {
+            await SetScoreAsync(label, score);
+        }
     }
 
     /// <summary>The save button of the edit form.</summary>

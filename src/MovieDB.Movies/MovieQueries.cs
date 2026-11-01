@@ -61,7 +61,6 @@ internal sealed record SameTitleMovie(MovieId Id, string Director);
 /// <param name="PictureScore">The picture score.</param>
 /// <param name="MusicScore">The music score.</param>
 /// <param name="SoundScore">The sound score.</param>
-/// <param name="ExtrasScore">The extras score.</param>
 /// <param name="Review">The written review.</param>
 internal sealed record MovieDetail(
     MovieId Id,
@@ -77,7 +76,6 @@ internal sealed record MovieDetail(
     int? PictureScore,
     int? MusicScore,
     int? SoundScore,
-    int? ExtrasScore,
     string? Review
 );
 
@@ -282,7 +280,6 @@ internal sealed class MovieQueries
                     PictureScore = m.PictureScore,
                     MusicScore = m.MusicScore,
                     SoundScore = m.SoundScore,
-                    ExtrasScore = m.ExtrasScore,
                 }
             ))
             .SingleOrDefaultAsync(cancellationToken);
@@ -413,7 +410,7 @@ internal sealed class MovieQueries
             .ToListAsync(cancellationToken);
     }
 
-    /// <summary>Suggests medium names that contain the text; without text, the most used ones.</summary>
+    /// <summary>Suggests medium names that contain the text, sorted by name.</summary>
     /// <param name="text">The typed text.</param>
     /// <param name="take">The largest number of suggestions.</param>
     /// <param name="cancellationToken">Cancels the query.</param>
@@ -432,12 +429,7 @@ internal sealed class MovieQueries
             media = media.Where(g => EF.Functions.Like(g.Name, pattern));
         }
 
-        return await media
-            .OrderByDescending(g => db.Movies.Count(m => m.MediumId == g.Id))
-            .ThenBy(g => g.Name)
-            .Take(take)
-            .Select(g => g.Name)
-            .ToListAsync(cancellationToken);
+        return await media.OrderBy(g => g.Name).Take(take).Select(g => g.Name).ToListAsync(cancellationToken);
     }
 
     /// <summary>
@@ -577,7 +569,6 @@ internal sealed class MovieQueries
                 m.PictureScore,
                 m.MusicScore,
                 m.SoundScore,
-                m.ExtrasScore,
                 m.Review
             ))
             .SingleOrDefaultAsync(cancellationToken);

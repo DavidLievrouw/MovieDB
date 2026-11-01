@@ -3,7 +3,7 @@
 ## Project overview
 
 - **Product:** a personal film database ("Films" / "Database van films"). It is a log of watched films with genre,
-  runtime, year, director, viewing date, medium, six personal scores and a written review. It replaces the Access
+  runtime, year, director, viewing date, medium, five personal scores and a written review. It replaces the Access
   database `FilmsBase.mdb` (form `frmFilms`). There is one user (the owner), who must log in. **The UI is Dutch**
   (nl-BE). Everything else is English: code, identifiers, database, docs, logs and commits.
 - **Stack:** .NET 10 / C# 14, ASP.NET Core Blazor Web App (static SSR for auth/error pages, Interactive Server for the
@@ -84,7 +84,7 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - **Language:** UI text, validation messages, page titles and routes are Dutch (`/films`, `/films/nieuw`,
   `/films/{id}`, `/login`). Identifiers, DB objects, comments, logs and docs are English. Use the term mapping in
   PLAN.md §4.3 (`Movie`, `Genre`, `Medium`, `Title`, `ReleaseYear`, `Director`, `WatchedOn`, `Review`,
-  `OverallScore`, `StoryScore`, `PictureScore`, `MusicScore`, `SoundScore`, `ExtrasScore`). Suggestion values (genres,
+  `OverallScore`, `StoryScore`, `PictureScore`, `MusicScore`, `SoundScore`). Suggestion values (genres,
   media) are Dutch domain data. In the UI, a viewing of a film is called a **"Vertoning"** (never "kijkbeurt").
 - Database objects use lowercase `snake_case` with plural table names, mapped explicitly. This deliberately differs
   from the reference implementation.
@@ -144,7 +144,10 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   - Genre and medium values are suggestion rows. New typed values are inserted in the same transaction as the save.
   - `version` columns are concurrency tokens: 1 on insert, incremented by the app on every update.
 - Evolve the schema through explicit EF Core migrations with usable `Down` methods. Preserve existing data and test
-  migrations against representative schemas.
+  migrations against representative schemas. **Exception:** during phase 2 (M7-M10) the schema is rewritten in place
+  (`Initial` and its Designer files and the snapshot are edited, with no upgrade path) because nothing is deployed
+  (owner-approved, PLAN-2 §2a). The local database is rebuilt and re-imported from Access after every schema change.
+  Once a database is deployed, schema changes are new data-preserving migrations again.
 - MariaDB DDL may not be transactional. Make migrations safe to retry after partial failure; use self-guarding SQL
   where required by the provider and migration design.
 - `DatabaseMigrator` (`IHostedLifecycleService.StartingAsync`) migrates on startup under
@@ -286,7 +289,9 @@ Record only decisions that are binding for this repository:
 
 - **Business rules:** see PLAN.md §3 (decisions), §5 (data model) and §8 (UI). Highlights:
   - One row per movie; uniqueness is on Title + Year + Director. Re-watches are not logged.
-  - Scores are 1–10 or empty ("–"); Extra's empty means "n.v.t.". "Totaal" is manual, not an average.
+  - The five scores (Totaal, Film, Beeld, Muziek, Geluid) are required, 1–10, with no empty option, validated in the UI
+    and on the server. The DB columns stay nullable (with 1–10 CHECKs) because a few imported films miss a score and
+    are completed on edit. Extra's no longer exists. "Totaal" is manual, not an average.
   - Genre and "Gezien op/in" are free text with DB-backed suggestions.
   - Datum defaults to today in `App:TimeZone`.
   - Default sort is Datum DESC, Title ASC. Search is a debounced title search. Save is explicit.
@@ -306,8 +311,8 @@ Record only decisions that are binding for this repository:
   - Duplicate detection in the import must agree with the DB collation `utf8mb4_uca1400_ai_ci`. A .NET comparer is
     only an approximation; see PLAN.md §6.3.
   - The Docker healthcheck image is chiseled (no shell), so it uses the exec form `["CMD", "dotnet", …]`.
-  - The column `[Gezien op]` contains a space. `Duur`, `Jaar` and `Extras` are text in Access. `Extras` uses `"n/a"`
-    and scores use `0` for "empty".
+  - The column `[Gezien op]` contains a space. `Duur`, `Jaar` and `Extras` are text in Access (`Extras` is not
+    imported). Scores use `0` for "empty".
   - Source data quirks (polluted titles and directors, whitespace, duplicate Title + Year + Director groups) are
     documented in PLAN.md §2.3 and handled by the import rules in §6.3. Duplicate Title + Year + Director rows are
     resolved by keeping the oldest row (earliest Datum, then lowest FilmID); the current `.mdb` yields 1,203 movies.

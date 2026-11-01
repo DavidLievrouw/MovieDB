@@ -31,6 +31,11 @@ public sealed class NewMovieTests
         await Expect(session.Page.GetByText("Regisseur is verplicht.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Duur is verplicht.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Jaar is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Totaal is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Film is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Beeld is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Muziek is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Geluid is verplicht.")).ToBeVisibleAsync();
         session.Page.Url.ShouldContain("/films/nieuw");
     }
 
@@ -58,6 +63,32 @@ public sealed class NewMovieTests
     [Theory]
     [InlineData(390, 844)]
     [InlineData(1440, 900)]
+    public async Task A_form_without_scores_is_rejected_and_picking_a_score_clears_its_message(int width, int height)
+    {
+        var title = BrowserFixture.Unique("Scorefilm");
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        await session.FillAsync("Filmtitel", title);
+        await session.FillAsync("Genre", "Drama");
+        await session.FillAsync("Duur", "100");
+        await session.FillAsync("Jaar", "2002");
+        await session.FillAsync("Regisseur", "Synthetische Regisseur");
+        await session.SetScoreAsync("Film", 7);
+
+        await session.SaveButton.ClickAsync();
+
+        await Expect(session.Page.GetByText("Totaal is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Film is verplicht.")).ToHaveCountAsync(0);
+        session.Page.Url.ShouldContain("/films/nieuw");
+
+        await session.SetScoreAsync("Totaal (geen gemiddelde)", 9);
+
+        await Expect(session.Page.GetByText("Totaal is verplicht.")).ToHaveCountAsync(0);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
     public async Task A_complete_form_creates_the_movie_and_opens_it(int width, int height)
     {
         var title = BrowserFixture.Unique("Nieuwe testfilm");
@@ -73,6 +104,9 @@ public sealed class NewMovieTests
         await session.FillAsync("Opmerkingen", "Een nieuwe, synthetische recensie.");
         await session.SetScoreAsync("Totaal (geen gemiddelde)", 8);
         await session.SetScoreAsync("Film", 7);
+        await session.SetScoreAsync("Beeld", 6);
+        await session.SetScoreAsync("Muziek", 5);
+        await session.SetScoreAsync("Geluid", 4);
         await session.SaveButton.ClickAsync();
 
         await Expect(session.Page).ToHaveURLAsync(new Regex(@"/films/\d+"));
@@ -129,6 +163,7 @@ public sealed class NewMovieTests
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2005");
         await session.FillAsync("Regisseur", "synthetische regisseur");
+        await session.SetAllScoresAsync(7);
         await session.SaveButton.ClickAsync();
 
         await Expect(session.Page.GetByText("Deze film bestaat al (Jaar en Regisseur zijn gelijk)."))
@@ -152,6 +187,7 @@ public sealed class NewMovieTests
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2010");
         await session.FillAsync("Regisseur", "Tweede Regisseur");
+        await session.SetAllScoresAsync(7);
         var dialog = session.Page.Locator(".mud-dialog");
 
         // Back: the form stays as it was and nothing is stored.

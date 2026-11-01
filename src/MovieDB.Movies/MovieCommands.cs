@@ -135,7 +135,6 @@ internal sealed class MovieCommands
         movie.PictureScore = input.PictureScore;
         movie.MusicScore = input.MusicScore;
         movie.SoundScore = input.SoundScore;
-        movie.ExtrasScore = input.ExtrasScore;
         movie.Review = input.Review;
         movie.UpdatedAt = now;
         if (id is null)

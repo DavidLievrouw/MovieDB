@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using MovieDB.Common;
 using MovieDB.Infrastructure;
 using MovieDB.Movies;
@@ -49,11 +50,27 @@ public sealed class MovieNavigationQueryTests
                     Medium = seed.Medium,
                     RuntimeMinutes = 100,
                     WatchedOn = new DateOnly(2026, 1, seed.Day),
-                    OverallScore = seed.Score,
+                    OverallScore = seed.Score ?? 1,
+                    StoryScore = 5,
+                    PictureScore = 5,
+                    MusicScore = 5,
+                    SoundScore = 5,
                 },
                 TestContext.Current.CancellationToken
             );
             ids.Add(result.Value.Id);
+
+            if (seed.Score is null)
+            {
+                // Films imported without a total score are still shown and sorted.
+                await using var db = await factory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+                await db
+                    .Movies.Where(m => m.Id == result.Value.Id)
+                    .ExecuteUpdateAsync(
+                        s => s.SetProperty(m => m.OverallScore, (int?)null),
+                        TestContext.Current.CancellationToken
+                    );
+            }
         }
 
         return (new MovieQueries(factory), [.. ids]);

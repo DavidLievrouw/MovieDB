@@ -179,12 +179,21 @@
                 <MudPaper Class="films-panel films-eval" Outlined="true" Elevation="0">
                     <h2 class="films-eval-header">Evaluatie</h2>
                     <div class="films-eval-body">
-                        <ScoreInput @bind-Value="_model.OverallScore" Label="Totaal (geen gemiddelde)"/>
-                        <ScoreInput @bind-Value="_model.StoryScore" Label="Film"/>
-                        <ScoreInput @bind-Value="_model.PictureScore" Label="Beeld"/>
-                        <ScoreInput @bind-Value="_model.MusicScore" Label="Muziek"/>
-                        <ScoreInput @bind-Value="_model.SoundScore" Label="Geluid"/>
-                        <ScoreInput @bind-Value="_model.ExtrasScore" Label="Extra's" EmptyText="n.v.t."/>
+                        <ScoreInput @ref="_overall" @bind-Value="_model.OverallScore" @bind-Value:after="@(() => CheckFieldAsync(nameof(MovieInput.OverallScore)))" Label="Totaal (geen gemiddelde)"
+                                    AllowEmpty="false" Error="@HasError(nameof(MovieInput.OverallScore))"
+                                    ErrorText="@ErrorOf(nameof(MovieInput.OverallScore))"/>
+                        <ScoreInput @ref="_story" @bind-Value="_model.StoryScore" @bind-Value:after="@(() => CheckFieldAsync(nameof(MovieInput.StoryScore)))" Label="Film" AllowEmpty="false"
+                                    Error="@HasError(nameof(MovieInput.StoryScore))"
+                                    ErrorText="@ErrorOf(nameof(MovieInput.StoryScore))"/>
+                        <ScoreInput @ref="_picture" @bind-Value="_model.PictureScore" @bind-Value:after="@(() => CheckFieldAsync(nameof(MovieInput.PictureScore)))" Label="Beeld" AllowEmpty="false"
+                                    Error="@HasError(nameof(MovieInput.PictureScore))"
+                                    ErrorText="@ErrorOf(nameof(MovieInput.PictureScore))"/>
+                        <ScoreInput @ref="_music" @bind-Value="_model.MusicScore" @bind-Value:after="@(() => CheckFieldAsync(nameof(MovieInput.MusicScore)))" Label="Muziek" AllowEmpty="false"
+                                    Error="@HasError(nameof(MovieInput.MusicScore))"
+                                    ErrorText="@ErrorOf(nameof(MovieInput.MusicScore))"/>
+                        <ScoreInput @ref="_sound" @bind-Value="_model.SoundScore" @bind-Value:after="@(() => CheckFieldAsync(nameof(MovieInput.SoundScore)))" Label="Geluid" AllowEmpty="false"
+                                    Error="@HasError(nameof(MovieInput.SoundScore))"
+                                    ErrorText="@ErrorOf(nameof(MovieInput.SoundScore))"/>
                     </div>
                 </MudPaper>
             </MudItem>
@@ -224,6 +233,11 @@
         nameof(MovieInput.WatchedOn),
         nameof(MovieInput.Medium),
         nameof(MovieInput.Review),
+        nameof(MovieInput.OverallScore),
+        nameof(MovieInput.StoryScore),
+        nameof(MovieInput.PictureScore),
+        nameof(MovieInput.MusicScore),
+        nameof(MovieInput.SoundScore),
     ];
 
     private readonly Dictionary<string, string> _errors = [];
@@ -251,7 +265,11 @@
     private MudDatePicker? _date;
     private SuggestField? _medium;
     private MudTextField<string>? _review;
-
+    private ScoreInput? _overall;
+    private ScoreInput? _story;
+    private ScoreInput? _picture;
+    private ScoreInput? _music;
+    private ScoreInput? _sound;
     [Parameter]
     public int? Id { get; set; }
 
@@ -725,6 +743,11 @@
             nameof(MovieInput.WatchedOn) => _date?.FocusAsync().AsTask(),
             nameof(MovieInput.Medium) => _medium?.FocusAsync(),
             nameof(MovieInput.Review) => _review?.FocusAsync().AsTask(),
+            nameof(MovieInput.OverallScore) => _overall?.FocusAsync(),
+            nameof(MovieInput.StoryScore) => _story?.FocusAsync(),
+            nameof(MovieInput.PictureScore) => _picture?.FocusAsync(),
+            nameof(MovieInput.MusicScore) => _music?.FocusAsync(),
+            nameof(MovieInput.SoundScore) => _sound?.FocusAsync(),
             _ => null,
         };
         if (focus is not null)

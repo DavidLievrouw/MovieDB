@@ -13,7 +13,6 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         "picture_score",
         "music_score",
         "sound_score",
-        "extras_score",
     ];
 
     public void Configure(EntityTypeBuilder<Movie> builder)
@@ -47,7 +46,6 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.Property(x => x.PictureScore).HasColumnName("picture_score").HasColumnType("tinyint");
         builder.Property(x => x.MusicScore).HasColumnName("music_score").HasColumnType("tinyint");
         builder.Property(x => x.SoundScore).HasColumnName("sound_score").HasColumnType("tinyint");
-        builder.Property(x => x.ExtrasScore).HasColumnName("extras_score").HasColumnType("tinyint");
         builder.Property(x => x.Review).HasColumnName("review").HasColumnType("mediumtext");
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime(6)");
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime(6)");

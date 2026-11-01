@@ -70,7 +70,6 @@ internal sealed class ImportLoader
                     PictureScore = m.PictureScore,
                     MusicScore = m.MusicScore,
                     SoundScore = m.SoundScore,
-                    ExtrasScore = m.ExtrasScore,
                     Review = m.Review,
                     CreatedAt = now,
                     UpdatedAt = now,
@@ -171,7 +170,7 @@ internal sealed class ImportLoader
             SELECT COUNT(*),
                    COALESCE(SUM(`overall_score` IS NULL), 0), COALESCE(SUM(`story_score` IS NULL), 0),
                    COALESCE(SUM(`picture_score` IS NULL), 0), COALESCE(SUM(`music_score` IS NULL), 0),
-                   COALESCE(SUM(`sound_score` IS NULL), 0), COALESCE(SUM(`extras_score` IS NULL), 0),
+                   COALESCE(SUM(`sound_score` IS NULL), 0),
                    COALESCE(SUM(`medium_id` IS NULL), 0), COALESCE(SUM(`review` IS NULL), 0),
                    COALESCE(MAX(CHAR_LENGTH(`title`)), 0), COALESCE(MAX(CHAR_LENGTH(`director`)), 0),
                    COALESCE(MAX(CHAR_LENGTH(`review`)), 0),
@@ -191,22 +190,21 @@ internal sealed class ImportLoader
 
         return new DataStats(
             Movies: Int(0),
-            Genres: Int(15),
-            Media: Int(16),
+            Genres: Int(14),
+            Media: Int(15),
             NullOverall: Int(1),
             NullStory: Int(2),
             NullPicture: Int(3),
             NullMusic: Int(4),
             NullSound: Int(5),
-            NullExtras: Int(6),
-            NullMedium: Int(7),
-            NullReview: Int(8),
-            MaxTitleLength: Int(9),
-            MaxDirectorLength: Int(10),
-            MaxReviewLength: Int(11),
-            MinWatchedOn: Date(12),
-            MaxWatchedOn: Date(13),
-            MaxId: Int(14)
+            NullMedium: Int(6),
+            NullReview: Int(7),
+            MaxTitleLength: Int(8),
+            MaxDirectorLength: Int(9),
+            MaxReviewLength: Int(10),
+            MinWatchedOn: Date(11),
+            MaxWatchedOn: Date(12),
+            MaxId: Int(13)
         );
     }
 

@@ -1,7 +1,7 @@
 # MovieDB
 
 Persoonlijke filmdatabase ("Films"): een logboek van bekeken films met genre, duur, jaar, regisseur, datum, medium,
-zes scores en een recensie. Vervangt de Access-database `FilmsBase.mdb`.
+vijf scores en een recensie. Vervangt de Access-database `FilmsBase.mdb`.
 
 Stack: .NET 10, Blazor Web App, MudBlazor, EF Core, MariaDB 12.3.
 

@@ -11,7 +11,6 @@ namespace MovieDB.AccessImport;
 /// <param name="NullPicture">Movies without a picture score.</param>
 /// <param name="NullMusic">Movies without a music score.</param>
 /// <param name="NullSound">Movies without a sound score.</param>
-/// <param name="NullExtras">Movies without an extras score.</param>
 /// <param name="NullMedium">Movies without a medium.</param>
 /// <param name="NullReview">Movies without a review.</param>
 /// <param name="MaxTitleLength">Longest title, in characters.</param>
@@ -29,7 +28,6 @@ internal sealed record DataStats(
     int NullPicture,
     int NullMusic,
     int NullSound,
-    int NullExtras,
     int NullMedium,
     int NullReview,
     int MaxTitleLength,
@@ -50,7 +48,6 @@ internal sealed record DataStats(
             movies.Count(m => m.PictureScore is null),
             movies.Count(m => m.MusicScore is null),
             movies.Count(m => m.SoundScore is null),
-            movies.Count(m => m.ExtrasScore is null),
             movies.Count(m => m.Medium is null),
             movies.Count(m => m.Review is null),
             movies.Select(m => MovieCleaner.CharCount(m.Title)).DefaultIfEmpty(0).Max(),
@@ -71,7 +68,6 @@ internal sealed record DataStats(
         yield return ("NULL picture_score", Text(NullPicture));
         yield return ("NULL music_score", Text(NullMusic));
         yield return ("NULL sound_score", Text(NullSound));
-        yield return ("NULL extras_score", Text(NullExtras));
         yield return ("NULL medium", Text(NullMedium));
         yield return ("NULL review", Text(NullReview));
         yield return ("max title length", Text(MaxTitleLength));

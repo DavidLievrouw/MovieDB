@@ -184,10 +184,6 @@ namespace MovieDB.Infrastructure.Migrations
                         .HasColumnType("varchar(150)")
                         .HasColumnName("director");
 
-                    b.Property<sbyte?>("ExtrasScore")
-                        .HasColumnType("tinyint")
-                        .HasColumnName("extras_score");
-
                     b.Property<int>("GenreId")
                         .HasColumnType("int")
                         .HasColumnName("genre_id");
@@ -262,8 +258,6 @@ namespace MovieDB.Infrastructure.Migrations
 
                     b.ToTable("movies", null, t =>
                         {
-                            t.HasCheckConstraint("ck_movies_extras_score", "`extras_score` IS NULL OR `extras_score` BETWEEN 1 AND 10");
-
                             t.HasCheckConstraint("ck_movies_music_score", "`music_score` IS NULL OR `music_score` BETWEEN 1 AND 10");
 
                             t.HasCheckConstraint("ck_movies_overall_score", "`overall_score` IS NULL OR `overall_score` BETWEEN 1 AND 10");

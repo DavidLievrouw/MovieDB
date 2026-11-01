@@ -77,7 +77,6 @@ public sealed class MovieConstraintTests
         stored.Version.ShouldBe(1);
         stored.MediumId.ShouldBeNull();
         stored.OverallScore.ShouldBeNull();
-        stored.ExtrasScore.ShouldBeNull();
     }
 
     [Fact]
@@ -183,7 +182,6 @@ public sealed class MovieConstraintTests
     [InlineData("picture")]
     [InlineData("music")]
     [InlineData("sound")]
-    [InlineData("extras")]
     public async Task Scores_must_be_between_1_and_10_or_empty(string score)
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
@@ -227,12 +225,22 @@ public sealed class MovieConstraintTests
             case "sound":
                 movie.SoundScore = value;
                 break;
-            case "extras":
-                movie.ExtrasScore = value;
-                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(score));
         }
+    }
+
+    [Fact]
+    public async Task The_movies_table_has_no_extras_column()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+
+        (
+            await MariaDbFixture.ScalarAsync<long>(
+                connectionString,
+                "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'movies' AND COLUMN_NAME LIKE '%extra%'"
+            )
+        ).ShouldBe(0);
     }
 
     [Fact]

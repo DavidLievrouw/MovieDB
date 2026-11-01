@@ -26,7 +26,6 @@ public sealed class DuplicateResolverTests
             null,
             null,
             null,
-            null,
             null
         );
 
@@ -97,7 +96,6 @@ public sealed class AttributeCorrectionTests
             genre,
             runtime,
             new DateOnly(2020, 1, 1),
-            null,
             null,
             null,
             null,
@@ -203,7 +201,7 @@ public sealed class ImportPlannerTests
     public void Stats_describe_the_planned_movies()
     {
         var plan = ImportPlanner.Plan([
-            SyntheticFilms.Film(1, extras: "n/a", medium: null, review: null),
+            SyntheticFilms.Film(1, medium: null, review: null),
             SyntheticFilms.Film(
                 2,
                 title: "Other",
@@ -214,7 +212,6 @@ public sealed class ImportPlannerTests
 
         var stats = plan.Stats;
         stats.Movies.ShouldBe(2);
-        stats.NullExtras.ShouldBe(1);
         stats.NullMedium.ShouldBe(1);
         stats.NullReview.ShouldBe(1);
         stats.NullOverall.ShouldBe(1);
@@ -249,7 +246,7 @@ public sealed class DumpComposerTests
             "FilmsBase.mdb",
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             "20260101000000_Initial",
-            new DataStats(1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, null, null, 1)
+            new DataStats(1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, null, null, 1)
         );
 
         script.ShouldContain("-- Source: FilmsBase.mdb");

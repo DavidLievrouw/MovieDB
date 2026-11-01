@@ -61,23 +61,20 @@ internal sealed class MovieInput
     /// <summary>The written review, if any.</summary>
     public string? Review { get; set; }
 
-    /// <summary>The overall score, if any.</summary>
+    /// <summary>The overall score (1-10), required.</summary>
     public int? OverallScore { get; set; }
 
-    /// <summary>The story score, if any.</summary>
+    /// <summary>The story score (1-10), required.</summary>
     public int? StoryScore { get; set; }
 
-    /// <summary>The picture score, if any.</summary>
+    /// <summary>The picture score (1-10), required.</summary>
     public int? PictureScore { get; set; }
 
-    /// <summary>The music score, if any.</summary>
+    /// <summary>The music score (1-10), required.</summary>
     public int? MusicScore { get; set; }
 
-    /// <summary>The sound score, if any.</summary>
+    /// <summary>The sound score (1-10), required.</summary>
     public int? SoundScore { get; set; }
-
-    /// <summary>The extras score, if any.</summary>
-    public int? ExtrasScore { get; set; }
 
     /// <summary>Creates a copy.</summary>
     /// <returns>An independent copy with the same values.</returns>
@@ -112,8 +109,7 @@ internal sealed class MovieInput
         && StoryScore == other.StoryScore
         && PictureScore == other.PictureScore
         && MusicScore == other.MusicScore
-        && SoundScore == other.SoundScore
-        && ExtrasScore == other.ExtrasScore;
+        && SoundScore == other.SoundScore;
 
     private static string? Trim(string? text) => text?.Trim();
 
@@ -175,15 +171,18 @@ internal sealed class MovieInputValidator : AbstractValidator<MovieInput>
                 $"Datum moet tussen {MinWatchedOn:dd/MM/yyyy} en {clock.Today.AddDays(1):dd/MM/yyyy} liggen."
             );
 
-        RuleFor(x => x.OverallScore).Must(BeAScore).WithMessage(ScoreMessage);
-        RuleFor(x => x.StoryScore).Must(BeAScore).WithMessage(ScoreMessage);
-        RuleFor(x => x.PictureScore).Must(BeAScore).WithMessage(ScoreMessage);
-        RuleFor(x => x.MusicScore).Must(BeAScore).WithMessage(ScoreMessage);
-        RuleFor(x => x.SoundScore).Must(BeAScore).WithMessage(ScoreMessage);
-        RuleFor(x => x.ExtrasScore).Must(BeAScore).WithMessage(ScoreMessage);
+        RuleScore(x => x.OverallScore, "Totaal");
+        RuleScore(x => x.StoryScore, "Film");
+        RuleScore(x => x.PictureScore, "Beeld");
+        RuleScore(x => x.MusicScore, "Muziek");
+        RuleScore(x => x.SoundScore, "Geluid");
     }
 
-    private static string ScoreMessage => "Score moet tussen 1 en 10 liggen.";
-
-    private static bool BeAScore(int? score) => score is null or >= 1 and <= 10;
+    private void RuleScore(System.Linq.Expressions.Expression<Func<MovieInput, int?>> score, string label) =>
+        RuleFor(score)
+            .Cascade(CascadeMode.Stop)
+            .NotNull()
+            .WithMessage($"{label} is verplicht.")
+            .InclusiveBetween(1, 10)
+            .WithMessage("Kies een score van 1 tot 10.");
 }

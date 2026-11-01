@@ -39,7 +39,6 @@ public sealed class ImportLoaderTests
             5,
             4,
             3,
-            "n/a",
             medium,
             review
         );
@@ -197,7 +196,6 @@ public sealed class DumpRoundTripTests
             null,
             6,
             5,
-            "9",
             medium,
             review
         );

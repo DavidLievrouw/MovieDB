@@ -35,6 +35,11 @@ public sealed class MovieInputTests
             ReleaseYear = 1995,
             RuntimeMinutes = 170,
             WatchedOn = new DateOnly(2026, 3, 11),
+            OverallScore = 8,
+            StoryScore = 7,
+            PictureScore = 6,
+            MusicScore = 5,
+            SoundScore = 4,
         };
 
     private static string[] ErrorsFor(MovieInput input, string property) =>
@@ -62,6 +67,11 @@ public sealed class MovieInputTests
                     ["RuntimeMinutes"] = "Duur is verplicht.",
                     ["ReleaseYear"] = "Jaar is verplicht.",
                     ["WatchedOn"] = "Datum is verplicht.",
+                    ["OverallScore"] = "Totaal is verplicht.",
+                    ["StoryScore"] = "Film is verplicht.",
+                    ["PictureScore"] = "Beeld is verplicht.",
+                    ["MusicScore"] = "Muziek is verplicht.",
+                    ["SoundScore"] = "Geluid is verplicht.",
                 },
                 ignoreOrder: true
             );
@@ -116,13 +126,12 @@ public sealed class MovieInputTests
     }
 
     [Theory]
-    [InlineData(null, true)]
     [InlineData(1, true)]
     [InlineData(10, true)]
     [InlineData(0, false)]
     [InlineData(11, false)]
     [InlineData(-1, false)]
-    public void Scores_are_empty_or_between_1_and_10(int? score, bool valid)
+    public void Scores_are_between_1_and_10(int score, bool valid)
     {
         var input = Valid();
         input.OverallScore = score;
@@ -130,9 +139,42 @@ public sealed class MovieInputTests
         input.PictureScore = score;
         input.MusicScore = score;
         input.SoundScore = score;
-        input.ExtrasScore = score;
 
-        Validator.Validate(input).Errors.Count.ShouldBe(valid ? 0 : 6);
+        var errors = Validator.Validate(input).Errors;
+
+        errors.Count.ShouldBe(valid ? 0 : 5);
+        errors.ShouldAllBe(e => e.ErrorMessage == "Kies een score van 1 tot 10.");
+    }
+
+    [Theory]
+    [InlineData("OverallScore", "Totaal is verplicht.")]
+    [InlineData("StoryScore", "Film is verplicht.")]
+    [InlineData("PictureScore", "Beeld is verplicht.")]
+    [InlineData("MusicScore", "Muziek is verplicht.")]
+    [InlineData("SoundScore", "Geluid is verplicht.")]
+    public void Every_score_is_required(string property, string message)
+    {
+        var input = Valid();
+        switch (property)
+        {
+            case "OverallScore":
+                input.OverallScore = null;
+                break;
+            case "StoryScore":
+                input.StoryScore = null;
+                break;
+            case "PictureScore":
+                input.PictureScore = null;
+                break;
+            case "MusicScore":
+                input.MusicScore = null;
+                break;
+            default:
+                input.SoundScore = null;
+                break;
+        }
+
+        ErrorsFor(input, property).ShouldBe([message]);
     }
 
     [Fact]
@@ -186,7 +228,7 @@ public sealed class MovieInputTests
         var copy = input.Clone();
 
         copy.SameAs(input).ShouldBeTrue();
-        copy.ExtrasScore = 3;
+        copy.SoundScore = 3;
         copy.SameAs(input).ShouldBeFalse();
     }
 }

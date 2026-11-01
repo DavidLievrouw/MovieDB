@@ -1,11 +1,15 @@
 @namespace MovieDB.Ui
 
-<div class="score-input" role="group" aria-label="@Label">
+<div @ref="_root" tabindex="-1" class="@(Error ? "score-input score-input-invalid" : "score-input")" role="group"
+     aria-label="@Label" aria-invalid="@(Error ? "true" : null)">
     <span class="score-input-label">@Label</span>
     <div class="score-input-toggles">
         <MudToggleGroup T="int" Value="Current" ValueChanged="Changed" SelectionMode="SelectionMode.SingleSelection"
                         Color="Color.Primary" Size="Size.Small" Outlined="true" Delimiters="true" Disabled="Disabled">
-            <MudToggleItem T="int" Value="0" Text="@EmptyText"/>
+            @if (AllowEmpty)
+            {
+                <MudToggleItem T="int" Value="0" Text="@EmptyText"/>
+            }
             @for (var score = MinScore; score <= MaxScore; score++)
             {
                 <MudToggleItem T="int" Value="score" Text="@score.ToString()"/>
@@ -14,8 +18,12 @@
     </div>
     <div class="score-input-select">
         <MudSelect T="int" Label="@Label" Value="Current" ValueChanged="Changed" Variant="Variant.Outlined"
-                   Margin="Margin.Dense" Disabled="Disabled" AnchorOrigin="Origin.BottomCenter">
-            <MudSelectItem T="int" Value="0">@EmptyText</MudSelectItem>
+                   Margin="Margin.Dense" Disabled="Disabled" AnchorOrigin="Origin.BottomCenter" Error="Error"
+                   Placeholder="@Placeholder">
+            @if (AllowEmpty)
+            {
+                <MudSelectItem T="int" Value="0">@EmptyText</MudSelectItem>
+            }
             @for (var score = MinScore; score <= MaxScore; score++)
             {
                 var shown = score;
@@ -23,6 +31,10 @@
             }
         </MudSelect>
     </div>
+    @if (Error && !string.IsNullOrEmpty(ErrorText))
+    {
+        <span class="score-input-error" role="alert">@ErrorText</span>
+    }
 </div>
 
 @code {
@@ -44,15 +56,37 @@
     [Parameter]
     public string Label { get; set; } = "";
 
+    /// <summary>Whether an option that clears the score is offered. Without it, a score can only be changed, not cleared.</summary>
+    [Parameter]
+    public bool AllowEmpty { get; set; } = true;
+
     /// <summary>The text of the option that clears the score.</summary>
     [Parameter]
     public string EmptyText { get; set; } = "–";
+
+    /// <summary>The text shown by the compact (select) variant while no score is chosen.</summary>
+    [Parameter]
+    public string Placeholder { get; set; } = "Kies een score";
 
     /// <summary>Whether the input is disabled.</summary>
     [Parameter]
     public bool Disabled { get; set; }
 
+    /// <summary>Whether the input is shown as invalid.</summary>
+    [Parameter]
+    public bool Error { get; set; }
+
+    /// <summary>The message shown under the input while <see cref="Error"/> is set.</summary>
+    [Parameter]
+    public string? ErrorText { get; set; }
+
     private int Current => Value ?? 0;
+
+    private ElementReference _root;
+
+    /// <summary>Moves the focus to the input, which also scrolls it into view.</summary>
+    /// <returns>A task that completes when the focus has moved.</returns>
+    public async Task FocusAsync() => await _root.FocusAsync();
 
     private Task Changed(int score) => ValueChanged.InvokeAsync(score == 0 ? null : score);
 }

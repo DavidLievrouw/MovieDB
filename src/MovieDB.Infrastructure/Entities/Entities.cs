@@ -19,7 +19,6 @@ public sealed class Movie
     public int? PictureScore { get; set; }
     public int? MusicScore { get; set; }
     public int? SoundScore { get; set; }
-    public int? ExtrasScore { get; set; }
     public string? Review { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

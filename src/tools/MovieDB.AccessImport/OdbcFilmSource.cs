@@ -8,7 +8,7 @@ internal sealed class OdbcFilmSource : IFilmSource
 {
     private const string Query =
         "SELECT [FilmID], [FilmTitel], [Genre], [Duur], [Jaar], [Regisseur], [Datum], [Totaal], [Film], [Beeld], "
-        + "[Muziek], [Geluid], [Extras], [Gezien op], [Opmerkingen] FROM [tblFilms] ORDER BY [FilmID]";
+        + "[Muziek], [Geluid], [Gezien op], [Opmerkingen] FROM [tblFilms] ORDER BY [FilmID]";
 
     private readonly string _path;
 
@@ -50,9 +50,8 @@ internal sealed class OdbcFilmSource : IFilmSource
                     PictureScore: Number(reader, 9),
                     MusicScore: Number(reader, 10),
                     SoundScore: Number(reader, 11),
-                    Extras: Text(reader, 12),
-                    Medium: Text(reader, 13),
-                    Review: Text(reader, 14)
+                    Medium: Text(reader, 12),
+                    Review: Text(reader, 13)
                 )
             );
         }

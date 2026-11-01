@@ -47,6 +47,30 @@ public sealed class MovieEditTests
     [Theory]
     [InlineData(390, 844)]
     [InlineData(1440, 900)]
+    public async Task A_movie_with_a_missing_score_must_be_completed_before_it_can_be_saved(int width, int height)
+    {
+        var title = BrowserFixture.Unique("Oudefilm");
+        var id = await _fixture.SeedMovieAsync(title);
+        await _fixture.ClearStoryScoreAsync(id);
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenEditAsync(id);
+        await session.FillAsync("Opmerkingen", "Aangevuld.");
+
+        await session.SaveButton.ClickAsync();
+
+        await Expect(session.Page.GetByText("Film is verplicht.")).ToBeVisibleAsync();
+        (await _fixture.FindMovieAsync(id))!.Version.ShouldBe(1);
+
+        await session.SetScoreAsync("Film", 8);
+        await session.SaveButton.ClickAsync();
+
+        await Expect(session.Page.GetByText("Film opgeslagen.")).ToBeVisibleAsync();
+        (await _fixture.FindMovieAsync(id))!.StoryScore.ShouldBe(8);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
     public async Task Cancelling_restores_the_saved_values(int width, int height)
     {
         var title = BrowserFixture.Unique("Annuleerfilm");

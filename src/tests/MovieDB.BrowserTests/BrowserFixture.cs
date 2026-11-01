@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using MovieDB.Common;
+using MovieDB.Infrastructure;
 using MovieDB.Infrastructure.Entities;
 using MovieDB.Movies;
 using Testcontainers.MariaDb;
@@ -185,7 +187,7 @@ public sealed class BrowserFixture : IAsyncLifetime
         string director = "Synthetische Regisseur",
         string genre = "Drama",
         string? medium = "TV",
-        int? overallScore = 7,
+        int overallScore = 7,
         DateOnly? watchedOn = null
     )
     {
@@ -204,6 +206,10 @@ public sealed class BrowserFixture : IAsyncLifetime
                 RuntimeMinutes = 100,
                 WatchedOn = watchedOn ?? new DateOnly(2024, 5, 17),
                 OverallScore = overallScore,
+                StoryScore = 6,
+                PictureScore = 5,
+                MusicScore = 4,
+                SoundScore = 3,
                 Review = "Synthetische recensie.",
             },
             TestContext.Current.CancellationToken
@@ -214,6 +220,21 @@ public sealed class BrowserFixture : IAsyncLifetime
         }
 
         return result.Value.Id.Value;
+    }
+
+    /// <summary>Clears the story score of a saved movie, like a film imported without it.</summary>
+    /// <param name="id">The movie id.</param>
+    public async Task ClearStoryScoreAsync(int id)
+    {
+        await using var scope = Services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MovieDbContext>>();
+        await using var context = await factory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        await context
+            .Movies.Where(m => m.Id == MovieId.From(id))
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(m => m.StoryScore, (int?)null),
+                TestContext.Current.CancellationToken
+            );
     }
 
     /// <summary>Creates a user that can log in; used by the tests that change a password.</summary>

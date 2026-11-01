@@ -3,8 +3,9 @@
 Phase 1 ([`PLAN.md`](PLAN.md)) reached feature parity with the Access database. This plan covers the first round of
 improvements requested by the owner. Read it together with [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** planned, **nothing implemented yet**. The owner's answers are in §2. A review of this plan against the
-code added the clarifications in §2a, which the owner has confirmed. There are no open questions (§10): M7 can start.
+**Status:** M7 (drop Extra's, mandatory scores) is implemented and awaiting the owner's review; M8-M10 are planned.
+The owner's answers are in §2. A review of this plan against the code added the clarifications in §2a, which the
+owner has confirmed. There are no open questions (§10).
 
 **Precedence:** where this plan and PLAN.md disagree, this plan wins for the topics below (PLAN.md §2.3, §3, §5, §6,
 §8.3, §8.4, §9 and §12 are affected). PLAN.md is kept as the record of phase 1 and is not rewritten. AGENTS.md
@@ -39,6 +40,7 @@ The clarifications in §2a were reviewed and confirmed by the owner.
 | 2 | Genre list | The 21 existing genres stay unchanged, plus 14 new ones (§4.3). Final list: 35 (including "Andere"). "Gangster" is not added; "Muziek" is the same as "Musical" and is not added separately. |
 | 3 | Genre limits and order | 1 to 4 genres per film, unordered, displayed alphabetically (collation order). Sorting on the Genre column uses the displayed text. |
 | 3a | Genre filter | The overview gets a genre filter (multi-select). A film must have **ALL** the selected genres. One selected genre shows the films that have that genre among their genres. It combines (AND) with the title search. Search itself stays title-only. |
+| 3b | Suggestion order | Lists and suggestions in the edit forms are sorted **alphabetically by display name** (collation order), not by usage. M7 already did this for media (`SuggestMediaAsync`). M8 does it for genres (`ListGenresAsync`), M9 for directors (`SuggestDirectorsAsync`). |
 | 4 | Existing multi-director values | The 4 current "A, B" director values are **split into separate directors**. |
 | 5 | Duplicate rule | Unique on **Title + Year + the set of directors**. The key is **order-insensitive**: the same directors in another order is the same film and violates the rule. |
 | 6 | Director order | The entered order is kept and used for display. Duplicate detection ignores the order. 1 to 5 directors per film. |
@@ -226,10 +228,10 @@ matching rows in PLAN.md §6.3 and §6.4.
 
 - **Genre:** a multi-select with chips (reference: Motorsports `FuzzyMultiSelect` as used in `RoundWinnersFields`:
   `MudAutocomplete` plus removable chips, already selected items hidden from the suggestions, maximum reached disables
-  the input). Closed list: only listed values can be added. Label "Genre" (hint "Maximaal 4").
+  the input). Closed list: only listed values can be added, suggested alphabetically by name (decision 3b). Label "Genre" (hint "Maximaal 4").
 - **Regisseur(s):** the same component with free entry: choosing a suggestion adds an existing director; typing a name
   and pressing Enter, Tab or comma (or leaving the field with text) adds it as a **new** chip, marked as new
-  ("Nieuw"). A pasted "A, B" becomes two chips. Suggestions: directors used by at least one film, most used first,
+  ("Nieuw"). A pasted "A, B" becomes two chips. Suggestions: directors used by at least one film, sorted alphabetically by name (decision 3b),
   contains-match (extends `MovieQueries.SuggestDirectorsAsync`). Chips keep the entered order; reordering is done by
   removing and re-adding. Label "Regisseur(s)" (hint "Maximaal 5").
 - Both fields go into `Ui` as one reusable generic component (strings in, strings out, `AllowNew` flag, `MaxSelected`,
@@ -332,8 +334,8 @@ milestone updates README, AGENTS.md, PLAN.md pointers and HANDOVER.md where it c
 | # | Milestone | Done when |
 |---|---|---|
 | M7 | **Drop Extra's, mandatory scores:** remove `extras_score` (model, configuration, `Initial` migration, snapshot), `MovieInput`/validator/commands/queries/statistics, `ScoreInput` `AllowEmpty`, edit page, import tool, tests, docs. Rebuild the local DB and re-import. | Build, formatter and the full test run pass; no `Extras` left in `src` or docs (except history); saving without a score is rejected in UI and server; import report matches the previous numbers |
-| M8 | **Multi-genre + filter:** closed 35-genre list (`MovieGenres`, seeded by `Initial`), `movie_genres`, edit-page multi-select (Ui component), validation, overview column, genre filter (ALL) with URL state, navigation and statistics, import mapping (no genre inserts), dump order and guard. | Tests pass; seeded table equals `MovieGenres.All`; browser check at 390/1440 px; import report shows 35 genres and 1,203 movies; filter with two genres returns only films that have both |
-| M9 | **Multi-director:** `directors`, `movie_directors`, `directors_key`, free-entry chips, order-insensitive duplicate rule, orphan cleanup, overview column and sort, split import, dump order and guard. | Tests pass incl. reversed-order duplicate; import report lists the 4 split FilmIDs and 19 dropped duplicates (or a reported difference); browser flows pass |
+| M8 | **Multi-genre + filter:** closed 35-genre list (`MovieGenres`, seeded by `Initial`), `movie_genres`, edit-page multi-select (Ui component, genres suggested alphabetically, decision 3b), validation, overview column, genre filter (ALL) with URL state, navigation and statistics, import mapping (no genre inserts), dump order and guard. | Tests pass; seeded table equals `MovieGenres.All`; browser check at 390/1440 px; import report shows 35 genres and 1,203 movies; filter with two genres returns only films that have both |
+| M9 | **Multi-director:** `directors`, `movie_directors`, `directors_key`, free-entry chips (director suggestions alphabetical, decision 3b), order-insensitive duplicate rule, orphan cleanup, overview column and sort, split import, dump order and guard. | Tests pass incl. reversed-order duplicate; import report lists the 4 split FilmIDs and 19 dropped duplicates (or a reported difference); browser flows pass |
 | M10 | **Wrap-up:** documentation (README, AGENTS.md domain rules, PLAN.md §12 and status pointer), full regression incl. browser tests, final dump + verification, HANDOVER.md. | Full suite green; dump verification passes; HANDOVER reflects the final state |
 
 ---
