@@ -101,4 +101,59 @@ public sealed class OverviewTests
             .ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
         await Expect(session.Field("Datum")).ToHaveValueAsync(today);
     }
+
+    [Fact]
+    public async Task The_search_box_and_the_genre_filter_are_aligned_on_desktop()
+    {
+        await _fixture.SeedMovieAsync(BrowserFixture.Unique("Uitlijning"), genres: ["Western"]);
+        await using var session = await _fixture.OpenAsync(1440, 900);
+        await session.OpenOverviewAsync();
+        var search = session.Page.Locator(".films-search");
+        var genre = session.Page.Locator("[data-testid=genre-filter] .mud-input-control").First;
+
+        await AssertSameRowAsync(search, genre);
+        await session.AddChipAsync("genre-filter", "Western");
+
+        await AssertSameRowAsync(search, genre);
+    }
+
+    private static async Task AssertSameRowAsync(ILocator first, ILocator second)
+    {
+        var a = await first.BoundingBoxAsync();
+        var b = await second.BoundingBoxAsync();
+        a.ShouldNotBeNull();
+        b.ShouldNotBeNull();
+        b.Y.ShouldBe(a.Y, 1);
+        b.Height.ShouldBe(a.Height, 1);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task The_genre_filter_keeps_the_films_that_have_all_chosen_genres_and_updates_the_url(
+        int width,
+        int height
+    )
+    {
+        var prefix = BrowserFixture.Unique("Filterfilm");
+        await _fixture.SeedMovieAsync(prefix + " Beide", genres: ["Western", "Horror"]);
+        await _fixture.SeedMovieAsync(prefix + " Alleen western", genres: ["Western"]);
+        await _fixture.SeedMovieAsync(prefix + " Alleen horror", genres: ["Horror"]);
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenOverviewAsync("?q=" + Uri.EscapeDataString(prefix));
+        await Expect(ResultLinks(session)).ToHaveCountAsync(3);
+
+        await session.AddChipAsync("genre-filter", "Western");
+        await Expect(ResultLinks(session)).ToHaveCountAsync(2);
+        await session.AddChipAsync("genre-filter", "Horror");
+
+        await Expect(ResultLinks(session)).ToHaveCountAsync(1);
+        await Expect(ResultLinks(session).First).ToContainTextAsync("Beide");
+        await Expect(session.Page).ToHaveURLAsync(new Regex(@"[?&]genre=\d+(,|%2C)\d+"));
+
+        await session.Page.GetByRole(AriaRole.Button, new() { Name = "Genrefilter wissen" }).ClickAsync();
+
+        await Expect(ResultLinks(session)).ToHaveCountAsync(3);
+        await Expect(session.Page).Not.ToHaveURLAsync(new Regex("[?&]genre="));
+    }
 }

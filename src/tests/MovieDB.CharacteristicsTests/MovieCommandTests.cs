@@ -48,7 +48,7 @@ public sealed class MovieCommandTests
         string title = "Heat",
         int year = 1995,
         string director = "Michael Mann",
-        string genre = "Thriller",
+        string[]? genres = null,
         string? medium = "Bioscoop"
     ) =>
         new()
@@ -56,7 +56,7 @@ public sealed class MovieCommandTests
             Title = title,
             ReleaseYear = year,
             Director = director,
-            Genre = genre,
+            Genres = [.. genres ?? ["Thriller"]],
             Medium = medium,
             RuntimeMinutes = 170,
             WatchedOn = new DateOnly(2026, 3, 1),
@@ -92,7 +92,7 @@ public sealed class MovieCommandTests
         var edit = await setup.Queries.FindForEditAsync(result.Value.Id, TestContext.Current.CancellationToken);
         edit.ShouldNotBeNull();
         edit.Input.Title.ShouldBe("Heat");
-        edit.Input.Genre.ShouldBe("Thriller");
+        edit.Input.Genres.ShouldBe(["Thriller"]);
         edit.Input.Medium.ShouldBe("Bioscoop");
         edit.Input.OverallScore.ShouldBe(8);
         edit.Input.StoryScore.ShouldBe(7);
@@ -104,14 +104,13 @@ public sealed class MovieCommandTests
     public async Task Unicode_text_round_trips_unchanged()
     {
         var setup = await CreateAsync();
-        var input = Input(title: "Amélie 🎬 東京物語", director: "Jean-Pierre Jeunet", genre: "Komedie – Romantiek");
+        var input = Input(title: "Amélie 🎬 東京物語", director: "Jean-Pierre Jeunet");
         input.Review = "Zoë’s «favoriet» ✓ 日本語";
 
         var id = await CreateMovieAsync(setup, input);
 
         var edit = await setup.Queries.FindForEditAsync(id, TestContext.Current.CancellationToken);
         edit!.Input.Title.ShouldBe(input.Title);
-        edit.Input.Genre.ShouldBe(input.Genre);
         edit.Input.Review.ShouldBe(input.Review);
     }
 
@@ -135,7 +134,7 @@ public sealed class MovieCommandTests
     {
         var setup = await CreateAsync();
         var id = await CreateMovieAsync(setup, Input());
-        var changed = Input(title: "Heat (director's cut)", genre: "Misdaad", medium: null);
+        var changed = Input(title: "Heat (director's cut)", genres: ["Misdaad"], medium: null);
         changed.OverallScore = 9;
 
         var result = await setup.Commands.SaveAsync(id, 1, changed, TestContext.Current.CancellationToken);
@@ -145,7 +144,7 @@ public sealed class MovieCommandTests
         var edit = await setup.Queries.FindForEditAsync(id, TestContext.Current.CancellationToken);
         edit!.Version.ShouldBe(2);
         edit.Input.Title.ShouldBe("Heat (director's cut)");
-        edit.Input.Genre.ShouldBe("Misdaad");
+        edit.Input.Genres.ShouldBe(["Misdaad"]);
         edit.Input.Medium.ShouldBeNull();
         edit.Input.OverallScore.ShouldBe(9);
     }
@@ -269,7 +268,7 @@ public sealed class MovieCommandTests
     public async Task Invalid_input_is_rejected_per_field_before_anything_is_written()
     {
         var setup = await CreateAsync();
-        var input = Input(genre: "Thriller", medium: "Bioscoop");
+        var input = Input(medium: "Bioscoop");
         input.Title = " ";
         input.ReleaseYear = 1700;
         input.OverallScore = 11;
@@ -278,7 +277,9 @@ public sealed class MovieCommandTests
 
         result.IsSuccess.ShouldBeFalse();
         result.Error.Fields!.Keys.ShouldBe(["Title", "ReleaseYear", "OverallScore"], ignoreOrder: true);
-        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM genres")).ShouldBe(0);
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movie_genres")).ShouldBe(
+            0
+        );
         (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM media")).ShouldBe(0);
     }
 
@@ -305,19 +306,138 @@ public sealed class MovieCommandTests
     }
 
     [Fact]
-    public async Task Typed_genres_and_media_match_existing_rows_by_collation_instead_of_creating_new_ones()
+    public async Task Typed_media_match_existing_rows_by_collation_instead_of_creating_new_ones()
     {
         var setup = await CreateAsync();
-        await CreateMovieAsync(setup, Input(genre: "Thriller", medium: "Bioscoop"));
+        await CreateMovieAsync(setup, Input(medium: "Bioscoop"));
 
-        await CreateMovieAsync(setup, Input(title: "Other", genre: "THRILLER", medium: "bioscoop"));
+        await CreateMovieAsync(setup, Input(title: "Other", medium: "bioscoop"));
 
-        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM genres")).ShouldBe(1);
         (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM media")).ShouldBe(1);
     }
 
     [Fact]
-    public async Task Concurrent_saves_with_the_same_new_genre_and_medium_create_each_once()
+    public async Task A_movie_is_saved_with_several_genres_matched_by_collation_and_alphabetically_read_back()
+    {
+        var setup = await CreateAsync();
+
+        var id = await CreateMovieAsync(setup, Input(genres: ["thriller", "ACTIE", "Misdaad"]));
+
+        var edit = await setup.Queries.FindForEditAsync(id, TestContext.Current.CancellationToken);
+        edit!.Input.Genres.ShouldBe(["Actie", "Misdaad", "Thriller"]);
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movie_genres")).ShouldBe(
+            3
+        );
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM genres")).ShouldBe(
+            MovieGenres.All.Count
+        );
+    }
+
+    [Fact]
+    public async Task An_unknown_genre_is_rejected_and_nothing_is_written()
+    {
+        var setup = await CreateAsync();
+
+        var result = await setup.Commands.SaveAsync(
+            null,
+            1,
+            Input(genres: ["Thriller", "Nieuw genre"]),
+            TestContext.Current.CancellationToken
+        );
+
+        result.IsSuccess.ShouldBeFalse();
+        result.Error.Kind.ShouldBe(ErrorKind.Validation);
+        result.Error.Fields!.Keys.ShouldBe(["Genres"]);
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movies")).ShouldBe(0);
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movie_genres")).ShouldBe(
+            0
+        );
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM genres")).ShouldBe(
+            MovieGenres.All.Count
+        );
+    }
+
+    [Theory]
+    [InlineData("Actie", "actie")]
+    [InlineData("Sci-fi", "SCI-FI")]
+    public async Task The_same_genre_twice_is_rejected(string first, string second)
+    {
+        var setup = await CreateAsync();
+
+        var result = await setup.Commands.SaveAsync(
+            null,
+            1,
+            Input(genres: [first, second]),
+            TestContext.Current.CancellationToken
+        );
+
+        result.IsSuccess.ShouldBeFalse();
+        result.Error.Fields!.Keys.ShouldBe(["Genres"]);
+    }
+
+    [Fact]
+    public async Task More_than_four_or_zero_genres_are_rejected()
+    {
+        var setup = await CreateAsync();
+
+        var tooMany = await setup.Commands.SaveAsync(
+            null,
+            1,
+            Input(genres: ["Actie", "Drama", "Horror", "Komedie", "Western"]),
+            TestContext.Current.CancellationToken
+        );
+        var none = await setup.Commands.SaveAsync(null, 1, Input(genres: []), TestContext.Current.CancellationToken);
+
+        tooMany.Error.Fields!.Keys.ShouldBe(["Genres"]);
+        none.Error.Fields!.Keys.ShouldBe(["Genres"]);
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movies")).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task Updating_replaces_the_genres_and_a_genre_only_change_bumps_the_version()
+    {
+        var setup = await CreateAsync();
+        var id = await CreateMovieAsync(setup, Input(genres: ["Actie", "Drama"]));
+
+        var result = await setup.Commands.SaveAsync(
+            id,
+            1,
+            Input(genres: ["Drama", "Komedie", "Western"]),
+            TestContext.Current.CancellationToken
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Version.ShouldBe(2);
+        var edit = await setup.Queries.FindForEditAsync(id, TestContext.Current.CancellationToken);
+        edit!.Input.Genres.ShouldBe(["Drama", "Komedie", "Western"]);
+        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movie_genres")).ShouldBe(
+            3
+        );
+    }
+
+    [Fact]
+    public async Task A_stale_genre_change_is_a_conflict_and_keeps_the_old_genres()
+    {
+        var setup = await CreateAsync();
+        var id = await CreateMovieAsync(setup, Input(genres: ["Actie"]));
+        (
+            await setup.Commands.SaveAsync(id, 1, Input(genres: ["Drama"]), TestContext.Current.CancellationToken)
+        ).IsSuccess.ShouldBeTrue();
+
+        var stale = await setup.Commands.SaveAsync(
+            id,
+            1,
+            Input(genres: ["Horror"]),
+            TestContext.Current.CancellationToken
+        );
+
+        stale.Error.Kind.ShouldBe(ErrorKind.Conflict);
+        var edit = await setup.Queries.FindForEditAsync(id, TestContext.Current.CancellationToken);
+        edit!.Input.Genres.ShouldBe(["Drama"]);
+    }
+
+    [Fact]
+    public async Task Concurrent_saves_with_the_same_new_medium_create_it_once()
     {
         var setup = await CreateAsync();
 
@@ -328,7 +448,7 @@ public sealed class MovieCommandTests
                     setup.Commands.SaveAsync(
                         null,
                         1,
-                        Input(title: $"Movie {i}", genre: "Nieuw genre", medium: "Nieuw medium"),
+                        Input(title: $"Movie {i}", medium: "Nieuw medium"),
                         TestContext.Current.CancellationToken
                     )
                 )
@@ -336,7 +456,6 @@ public sealed class MovieCommandTests
 
         results.ShouldAllBe(r => r.IsSuccess);
         (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM movies")).ShouldBe(6);
-        (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM genres")).ShouldBe(1);
         (await MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, "SELECT COUNT(*) FROM media")).ShouldBe(1);
     }
 
@@ -376,30 +495,38 @@ public sealed class MovieCommandTests
     }
 
     [Fact]
-    public async Task Suggestions_contain_the_text_most_used_first_and_treat_wildcards_literally()
+    public async Task Media_suggestions_contain_the_text_alphabetically_and_treat_wildcards_literally()
     {
         var setup = await CreateAsync();
-        await CreateMovieAsync(setup, Input(title: "A", genre: "Drama", medium: "Bioscoop"));
-        await CreateMovieAsync(setup, Input(title: "B", genre: "Drama", medium: "Bioscoop"));
-        await CreateMovieAsync(setup, Input(title: "C", genre: "Dramedy", medium: "Netflix"));
-        await CreateMovieAsync(setup, Input(title: "D", genre: "100%_Genre", medium: "dvd"));
+        await CreateMovieAsync(setup, Input(title: "A", medium: "Bioscoop"));
+        await CreateMovieAsync(setup, Input(title: "B", medium: "Bioscoop"));
+        await CreateMovieAsync(setup, Input(title: "C", medium: "Netflix"));
+        await CreateMovieAsync(setup, Input(title: "D", medium: "dvd"));
+        await CreateMovieAsync(setup, Input(title: "E", medium: "100%_Disc"));
 
-        var all = await setup.Queries.SuggestGenresAsync("", 10, TestContext.Current.CancellationToken);
-        var dram = await setup.Queries.SuggestGenresAsync("RAM", 10, TestContext.Current.CancellationToken);
-        var percent = await setup.Queries.SuggestGenresAsync("%", 10, TestContext.Current.CancellationToken);
-        var underscore = await setup.Queries.SuggestGenresAsync("_", 10, TestContext.Current.CancellationToken);
-        var limited = await setup.Queries.SuggestGenresAsync("", 2, TestContext.Current.CancellationToken);
         var media = await setup.Queries.SuggestMediaAsync("o", 10, TestContext.Current.CancellationToken);
         var allMedia = await setup.Queries.SuggestMediaAsync("", 10, TestContext.Current.CancellationToken);
+        var percent = await setup.Queries.SuggestMediaAsync("%", 10, TestContext.Current.CancellationToken);
+        var underscore = await setup.Queries.SuggestMediaAsync("_", 10, TestContext.Current.CancellationToken);
+        var limited = await setup.Queries.SuggestMediaAsync("", 2, TestContext.Current.CancellationToken);
 
-        all[0].ShouldBe("Drama");
-        all.Count.ShouldBe(3);
-        dram.ShouldBe(["Drama", "Dramedy"]);
-        percent.ShouldBe(["100%_Genre"]);
-        underscore.ShouldBe(["100%_Genre"]);
-        limited.Count.ShouldBe(2);
         media.ShouldBe(["Bioscoop"]);
-        allMedia.ShouldBe(["Bioscoop", "dvd", "Netflix"]);
+        allMedia.ShouldBe(["100%_Disc", "Bioscoop", "dvd", "Netflix"]);
+        percent.ShouldBe(["100%_Disc"]);
+        underscore.ShouldBe(["100%_Disc"]);
+        limited.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task The_genre_list_has_every_seeded_genre_alphabetically_with_its_stable_id()
+    {
+        var setup = await CreateAsync();
+
+        var genres = await setup.Queries.ListGenresAsync(TestContext.Current.CancellationToken);
+
+        genres.Count.ShouldBe(MovieGenres.All.Count);
+        genres.Select(g => g.Name).ShouldBe(genres.Select(g => g.Name).Order(StringComparer.OrdinalIgnoreCase));
+        genres.Select(g => (g.Id, g.Name)).Order().ShouldBe(MovieGenres.All.Order());
     }
 
     [Fact]

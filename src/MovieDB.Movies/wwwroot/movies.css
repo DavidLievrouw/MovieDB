@@ -200,7 +200,7 @@
 }
 
 .films-toolbar {
-    align-items: center;
+    align-items: flex-start;
     background: var(--mud-palette-background);
     display: flex;
     flex-wrap: wrap;
@@ -214,6 +214,29 @@
 .films-search {
     flex: 1 1 16rem;
     max-width: 32rem;
+}
+
+.films-genre-filter {
+    align-items: flex-start;
+    display: flex;
+    flex: 1 1 100%;
+    gap: 0.25rem;
+}
+
+.films-genre-filter .chip-multi-select {
+    flex: 1 1 auto;
+}
+
+/* The dense autocomplete has a larger top margin than the dense text field next to it. */
+.films-genre-filter .chip-multi-select .mud-input-control {
+    margin-top: 4px;
+}
+
+@media (min-width: 960px) {
+    .films-genre-filter {
+        flex: 1 1 20rem;
+        max-width: 40rem;
+    }
 }
 
 .films-sort-mobile {
@@ -380,8 +403,13 @@
     font-size: 0.875rem;
 }
 
+.films-card-genres {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
 .films-card-genre {
-    justify-self: start;
     margin: 0;
 }
 

@@ -127,10 +127,14 @@
                             </p>
                         }
 
-                        <SuggestField @ref="_genre" @bind-Value="_model.Genre" Label="Genre" Required="true"
-                                      Suggestions="SuggestGenresAsync" Error="@HasError(nameof(MovieInput.Genre))"
-                                      ErrorText="@ErrorOf(nameof(MovieInput.Genre))"
-                                      OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Genre)))"/>
+                        <ChipMultiSelect @ref="_genre" Label="Genre" Hint="Maximaal 4" Required="true"
+                                         Values="_model.Genres" ValuesChanged="OnGenresChangedAsync"
+                                         Suggestions="SuggestGenresAsync" AllowNew="false"
+                                         MaxSelected="MovieInput.MaxGenres" MaxItems="40"
+                                         Error="@HasError(nameof(MovieInput.Genres))"
+                                         ErrorText="@ErrorOf(nameof(MovieInput.Genres))"
+                                         OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Genres)))"
+                                         data-testid="genre-field"/>
 
                         <MudNumericField @ref="_runtime" T="int?" @bind-Value="_model.RuntimeMinutes" Label="Duur"
                                          HideSpinButtons="true" Adornment="Adornment.End" AdornmentText="min"
@@ -226,7 +230,7 @@
     private static readonly string[] FieldOrder =
     [
         nameof(MovieInput.Title),
-        nameof(MovieInput.Genre),
+        nameof(MovieInput.Genres),
         nameof(MovieInput.RuntimeMinutes),
         nameof(MovieInput.ReleaseYear),
         nameof(MovieInput.Director),
@@ -258,7 +262,7 @@
     private bool _registered;
 
     private MudTextField<string>? _title;
-    private SuggestField? _genre;
+    private ChipMultiSelect? _genre;
     private MudNumericField<int?>? _runtime;
     private MudNumericField<int?>? _year;
     private SuggestField? _director;
@@ -285,13 +289,16 @@
     [SupplyParameterFromQuery(Name = "size")]
     private string? PageSizeQuery { get; set; }
 
+    [SupplyParameterFromQuery(Name = "genre")]
+    private string? GenreQuery { get; set; }
+
     private bool IsNew => Id is null;
 
     private bool Dirty => _state == LoadState.Ready && !_model.SameAs(_baseline);
 
     private string PageHeading => IsNew ? "Nieuwe film" : _baseline.Title is { Length: > 0 } title ? title : "Film";
 
-    private OverviewState QueryState => OverviewState.FromQuery(Q, Sort, PageNumber, PageSizeQuery);
+    private OverviewState QueryState => OverviewState.FromQuery(Q, Sort, PageNumber, PageSizeQuery, GenreQuery);
 
     private OverviewState LinkState => _nav?.State ?? QueryState;
 
@@ -415,8 +422,20 @@
 
     private string? ErrorOf(string field) => _errors.GetValueOrDefault(field);
 
-    private Task<IReadOnlyList<string>> SuggestGenresAsync(string text, CancellationToken cancellationToken) =>
-        Queries.SuggestGenresAsync(text, 10, cancellationToken);
+    private IReadOnlyList<string>? _genreNames;
+
+    private async Task<IReadOnlyList<string>> SuggestGenresAsync(string text, CancellationToken cancellationToken)
+    {
+        var options = await Queries.ListGenresAsync(cancellationToken);
+        _genreNames ??= [.. options.Select(g => g.Name)];
+        return [.. _genreNames.Where(n => n.Contains(text, StringComparison.CurrentCultureIgnoreCase))];
+    }
+
+    private async Task OnGenresChangedAsync(IReadOnlyList<string> genres)
+    {
+        _model.Genres = [.. genres];
+        await CheckFieldAsync(nameof(MovieInput.Genres));
+    }
 
     private Task<IReadOnlyList<string>> SuggestDirectorsAsync(string text, CancellationToken cancellationToken) =>
         Queries.SuggestDirectorsAsync(text, 10, cancellationToken);
@@ -736,7 +755,7 @@
         Task? focus = field switch
         {
             nameof(MovieInput.Title) => _title?.FocusAsync().AsTask(),
-            nameof(MovieInput.Genre) => _genre?.FocusAsync(),
+            nameof(MovieInput.Genres) => _genre?.FocusAsync(),
             nameof(MovieInput.RuntimeMinutes) => _runtime?.FocusAsync().AsTask(),
             nameof(MovieInput.ReleaseYear) => _year?.FocusAsync().AsTask(),
             nameof(MovieInput.Director) => _director?.FocusAsync(),

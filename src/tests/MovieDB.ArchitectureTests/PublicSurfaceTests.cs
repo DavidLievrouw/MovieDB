@@ -49,6 +49,8 @@ public class PublicSurfaceTests
             "Medium",
             "Movie",
             "MovieDbContext",
+            "MovieGenre",
+            "MovieGenres",
             "User",
         ],
         [typeof(AuthModule).Assembly] = ["AuthEndpoints", "AuthModule", "AuthOptions"],

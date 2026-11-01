@@ -17,6 +17,30 @@ internal sealed class GenreConfiguration : IEntityTypeConfiguration<Genre>
     }
 }
 
+internal sealed class MovieGenreConfiguration : IEntityTypeConfiguration<MovieGenre>
+{
+    public void Configure(EntityTypeBuilder<MovieGenre> builder)
+    {
+        builder.ToTable("movie_genres");
+        builder.HasKey(x => new { x.MovieId, x.GenreId }).HasName("pk_movie_genres");
+        builder.Property(x => x.MovieId).HasColumnName("movie_id");
+        builder.Property(x => x.GenreId).HasColumnName("genre_id");
+        builder
+            .HasOne(x => x.Movie)
+            .WithMany(x => x.GenreLinks)
+            .HasForeignKey(x => x.MovieId)
+            .HasConstraintName("fk_movie_genres_movies")
+            .OnDelete(DeleteBehavior.Restrict);
+        builder
+            .HasOne(x => x.Genre)
+            .WithMany()
+            .HasForeignKey(x => x.GenreId)
+            .HasConstraintName("fk_movie_genres_genres")
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => x.GenreId).HasDatabaseName("ix_movie_genres_genre_id");
+    }
+}
+
 internal sealed class MediumConfiguration : IEntityTypeConfiguration<Medium>
 {
     public void Configure(EntityTypeBuilder<Medium> builder)

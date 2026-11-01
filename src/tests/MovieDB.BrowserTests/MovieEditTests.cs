@@ -227,4 +227,51 @@ public sealed class MovieEditTests
         await Expect(session.Page.GetByText("Film opgeslagen.")).ToBeVisibleAsync();
         (await _fixture.FindMovieAsync(id))!.Review.ShouldBe("Via sneltoets.");
     }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task Leaving_the_genre_field_of_a_movie_that_has_genres_shows_no_error(int width, int height)
+    {
+        var id = await _fixture.SeedMovieAsync(BrowserFixture.Unique("Genrefout"), genres: ["Drama", "Actie"]);
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenEditAsync(id);
+
+        await session.ChipInput("genre-field").ClickAsync();
+        await session.Field("Filmtitel").ClickAsync();
+
+        await Expect(session.Page.Locator("[data-testid=genre-field] .mud-input-error")).ToHaveCountAsync(0);
+        await Expect(session.Page.GetByText("Kies minstens één genre.")).ToHaveCountAsync(0);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task The_genres_of_a_movie_can_be_changed_and_are_limited_to_four(int width, int height)
+    {
+        var title = BrowserFixture.Unique("Genrefilm");
+        var id = await _fixture.SeedMovieAsync(title, genres: ["Drama", "Actie"]);
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenEditAsync(id);
+        await Expect(session.Chips("genre-field")).ToHaveTextAsync(["Actie", "Drama"]);
+
+        await session
+            .Chips("genre-field")
+            .Filter(new() { HasText = "Actie" })
+            .Locator(".mud-chip-close-button")
+            .ClickAsync();
+        await session.AddChipAsync("genre-field", "Komedie");
+        await session.AddChipAsync("genre-field", "Thriller");
+        await session.AddChipAsync("genre-field", "Western");
+
+        await Expect(session.Chips("genre-field")).ToHaveCountAsync(4);
+        await Expect(session.ChipInput("genre-field")).ToBeDisabledAsync();
+        await session.SaveButton.ClickAsync();
+
+        await Expect(session.Page.GetByText("Film opgeslagen.")).ToBeVisibleAsync();
+        var saved = await _fixture.FindMovieAsync(id);
+        saved.ShouldNotBeNull();
+        saved.Genres.ShouldBe(["Drama", "Komedie", "Thriller", "Western"]);
+        saved.Version.ShouldBe(2);
+    }
 }

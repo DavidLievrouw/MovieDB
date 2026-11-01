@@ -86,3 +86,26 @@
         display: block;
     }
 }
+
+.chip-multi-select {
+    min-width: 0;
+}
+
+.chip-multi-select-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+}
+
+.chip-multi-select-chip {
+    margin: 0;
+}
+
+.chip-multi-select-new {
+    color: var(--mud-palette-warning);
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-left: 0.35rem;
+    text-transform: uppercase;
+}

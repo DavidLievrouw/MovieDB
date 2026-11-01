@@ -22,13 +22,8 @@ public sealed class MovieConstraintTests
     private static MovieDbContext NewContext(string connectionString) =>
         MariaDbFixture.CreateFactory(connectionString).CreateDbContext();
 
-    private static async Task<Genre> AddGenreAsync(MovieDbContext context, string name = "Drama")
-    {
-        var genre = new Genre { Name = name, CreatedAt = Now };
-        context.Genres.Add(genre);
-        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
-        return genre;
-    }
+    private static Task<Genre> AddGenreAsync(MovieDbContext context, string name = "Drama") =>
+        context.Genres.SingleAsync(g => g.Name == name, TestContext.Current.CancellationToken);
 
     private static Movie NewMovie(
         Genre genre,
@@ -41,7 +36,7 @@ public sealed class MovieConstraintTests
             Title = title,
             ReleaseYear = year,
             Director = director,
-            GenreId = genre.Id,
+            GenreLinks = [new MovieGenre { GenreId = genre.Id }],
             RuntimeMinutes = 110,
             WatchedOn = new DateOnly(2026, 1, 15),
             CreatedAt = Now,
@@ -115,7 +110,6 @@ public sealed class MovieConstraintTests
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
-        context.Genres.Add(new Genre { Name = "Thriller", CreatedAt = Now });
         context.Media.Add(new Medium { Name = "Café", CreatedAt = Now });
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -125,6 +119,56 @@ public sealed class MovieConstraintTests
         await using var second = NewContext(connectionString);
         second.Media.Add(new Medium { Name = "CAFE", CreatedAt = Now });
         (await SaveFailureNumberAsync(second)).ShouldBe(1062);
+    }
+
+    [Fact]
+    public async Task The_genres_are_seeded_with_stable_ids()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await using var context = NewContext(connectionString);
+
+        var genres = await context
+            .Genres.AsNoTracking()
+            .OrderBy(g => g.Id)
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        genres.Select(g => (g.Id.Value, g.Name)).ShouldBe(MovieGenres.All);
+    }
+
+    [Fact]
+    public async Task A_movie_can_have_several_genres_but_not_the_same_genre_twice()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await using (var context = NewContext(connectionString))
+        {
+            var movie = NewMovie(await AddGenreAsync(context));
+            movie.GenreLinks.Add(new MovieGenre { GenreId = (await AddGenreAsync(context, "Actie")).Id });
+            context.Movies.Add(movie);
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        (await MariaDbFixture.ScalarAsync<long>(connectionString, "SELECT COUNT(*) FROM movie_genres")).ShouldBe(2);
+        await using var duplicate = NewContext(connectionString);
+        var movieId = (await duplicate.Movies.SingleAsync(TestContext.Current.CancellationToken)).Id;
+        duplicate.MovieGenreLinks.Add(
+            new MovieGenre { MovieId = movieId, GenreId = (await AddGenreAsync(duplicate)).Id }
+        );
+        (await SaveFailureNumberAsync(duplicate)).ShouldBe(1062);
+    }
+
+    [Fact]
+    public async Task A_movie_with_genres_cannot_be_deleted_without_its_links()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await using var context = NewContext(connectionString);
+        context.Movies.Add(NewMovie(await AddGenreAsync(context)));
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        await using var delete = NewContext(connectionString);
+        var failure = await Should.ThrowAsync<MySqlException>(() =>
+            delete.Movies.ExecuteDeleteAsync(TestContext.Current.CancellationToken)
+        );
+        failure.Number.ShouldBe(1451);
     }
 
     [Fact]
@@ -142,7 +186,7 @@ public sealed class MovieConstraintTests
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await using var deleteGenre = NewContext(connectionString);
-        deleteGenre.Genres.Remove(await deleteGenre.Genres.SingleAsync(TestContext.Current.CancellationToken));
+        deleteGenre.Genres.Remove(await AddGenreAsync(deleteGenre));
         (await SaveFailureNumberAsync(deleteGenre)).ShouldBe(1451);
 
         await using var deleteMedium = NewContext(connectionString);
@@ -155,8 +199,7 @@ public sealed class MovieConstraintTests
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
-        var movie = NewMovie(new Genre());
-        movie.GenreId = GenreId.From(9999);
+        var movie = NewMovie(new Genre { Id = GenreId.From(9999) });
         context.Movies.Add(movie);
 
         (await SaveFailureNumberAsync(context)).ShouldBe(1452);
@@ -188,17 +231,14 @@ public sealed class MovieConstraintTests
         foreach (var invalid in new[] { 0, 11 })
         {
             await using var context = NewContext(connectionString);
-            var movie = NewMovie(
-                await context.Genres.FirstOrDefaultAsync(TestContext.Current.CancellationToken)
-                    ?? await AddGenreAsync(context)
-            );
+            var movie = NewMovie(await AddGenreAsync(context));
             Set(movie, score, invalid);
             context.Movies.Add(movie);
             (await SaveFailureNumberAsync(context)).ShouldBe(4025, $"{score} = {invalid}");
         }
 
         await using var valid = NewContext(connectionString);
-        var boundaries = NewMovie(await valid.Genres.SingleAsync(TestContext.Current.CancellationToken));
+        var boundaries = NewMovie(await AddGenreAsync(valid));
         Set(boundaries, score, 1);
         valid.Movies.Add(boundaries);
         await valid.SaveChangesAsync(TestContext.Current.CancellationToken);

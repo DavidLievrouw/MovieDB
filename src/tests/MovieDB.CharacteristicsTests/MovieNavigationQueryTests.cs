@@ -23,7 +23,14 @@ public sealed class MovieNavigationQueryTests
         public override DateTimeOffset GetUtcNow() => Now;
     }
 
-    private sealed record Seed(string Title, int Day, int? Score = null, string? Medium = null, int Year = 2000);
+    private sealed record Seed(
+        string Title,
+        int Day,
+        int? Score = null,
+        string? Medium = null,
+        int Year = 2000,
+        string[]? Genres = null
+    );
 
     private async Task<(MovieQueries Queries, MovieId[] Ids)> SeedAsync(params Seed[] seeds)
     {
@@ -46,7 +53,7 @@ public sealed class MovieNavigationQueryTests
                     Title = seed.Title,
                     ReleaseYear = seed.Year,
                     Director = "Director",
-                    Genre = "Drama",
+                    Genres = [.. seed.Genres ?? ["Drama"]],
                     Medium = seed.Medium,
                     RuntimeMinutes = 100,
                     WatchedOn = new DateOnly(2026, 1, seed.Day),
@@ -78,12 +85,12 @@ public sealed class MovieNavigationQueryTests
 
     private static readonly Seed[] Sample =
     [
-        new("b", 1, 5, "dvd", 1999),
-        new("a", 2, 5, "bioscoop", 2001),
-        new("c", 3, 8, null, 2001),
-        new("d", 4, null, "dvd", 1980),
-        new("e", 5, null, null, 2010),
-        new("f", 5, 9, "bioscoop", 2010),
+        new("b", 1, 5, "dvd", 1999, ["Actie", "Drama"]),
+        new("a", 2, 5, "bioscoop", 2001, ["Komedie"]),
+        new("c", 3, 8, null, 2001, ["Drama"]),
+        new("d", 4, null, "dvd", 1980, ["Actie"]),
+        new("e", 5, null, null, 2010, ["Drama", "Komedie"]),
+        new("f", 5, 9, "bioscoop", 2010, ["Actie", "Drama", "Komedie"]),
     ];
 
     private static OverviewState State(string search, params SortKey[] sorts) => new(search, sorts, 1, 50);
@@ -196,6 +203,43 @@ public sealed class MovieNavigationQueryTests
         navigation.State.Search.ShouldBe("alien");
         await AssertConsistentAsync(queries, state);
     }
+
+    [Fact]
+    public async Task The_navigation_is_limited_to_the_genre_filtered_list()
+    {
+        var (queries, ids) = await SeedAsync(Sample);
+        var state = OverviewState.Default.WithGenres([GenreId("Actie"), GenreId("Drama")]);
+
+        var navigation = await queries.GetNavigationAsync(ids[0], state, TestContext.Current.CancellationToken);
+
+        navigation!.Total.ShouldBe(2);
+        navigation.State.Genres.ShouldBe(state.Genres);
+        await AssertConsistentAsync(queries, state);
+    }
+
+    [Fact]
+    public async Task The_navigation_with_a_genre_filter_and_search_matches_the_overview()
+    {
+        var (queries, _) = await SeedAsync(Sample);
+        var state = (OverviewState.Default with { Search = "" }).WithGenres([GenreId("Komedie")]);
+
+        await AssertConsistentAsync(queries, state);
+        await AssertConsistentAsync(queries, state with { Sorts = [new SortKey(OverviewSortField.Genre, false)] });
+    }
+
+    [Fact]
+    public async Task The_filters_are_dropped_when_the_genre_filter_excludes_the_movie()
+    {
+        var (queries, ids) = await SeedAsync(Sample);
+        var state = OverviewState.Default.WithGenres([GenreId("Komedie")]);
+
+        var navigation = await queries.GetNavigationAsync(ids[2], state, TestContext.Current.CancellationToken);
+
+        navigation!.Total.ShouldBe(6);
+        navigation.State.Genres.ShouldBeEmpty();
+    }
+
+    private static int GenreId(string name) => MovieGenres.All.Single(g => g.Name == name).Id;
 
     [Fact]
     public async Task The_search_is_dropped_when_it_excludes_the_movie()

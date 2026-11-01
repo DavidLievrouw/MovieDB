@@ -39,12 +39,12 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M4 UI shell + overview | Done (committed) |
 | M5 Edit/new | Done (committed) |
 | M6 Browser tests, Docker, compose, backup, docs | Done (committed) |
-| M7 Drop Extra's, mandatory scores | **Done, awaiting owner review (uncommitted)** |
-| M8 Multi-genre + genre filter | Planned (next) |
-| M9 Multi-director | Planned |
+| M7 Drop Extra's, mandatory scores | Done (committed) |
+| M8 Multi-genre + genre filter | **Done, awaiting owner review (uncommitted)** |
+| M9 Multi-director | Planned (next) |
 | M10 Phase 2 wrap-up | Planned |
 
-## Phase 2: M7 done, M8-M10 planned
+## Phase 2: M7-M8 done, M9-M10 planned
 
 The owner has reached feature parity with Access and asked for improvements. [`PLAN-2.md`](PLAN-2.md) holds the
 decisions, data model, UI and import changes and the milestones. All questions are answered. Summary:
@@ -71,32 +71,47 @@ decisions, data model, UI and import changes and the milestones. All questions a
 Local data facts used for the plan (counts only): 1,203 movies; 21 genres used; 4 director values contain a comma;
 9 movies miss at least one score; 16 movies have an Extra's value.
 
-### What M7 delivered (uncommitted, awaiting owner review)
+### What M8 delivered (uncommitted, awaiting owner review)
 
-- **Extra's removed** from the entity, `MovieConfiguration` (column + CHECK), the hand-written `Initial` migration, both
-  Designers (`Initial`, `SeedAuthThrottleGlobalRow`) and the snapshot (edited in place; AGENTS.md now records the
-  phase 2 exception), `MovieInput`/validator, `MovieCommands`, `MovieQueries`, the edit page and the import tool
-  (`SourceFilm`, `OdbcFilmSource`, `MovieCleaner`, `ImportLoader`, `DataStats`; the ODBC SELECT no longer reads Extras).
-- **Mandatory scores:** the five scores must be 1-10 ("Totaal/Film/Beeld/Muziek/Geluid is verplicht.", "Kies een score
-  van 1 tot 10."), validated in the UI (`MovieInputValidator`) and on the server (`MovieCommands` runs the validator).
-  DB columns stay nullable with their 1-10 CHECKs. `ScoreInput` has `AllowEmpty` (default true; the edit page passes
-  false: no "–" option, new films start unselected, legacy NULL scores open unselected), plus `Error`/`ErrorText`/
-  `Placeholder` and `FocusAsync()`; the edit page validates a score on change and focuses the first invalid field
-  (scores are last in the field order). Overview score pills still show "–" for a legacy NULL.
-- **Tests:** unit (MovieInputTests, ScoreInputTests, import tests), characteristics (`MovieConstraintTests` asserts the
-  column is gone, `MovieCommandTests` rejects a film without scores and writes nothing; navigation tests seed all
-  scores and null the total afterwards where needed), browser (`SetAllScoresAsync`; the seed sets all five scores; new
-  tests: a form without scores is rejected and picking a score clears its message; a legacy film with a missing score
-  must be completed before it can be saved). The browser `SetScoreAsync` score argument is now 1-10 (no empty option).
-- **Local DB rebuilt:** `moviedb` was dropped and recreated (utf8mb4 / `utf8mb4_uca1400_ai_ci`, via `docker exec` as root
-  inside the container; the moviedb user cannot drop its own database and `dotnet ef database drop` has no credentials),
-  then `Import-Access.ps1 -Reset`: 1,222 source rows, 19 dropped duplicates, 1,203 movies, 21 genres, 6 corrections, plan
-  figures equal database figures, dump verification passed. Note: the media table holds 8 seeded values of which 6 are
-  used; earlier docs say "6 media" (the number in use). `users` was recreated empty, so `admin` is seeded again on the
-  next app start.
+- **Closed genre list:** `MovieGenres` (public static in Infrastructure: `All` = 35 `(Id, Name)` tuples, ids 1-35 stable
+  because URLs carry them, `MaxNameLength`, `MaxPerMovie` = 4). The hand-written `Initial` migration (edited in place,
+  both Designers and the snapshot) seeds them with `INSERT IGNORE` and creates `movie_genres` (composite PK, index on
+  `genre_id`, both FKs RESTRICT); `movies.genre_id` is gone. `Down` drops the join table. A unit test pins the list
+  (35 unique names, length) and a characteristics test the seeded table = `MovieGenres.All`.
+- **Movies:** `MovieInput.Genres` (`List<string>`, validator: 1-4, no duplicates; "Kies minstens één genre.",
+  "Kies maximaal 4 genres.", "Een genre komt maar één keer voor."). `MovieCommands` resolves names against the closed list
+  by collation (unknown -> `Error.Validation("Genres", "Onbekend genre: X.")`), replaces the links on update and bumps
+  `version` also for a genre-only change. `SuggestGenresAsync` is replaced by `ListGenresAsync` (id + name, alphabetical).
+  `OverviewState.Genres` with URL `genre=3,7` (distinct positive ints, ascending, at most 35); the page drops unknown ids
+  and rewrites the URL. `MovieQueries` pages, filters and sorts with raw SQL (`OrderSql` is the single place for the
+  order): filter = `COUNT(DISTINCT genre_id) = k` (a film must have ALL selected genres), genre sort = correlated
+  `GROUP_CONCAT(name ORDER BY name)`. Record navigation uses the same SQL; when the current film no longer matches the
+  filter, search and filter are dropped and the sort is kept. Statistics "Top genres" count a film once per genre.
+- **UI:** new Ui component `ChipMultiSelect` (chips + `MudAutocomplete`, `AllowNew`, `IsKnown`, `MaxSelected`;
+  `AllowNew`/`IsKnown` are for M9 directors). Edit page: "Genre" field with hint "Maximaal 4", the input is disabled at 4
+  chips, chips show in the order added and alphabetically after load/save. Overview: a genre filter next to the search
+  box (own full-width row on mobile) with "Genrefilter wissen", genre chips in the mobile cards, all genres joined in the
+  desktop column.
+- **Import tool:** `ImportPlan` maps each film's Access genre onto the seeded list (an unknown genre is an import error;
+  the FilmID 308 correction still applies) and writes one `movie_genres` row per film. `ImportLoader` verifies the
+  seeded genres (refuses a database whose `genres` differ) and never writes `genres`; `-Reset` empties `movie_genres`,
+  `movies` and `media` only. Dump order `media`, `movies`, `movie_genres`; the guard needs those tables empty and `genres`
+  equal to the seed. Report and fingerprints cover `movie_genres` (genres are fingerprinted by id + name only: `created_at`
+  is set at migration time).
+- **Tests:** unit 224, architecture 17 (`PublicSurfaceTests` knows `MovieGenre`/`MovieGenres`), characteristics 193,
+  browser 63 (new: genre filter with ALL semantics and the `genre=` URL, change genres + the max-4 limit, no genre rejected, genre error only without genres, search/genre filter alignment).
+- **Local DB rebuilt** (dropped/recreated as root in the container, app start migrated it, then `Import-Access.ps1`
+  without `-Reset` because the database was empty): 1,222 source rows, 19 duplicates dropped, **1,203 movies, 35 genres,
+  1,203 genre links**, 8 media, plan figures equal database figures, dump written and verified in the scratch database.
+  `users` was recreated empty: `admin` is seeded on the next app start.
 - Checks: build `-warnaserror`, XML-doc build (0 warnings), `csharpier check` and the full test run pass.
-- Not done: the actual edit page was exercised only by the automated browser tests, not by a manual look at 390/1440px.
+- **Follow-ups after owner review (done):** the genre filter is aligned with the title search (dense autocomplete, toolbar lign-items: flex-start, 4px top margin on the filter input; checked by a browser test). The Genre field no longer turns red when genres are chosen (see learnings); ChipMultiSelect also no longer selects the highlighted suggestion on Tab.
+- Not done: no manual look at 390/1440 px beyond the automated browser tests.
 
+### M7 in one line
+
+Extra's dropped everywhere (entity, `Initial`, Designers, snapshot, import) and the five scores made mandatory in the UI
+and the validator (DB columns stay nullable; legacy films with a missing score must be completed on edit).
 ### What M6 delivered
 
 - **Browser tests** (`src/tests/MovieDB.BrowserTests`, 50 tests = 25 theories x 390x844 and 1440x900, Docker required):
@@ -256,7 +271,7 @@ health endpoints, options validation and Serilog.
   `dotnet user-secrets list --id 9b46a74e-075e-4f32-b29a-dc9bd38c1cec | ForEach-Object { ($_ -split '=')[0] }`.
   The owner granted the user rights on `moviedb.*` and `moviedb_dumpcheck.*`.
 - Production database and user also exist (owner-managed). Nothing for the agent to do there.
-- `scripts/Import-Access.ps1` exists (M3). The local `moviedb` already contains the imported 1,203 movies; re-run with
+- `scripts/Import-Access.ps1` exists (M3). The local `moviedb` already contains the imported 1,203 movies (35 genres, 1,203 genre links); re-run with
   `-Reset` to redo it. The dump is at `artifacts\import\moviedb-data.sql` (git-ignored, personal reviews).
 - Docker (Rancher Desktop) is running with `mariadb:12.3.3` locally. Testcontainers pulled from the same image.
 - PowerShell 7 is installed at `C:\Users\David\AppData\Local\Microsoft\WindowsApps\pwsh.exe`. The default tool shell
@@ -265,28 +280,42 @@ health endpoints, options validation and Serilog.
 - Playwright chromium is installed (via `playwright.ps1 install chromium` after a build).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M8 (PLAN-2.md §9, §4, §6, §7)
+## Next: M9 (PLAN-2.md §9, §4, §5, §6, §7)
 
-Start with M8, then stop for the owner's review. Read PLAN-2 §4.1-4.3 (tables, rules, the 35-genre list), §5 (import and
-dump), §6 (edit and overview UI), §7 (notes and risks) and §8 (tests) first. Summary:
+Start with M9, then stop for the owner's review. Read PLAN-2 §4.1-4.2 (tables, director rules, the order-insensitive
+`directors_key`), §5 (import: split "A, B" directors, dump order), §6 (edit and overview UI), §7 (notes and risks) and §8
+(tests) first. Summary:
 
-1. Closed genre list `MovieGenres` (35), seeded by the hand-written `Initial` migration (edit in place, both Designers
-   and snapshot; rewrite `Down`); `movie_genres` (1-4 per film) replaces `movies.genre_id`; remove genre suggestions
-   and the "new genre inserted on save" behavior.
-2. Ui multi-select component (chips, closed list) for the edit page; validation 1-4 genres; overview column, filter (a film
-   must have ALL selected genres, URL `genre=3,7`), navigation SQL and statistics adapted.
-3. Import tool maps onto the seeded genres (no genre inserts); dump order and guard change (the five data tables must be
-   empty and `genres` equal the seed).
-3a. Edit-form suggestions are sorted alphabetically by name (PLAN-2 decision 3b): the genre list in `ListGenresAsync` (M8)
-   and `SuggestDirectorsAsync` (M9). Media already is (`SuggestMediaAsync`, done after M7).
-4. Rebuild the local DB (`docker exec mariadb` as root inside the container: drop and create `moviedb` with
-   `utf8mb4` / `utf8mb4_uca1400_ai_ci`), then `scripts/Import-Access.ps1 -Source .\FilmsBase.mdb -Reset` (pipe `RESET`
-   to the prompt). Expect 1,203 movies and 35 genres.
+1. `directors` + `movie_directors` (position) replace `movies.director`; `movies.directors_key` (sorted director ids) with a
+   unique index enforces Title + Year + the set of directors. Edit `Initial`, both Designers and the snapshot in place.
+2. Edit page: reuse `ChipMultiSelect` with `AllowNew=true` (and `IsKnown` for the "nieuw" marker), 1-5 directors, entered
+   order kept, `SuggestDirectorsAsync` sorted alphabetically (decision 3b); typed names are matched by collation first and
+   inserted on save. Overview column, navigation SQL, statistics ("Top regisseurs" once per director) adapted.
+3. Import: split the 4 comma values, new tables in the loader/dump order/guard/report/fingerprints.
+4. Rebuild the local DB (drop/create `moviedb` as root in the container, start the app once to migrate, then
+   `scripts/Import-Access.ps1 -Source .\FilmsBase.mdb`; with `-Reset` the script needs an interactive prompt, so pipe
+   `RESET` from a real shell: tool shells are non-interactive). Expect 1,203 movies.
 
-Done when: see the M8 row in PLAN-2 §9.
+Done when: see the M9 row in PLAN-2 §9.
 
 The first deployment (README, PLAN.md §11.2) is owner-driven and should wait for the phase 2 structure.
 
+## Learnings from M8
+
+- **Never pass `Required` to the inner `MudAutocomplete` of a chip control.** Its text box is always empty while chips exist, so MudBlazor flags "Required" on blur although values are chosen (reproduced only in a real browser: click the input, then click another field, no Escape). `ChipMultiSelect` marks the label with "*" and shows an error only via the parent (Error/`ErrorText`, i.e. no values). PLAN-2 §6.1 requires the same for the Regisseur(s) field in M9, with matching tests.
+- `ChipMultiSelect` refocuses its input after each add, and `OpenOnFocus` reopens the suggestion list over the rest of the
+  form. In browser tests dismiss it (Escape while the input still has focus) before clicking anything else
+  (`BrowserSession.AddChipAsync`/`FillAsync` do); after a blur the list cannot be closed with Escape any more.
+- `ParameterState` ignores an unchanged `Value`, so the component regenerates the inner autocomplete with a new `@key` to
+  clear the typed text. Set `Immediate="false"` on the inner `MudAutocomplete`, or bUnit sees the text before the debounce.
+- A test helper `State(params SortKey[])` next to `State(string search = "", ..., params int[] genres)` binds a no-arg
+  call to the params overload and produced an empty sort list: require a first `SortKey`.
+- Migrated test databases already hold the 35 seeded genres; tests look them up by name and never insert them (the unique
+  name fails with 1062). Fixtures that clear tables must not clear `genres`. Never fingerprint `genres` with `SELECT *`.
+- `SuggestMediaAsync` is alphabetical, not "most used first" (decision 3b).
+- `Import-Access.ps1 -Reset` needs an interactive prompt (`Read-Host`), which tool shells do not have: either run it without
+  `-Reset` on an empty database or pipe `RESET` from a real PowerShell.
+- EF expression trees cannot contain collection expressions or `Order()` chains in assertions: materialise first.
 ## Learnings from M7
 
 - Editing `Initial` in place is safe as long as the snapshot and both Designers agree (`HasPendingModelChanges` test).

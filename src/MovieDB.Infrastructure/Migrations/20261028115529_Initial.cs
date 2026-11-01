@@ -27,6 +27,49 @@ internal partial class Initial : Migration
             """
         );
 
+        // The closed list of genres. Copied here (not read from MovieGenres) so a later change of the list never
+        // rewrites this migration; a test asserts that the seeded table equals MovieGenres.All.
+        migrationBuilder.Sql(
+            """
+            INSERT IGNORE INTO `genres` (`id`, `name`, `created_at`) VALUES
+                (1, 'Actie', UTC_TIMESTAMP(6)),
+                (2, 'Andere', UTC_TIMESTAMP(6)),
+                (3, 'Animatie', UTC_TIMESTAMP(6)),
+                (4, 'Avontuur', UTC_TIMESTAMP(6)),
+                (5, 'Bond', UTC_TIMESTAMP(6)),
+                (6, 'Detective', UTC_TIMESTAMP(6)),
+                (7, 'Detective-thriller', UTC_TIMESTAMP(6)),
+                (8, 'Documentaire', UTC_TIMESTAMP(6)),
+                (9, 'Drama', UTC_TIMESTAMP(6)),
+                (10, 'Horror', UTC_TIMESTAMP(6)),
+                (11, 'Kinder', UTC_TIMESTAMP(6)),
+                (12, 'Komedie', UTC_TIMESTAMP(6)),
+                (13, 'Melodrama', UTC_TIMESTAMP(6)),
+                (14, 'Misdaad', UTC_TIMESTAMP(6)),
+                (15, 'Oorlogs', UTC_TIMESTAMP(6)),
+                (16, 'Rampen', UTC_TIMESTAMP(6)),
+                (17, 'Romantisch', UTC_TIMESTAMP(6)),
+                (18, 'Sci-fi', UTC_TIMESTAMP(6)),
+                (19, 'Thriller', UTC_TIMESTAMP(6)),
+                (20, 'Western', UTC_TIMESTAMP(6)),
+                (21, 'Zwarte komedie', UTC_TIMESTAMP(6)),
+                (22, 'Musical', UTC_TIMESTAMP(6)),
+                (23, 'Mystery', UTC_TIMESTAMP(6)),
+                (24, 'Film noir', UTC_TIMESTAMP(6)),
+                (25, 'Sport', UTC_TIMESTAMP(6)),
+                (26, 'Kortfilm', UTC_TIMESTAMP(6)),
+                (27, 'Biografie', UTC_TIMESTAMP(6)),
+                (28, 'Familie', UTC_TIMESTAMP(6)),
+                (29, 'Fantasy', UTC_TIMESTAMP(6)),
+                (30, 'Historisch', UTC_TIMESTAMP(6)),
+                (31, 'Superhelden', UTC_TIMESTAMP(6)),
+                (32, 'Romantische komedie', UTC_TIMESTAMP(6)),
+                (33, 'Psychologische thriller', UTC_TIMESTAMP(6)),
+                (34, 'Roadmovie', UTC_TIMESTAMP(6)),
+                (35, 'Tragikomedie', UTC_TIMESTAMP(6));
+            """
+        );
+
         migrationBuilder.Sql(
             $"""
             CREATE TABLE IF NOT EXISTS `media` (
@@ -46,7 +89,6 @@ internal partial class Initial : Migration
                 `title` varchar(200) NOT NULL,
                 `release_year` smallint NOT NULL,
                 `director` varchar(150) NOT NULL,
-                `genre_id` int NOT NULL,
                 `runtime_minutes` smallint NOT NULL,
                 `watched_on` date NOT NULL,
                 `medium_id` int NULL,
@@ -67,10 +109,21 @@ internal partial class Initial : Migration
                 CONSTRAINT `ck_movies_music_score` CHECK (`music_score` IS NULL OR `music_score` BETWEEN 1 AND 10),
                 CONSTRAINT `ck_movies_sound_score` CHECK (`sound_score` IS NULL OR `sound_score` BETWEEN 1 AND 10),
                 UNIQUE INDEX `ux_movies_title_year_director` (`title`, `release_year`, `director`),
-                INDEX `ix_movies_genre_id` (`genre_id`),
                 INDEX `ix_movies_medium_id` (`medium_id`),
-                CONSTRAINT `fk_movies_genres` FOREIGN KEY (`genre_id`) REFERENCES `genres` (`id`) ON DELETE RESTRICT,
                 CONSTRAINT `fk_movies_media` FOREIGN KEY (`medium_id`) REFERENCES `media` (`id`) ON DELETE RESTRICT
+            ) {TableOptions};
+            """
+        );
+
+        migrationBuilder.Sql(
+            $"""
+            CREATE TABLE IF NOT EXISTS `movie_genres` (
+                `movie_id` int NOT NULL,
+                `genre_id` int NOT NULL,
+                CONSTRAINT `pk_movie_genres` PRIMARY KEY (`movie_id`, `genre_id`),
+                INDEX `ix_movie_genres_genre_id` (`genre_id`),
+                CONSTRAINT `fk_movie_genres_movies` FOREIGN KEY (`movie_id`) REFERENCES `movies` (`id`) ON DELETE RESTRICT,
+                CONSTRAINT `fk_movie_genres_genres` FOREIGN KEY (`genre_id`) REFERENCES `genres` (`id`) ON DELETE RESTRICT
             ) {TableOptions};
             """
         );
@@ -126,6 +179,7 @@ internal partial class Initial : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.Sql("DROP TABLE IF EXISTS `movie_genres`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `movies`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `genres`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `media`;");

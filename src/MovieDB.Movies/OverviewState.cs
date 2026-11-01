@@ -9,8 +9,9 @@ namespace MovieDB.Movies;
 internal readonly record struct SortKey(OverviewSortField Field, bool Descending);
 
 /// <summary>
-/// The view state of the overview, as kept in the URL (<c>?q=&amp;sort=&amp;page=&amp;size=</c>), where
-/// <c>sort</c> is a comma-separated list such as <c>title,releaseYear:desc</c>. A direction is only written when it
+/// The view state of the overview, as kept in the URL (<c>?q=&amp;genre=&amp;sort=&amp;page=&amp;size=</c>), where
+/// <c>sort</c> is a comma-separated list such as <c>title,releaseYear:desc</c> and <c>genre</c> a comma-separated list
+/// of genre ids. A direction is only written when it
 /// differs from the column default. Unknown values fall back to the defaults, and defaults are left out of the URL.
 /// </summary>
 /// <param name="Search">The trimmed title search; empty when there is none.</param>
@@ -39,8 +40,14 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
     /// <summary>The default view: newest viewing first, 50 per page.</summary>
     public static OverviewState Default { get; } = new("", DefaultSorts, 1, DefaultPageSize);
 
+    /// <summary>The genre filter: the ids of the genres a movie must all have. Ascending and without duplicates; empty when there is no filter.</summary>
+    public IReadOnlyList<int> Genres { get; init; } = [];
+
     /// <summary>The most significant sort column.</summary>
     public SortKey PrimarySort => Sorts[0];
+
+    /// <summary>Whether the view is narrowed by a search or a genre filter.</summary>
+    public bool IsFiltered => Search.Length > 0 || Genres.Count > 0;
 
     /// <inheritdoc />
     public bool Equals(OverviewState? other) =>
@@ -48,7 +55,8 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
         && Search == other.Search
         && Page == other.Page
         && PageSize == other.PageSize
-        && Sorts.SequenceEqual(other.Sorts);
+        && Sorts.SequenceEqual(other.Sorts)
+        && Genres.SequenceEqual(other.Genres);
 
     /// <inheritdoc />
     public override int GetHashCode()
@@ -60,6 +68,11 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
         foreach (var key in Sorts)
         {
             hash.Add(key);
+        }
+
+        foreach (var genre in Genres)
+        {
+            hash.Add(genre);
         }
 
         return hash.ToHashCode();
@@ -81,9 +94,23 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
         return -1;
     }
 
-    /// <summary>Drops the search, keeping the sort order. Goes back to the first page.</summary>
+    /// <summary>Drops the search, keeping the sort order and the genre filter. Goes back to the first page.</summary>
     /// <returns>The new state.</returns>
     public OverviewState WithoutSearch() => this with { Search = "", Page = 1 };
+
+    /// <summary>Drops the search and the genre filter, keeping the sort order. Goes back to the first page.</summary>
+    /// <returns>The new state.</returns>
+    public OverviewState WithoutFilters() => this with { Search = "", Genres = [], Page = 1 };
+
+    /// <summary>Replaces the genre filter. Goes back to the first page.</summary>
+    /// <param name="genres">The genre ids; they are sorted, deduplicated and limited to positive ids.</param>
+    /// <returns>The new state.</returns>
+    public OverviewState WithGenres(IEnumerable<int> genres) =>
+        this with
+        {
+            Genres = NormalizeGenres(genres),
+            Page = 1,
+        };
 
     /// <summary>Sorts on a single column only, in its default direction. Goes back to the first page.</summary>
     /// <param name="field">The sort column.</param>
@@ -161,13 +188,23 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
         return trimmed.Length <= MaxSearchLength ? trimmed : trimmed[..MaxSearchLength].TrimEnd();
     }
 
+    /// <summary>The largest number of genre ids that are read from the URL (the size of the genre list).</summary>
+    public const int MaxGenres = 35;
+
+    /// <summary>Normalises genre ids: positive, unique, ascending and at most <see cref="MaxGenres"/>.</summary>
+    /// <param name="genres">The raw ids.</param>
+    /// <returns>The normalised ids.</returns>
+    public static IReadOnlyList<int> NormalizeGenres(IEnumerable<int> genres) =>
+        [.. genres.Where(id => id >= 1).Distinct().Order().Take(MaxGenres)];
+
     /// <summary>Builds a state from raw query-string values, falling back to the defaults for anything invalid.</summary>
     /// <param name="q">The <c>q</c> value.</param>
     /// <param name="sort">The <c>sort</c> value: comma-separated <c>column[:asc|:desc]</c> items.</param>
     /// <param name="page">The <c>page</c> value.</param>
     /// <param name="size">The <c>size</c> value.</param>
+    /// <param name="genre">The <c>genre</c> value: comma-separated genre ids.</param>
     /// <returns>The view state.</returns>
-    public static OverviewState FromQuery(string? q, string? sort, string? page, string? size)
+    public static OverviewState FromQuery(string? q, string? sort, string? page, string? size, string? genre = null)
     {
         var sorts = ParseSorts(sort);
         var pageNumber =
@@ -177,7 +214,23 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
                 ? s
                 : DefaultPageSize;
 
-        return new OverviewState(NormalizeSearch(q), sorts, pageNumber, pageSize);
+        return new OverviewState(NormalizeSearch(q), sorts, pageNumber, pageSize) { Genres = ParseGenres(genre) };
+    }
+
+    private static IReadOnlyList<int> ParseGenres(string? genre)
+    {
+        var ids = new List<int>();
+        foreach (
+            var item in (genre ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        )
+        {
+            if (int.TryParse(item, NumberStyles.None, CultureInfo.InvariantCulture, out var id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        return NormalizeGenres(ids);
     }
 
     private static IReadOnlyList<SortKey> ParseSorts(string? sort)
@@ -233,6 +286,11 @@ internal sealed record OverviewState(string Search, IReadOnlyList<SortKey> Sorts
         if (Search.Length > 0)
         {
             Add("q", Search);
+        }
+
+        if (Genres.Count > 0)
+        {
+            builder.Append(builder.Length == 0 ? '?' : '&').Append("genre=").AppendJoin(',', Genres);
         }
 
         if (!Sorts.SequenceEqual(DefaultSorts))

@@ -37,7 +37,6 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.Property(x => x.Title).HasColumnName("title").HasMaxLength(200);
         builder.Property(x => x.ReleaseYear).HasColumnName("release_year").HasColumnType("smallint");
         builder.Property(x => x.Director).HasColumnName("director").HasMaxLength(150);
-        builder.Property(x => x.GenreId).HasColumnName("genre_id");
         builder.Property(x => x.RuntimeMinutes).HasColumnName("runtime_minutes").HasColumnType("smallint");
         builder.Property(x => x.WatchedOn).HasColumnName("watched_on").HasColumnType("date");
         builder.Property(x => x.MediumId).HasColumnName("medium_id");
@@ -51,12 +50,6 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("datetime(6)");
         builder.Property(x => x.Version).HasColumnName("version").IsConcurrencyToken().ValueGeneratedNever();
 
-        builder
-            .HasOne(x => x.Genre)
-            .WithMany()
-            .HasForeignKey(x => x.GenreId)
-            .HasConstraintName("fk_movies_genres")
-            .OnDelete(DeleteBehavior.Restrict);
         builder
             .HasOne(x => x.Medium)
             .WithMany()
@@ -73,7 +66,6 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
             })
             .IsUnique()
             .HasDatabaseName("ux_movies_title_year_director");
-        builder.HasIndex(x => x.GenreId).HasDatabaseName("ix_movies_genre_id");
         builder.HasIndex(x => x.MediumId).HasDatabaseName("ix_movies_medium_id");
     }
 }

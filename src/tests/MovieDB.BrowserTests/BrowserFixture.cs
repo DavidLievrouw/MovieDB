@@ -176,7 +176,7 @@ public sealed class BrowserFixture : IAsyncLifetime
     /// <param name="title">The title.</param>
     /// <param name="year">The release year.</param>
     /// <param name="director">The director.</param>
-    /// <param name="genre">The genre.</param>
+    /// <param name="genres">The genre names; <c>Drama</c> when omitted.</param>
     /// <param name="medium">The medium, if any.</param>
     /// <param name="overallScore">The overall score, if any.</param>
     /// <param name="watchedOn">The viewing date.</param>
@@ -185,7 +185,7 @@ public sealed class BrowserFixture : IAsyncLifetime
         string title,
         int year = 1999,
         string director = "Synthetische Regisseur",
-        string genre = "Drama",
+        string[]? genres = null,
         string? medium = "TV",
         int overallScore = 7,
         DateOnly? watchedOn = null
@@ -201,7 +201,7 @@ public sealed class BrowserFixture : IAsyncLifetime
                 Title = title,
                 ReleaseYear = year,
                 Director = director,
-                Genre = genre,
+                Genres = [.. genres ?? ["Drama"]],
                 Medium = medium,
                 RuntimeMinutes = 100,
                 WatchedOn = watchedOn ?? new DateOnly(2024, 5, 17),
@@ -267,7 +267,7 @@ public sealed class BrowserFixture : IAsyncLifetime
                 edit.Input.Title!,
                 edit.Input.ReleaseYear!.Value,
                 edit.Input.Director!,
-                edit.Input.Genre!,
+                edit.Input.Genres,
                 edit.Input.Medium,
                 edit.Input.OverallScore,
                 edit.Input.StoryScore,
@@ -281,7 +281,7 @@ public sealed class BrowserFixture : IAsyncLifetime
 /// <param name="Title">The title.</param>
 /// <param name="ReleaseYear">The release year.</param>
 /// <param name="Director">The director.</param>
-/// <param name="Genre">The genre name.</param>
+/// <param name="Genres">The genre names, alphabetically.</param>
 /// <param name="Medium">The medium name, if any.</param>
 /// <param name="OverallScore">The overall score, if any.</param>
 /// <param name="StoryScore">The story score, if any.</param>
@@ -291,7 +291,7 @@ public sealed record SavedMovieValues(
     string Title,
     int ReleaseYear,
     string Director,
-    string Genre,
+    IReadOnlyList<string> Genres,
     string? Medium,
     int? OverallScore,
     int? StoryScore,

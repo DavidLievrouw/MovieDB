@@ -78,7 +78,7 @@ public sealed class MariaDbFixture : IAsyncLifetime
             [
                 "sh",
                 "-c",
-                $"MYSQL_PWD='{builder.Password}' mariadb-dump -h 127.0.0.1 -u '{builder.UserID}' --no-create-info --no-create-db --skip-triggers --complete-insert --default-character-set=utf8mb4 --single-transaction --skip-add-locks --skip-disable-keys --no-tablespaces --result-file={path} '{builder.Database}' genres media movies",
+                $"MYSQL_PWD='{builder.Password}' mariadb-dump -h 127.0.0.1 -u '{builder.UserID}' --no-create-info --no-create-db --skip-triggers --complete-insert --default-character-set=utf8mb4 --single-transaction --skip-add-locks --skip-disable-keys --no-tablespaces --result-file={path} '{builder.Database}' media movies movie_genres",
             ],
             TestContext.Current.CancellationToken
         );

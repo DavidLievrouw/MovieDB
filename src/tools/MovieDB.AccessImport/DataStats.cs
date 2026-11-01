@@ -4,7 +4,8 @@ namespace MovieDB.AccessImport;
 
 /// <summary>Aggregate figures used to compare the plan with what the database holds after loading. Never contains content.</summary>
 /// <param name="Movies">Number of movies.</param>
-/// <param name="Genres">Number of genre suggestion rows.</param>
+/// <param name="Genres">Number of genre rows (the seeded list).</param>
+/// <param name="GenreLinks">Number of movie-genre links.</param>
 /// <param name="Media">Number of medium suggestion rows.</param>
 /// <param name="NullOverall">Movies without an overall score.</param>
 /// <param name="NullStory">Movies without a story score.</param>
@@ -22,6 +23,7 @@ namespace MovieDB.AccessImport;
 internal sealed record DataStats(
     int Movies,
     int Genres,
+    int GenreLinks,
     int Media,
     int NullOverall,
     int NullStory,
@@ -38,10 +40,16 @@ internal sealed record DataStats(
     int MaxId
 )
 {
+    /// <summary>Builds the figures of a plan: every movie has exactly one genre link.</summary>
+    /// <param name="movies">The planned movies.</param>
+    /// <param name="genres">The number of seeded genres.</param>
+    /// <param name="media">The number of medium rows.</param>
+    /// <returns>The figures.</returns>
     public static DataStats Of(IReadOnlyCollection<CleanMovie> movies, int genres, int media) =>
         new(
             movies.Count,
             genres,
+            movies.Count,
             media,
             movies.Count(m => m.OverallScore is null),
             movies.Count(m => m.StoryScore is null),
@@ -62,6 +70,7 @@ internal sealed record DataStats(
     {
         yield return ("movies", Text(Movies));
         yield return ("genres", Text(Genres));
+        yield return ("movie_genres", Text(GenreLinks));
         yield return ("media", Text(Media));
         yield return ("NULL overall_score", Text(NullOverall));
         yield return ("NULL story_score", Text(NullStory));

@@ -177,9 +177,12 @@ internal static class ImportTool
         var stats = await ImportLoader.ReadStatsAsync(context.Database.GetDbConnection(), cancellationToken);
 
         var body = await File.ReadAllTextAsync(bodyPath, new UTF8Encoding(false), cancellationToken);
-        if (!body.Contains("INSERT INTO `movies`", StringComparison.Ordinal))
+        if (
+            !body.Contains("INSERT INTO `movies`", StringComparison.Ordinal)
+            || !body.Contains("INSERT INTO `movie_genres`", StringComparison.Ordinal)
+        )
         {
-            throw new ImportException("The dump body does not contain any movies.");
+            throw new ImportException("The dump body does not contain any movies or movie genres.");
         }
 
         var script = DumpComposer.Compose(body, Path.GetFileName(sourceName), clock.GetUtcNow(), expected, stats);

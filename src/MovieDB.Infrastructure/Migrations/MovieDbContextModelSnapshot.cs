@@ -184,10 +184,6 @@ namespace MovieDB.Infrastructure.Migrations
                         .HasColumnType("varchar(150)")
                         .HasColumnName("director");
 
-                    b.Property<int>("GenreId")
-                        .HasColumnType("int")
-                        .HasColumnName("genre_id");
-
                     b.Property<int?>("MediumId")
                         .HasColumnType("int")
                         .HasColumnName("medium_id");
@@ -246,9 +242,6 @@ namespace MovieDB.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_movies");
 
-                    b.HasIndex("GenreId")
-                        .HasDatabaseName("ix_movies_genre_id");
-
                     b.HasIndex("MediumId")
                         .HasDatabaseName("ix_movies_medium_id");
 
@@ -270,6 +263,25 @@ namespace MovieDB.Infrastructure.Migrations
 
                             t.HasCheckConstraint("ck_movies_story_score", "`story_score` IS NULL OR `story_score` BETWEEN 1 AND 10");
                         });
+                });
+
+            modelBuilder.Entity("MovieDB.Infrastructure.Entities.MovieGenre", b =>
+                {
+                    b.Property<int>("MovieId")
+                        .HasColumnType("int")
+                        .HasColumnName("movie_id");
+
+                    b.Property<int>("GenreId")
+                        .HasColumnType("int")
+                        .HasColumnName("genre_id");
+
+                    b.HasKey("MovieId", "GenreId")
+                        .HasName("pk_movie_genres");
+
+                    b.HasIndex("GenreId")
+                        .HasDatabaseName("ix_movie_genres_genre_id");
+
+                    b.ToTable("movie_genres", (string)null);
                 });
 
             modelBuilder.Entity("MovieDB.Infrastructure.Entities.User", b =>
@@ -329,22 +341,39 @@ namespace MovieDB.Infrastructure.Migrations
 
             modelBuilder.Entity("MovieDB.Infrastructure.Entities.Movie", b =>
                 {
-                    b.HasOne("MovieDB.Infrastructure.Entities.Genre", "Genre")
-                        .WithMany()
-                        .HasForeignKey("GenreId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_movies_genres");
-
                     b.HasOne("MovieDB.Infrastructure.Entities.Medium", "Medium")
                         .WithMany()
                         .HasForeignKey("MediumId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_movies_media");
 
+                    b.Navigation("Medium");
+                });
+
+            modelBuilder.Entity("MovieDB.Infrastructure.Entities.MovieGenre", b =>
+                {
+                    b.HasOne("MovieDB.Infrastructure.Entities.Genre", "Genre")
+                        .WithMany()
+                        .HasForeignKey("GenreId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_movie_genres_genres");
+
+                    b.HasOne("MovieDB.Infrastructure.Entities.Movie", "Movie")
+                        .WithMany("GenreLinks")
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_movie_genres_movies");
+
                     b.Navigation("Genre");
 
-                    b.Navigation("Medium");
+                    b.Navigation("Movie");
+                });
+
+            modelBuilder.Entity("MovieDB.Infrastructure.Entities.Movie", b =>
+                {
+                    b.Navigation("GenreLinks");
                 });
 #pragma warning restore 612, 618
         }

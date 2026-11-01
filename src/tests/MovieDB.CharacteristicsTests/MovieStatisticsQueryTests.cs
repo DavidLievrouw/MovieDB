@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using MovieDB.Infrastructure;
 using MovieDB.Infrastructure.Entities;
 using MovieDB.Movies;
@@ -20,6 +21,7 @@ public sealed class MovieStatisticsQueryTests
 
     private sealed record Seed(
         string Genre = "Drama",
+        string? SecondGenre = null,
         string Director = "Director",
         string? Medium = null,
         int Runtime = 100,
@@ -33,16 +35,14 @@ public sealed class MovieStatisticsQueryTests
         var factory = MariaDbFixture.CreateFactory(connectionString);
         await using (var db = factory.CreateDbContext())
         {
-            var genres = seeds
-                .Select(s => s.Genre)
-                .Distinct()
-                .ToDictionary(name => name, name => new Genre { Name = name, CreatedAt = Now });
+            var genres = await db
+                .Genres.AsNoTracking()
+                .ToDictionaryAsync(g => g.Name, TestContext.Current.CancellationToken);
             var media = seeds
                 .Select(s => s.Medium)
                 .OfType<string>()
                 .Distinct()
                 .ToDictionary(name => name, name => new Medium { Name = name, CreatedAt = Now });
-            db.Genres.AddRange(genres.Values);
             db.Media.AddRange(media.Values);
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
@@ -56,7 +56,12 @@ public sealed class MovieStatisticsQueryTests
                         Title = $"Film {number}",
                         ReleaseYear = 2000,
                         Director = seed.Director,
-                        GenreId = genres[seed.Genre].Id,
+                        GenreLinks =
+                        [
+                            .. new[] { seed.Genre, seed.SecondGenre }
+                                .OfType<string>()
+                                .Select(g => new MovieGenre { GenreId = genres[g].Id }),
+                        ],
                         RuntimeMinutes = seed.Runtime,
                         WatchedOn = seed.WatchedOn ?? new DateOnly(2020, 1, 1),
                         MediumId = seed.Medium is null ? null : media[seed.Medium].Id,
@@ -98,10 +103,10 @@ public sealed class MovieStatisticsQueryTests
             .. Many(3, new Seed(Genre: "Komedie", Director: "Zed")),
             .. Many(2, new Seed(Genre: "Drama", Director: "Amy")),
             .. Many(2, new Seed(Genre: "Actie", Director: "Bob")),
-            new Seed(Genre: "G4", Director: "D4"),
-            new Seed(Genre: "G5", Director: "D5"),
-            new Seed(Genre: "G6", Director: "D6"),
-            new Seed(Genre: "G7", Director: "D7"),
+            new Seed(Genre: "Western", Director: "D4"),
+            new Seed(Genre: "Horror", Director: "D5"),
+            new Seed(Genre: "Kinder", Director: "D6"),
+            new Seed(Genre: "Bond", Director: "D7"),
         ]);
 
         var stats = await queries.GetStatisticsAsync(Today, TestContext.Current.CancellationToken);
@@ -113,6 +118,20 @@ public sealed class MovieStatisticsQueryTests
         stats
             .Directors.Take(3)
             .ShouldBe([new NamedCount("Zed", 3), new NamedCount("Amy", 2), new NamedCount("Bob", 2)]);
+    }
+
+    [Fact]
+    public async Task A_film_counts_once_for_each_of_its_genres()
+    {
+        var queries = await SeedAsync(
+            new Seed(Genre: "Actie", SecondGenre: "Komedie"),
+            new Seed(Genre: "Komedie", SecondGenre: "Drama"),
+            new Seed(Genre: "Komedie")
+        );
+
+        var stats = await queries.GetStatisticsAsync(Today, TestContext.Current.CancellationToken);
+
+        stats.Genres.ShouldBe([new NamedCount("Komedie", 3), new NamedCount("Actie", 1), new NamedCount("Drama", 1)]);
     }
 
     [Fact]

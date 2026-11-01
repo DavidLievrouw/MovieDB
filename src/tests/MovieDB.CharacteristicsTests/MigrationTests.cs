@@ -23,6 +23,7 @@ public sealed class MigrationTests
         "data_protection_keys",
         "genres",
         "media",
+        "movie_genres",
         "movies",
         "users",
     ];
@@ -70,7 +71,7 @@ public sealed class MigrationTests
         await using var context = MariaDbFixture.CreateFactory(connectionString).CreateDbContext();
 
         context.Database.HasPendingModelChanges().ShouldBeFalse();
-        (await context.Genres.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
+        (await context.Genres.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(MovieGenres.All.Count);
         (await context.Movies.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(0);
     }
 
@@ -113,6 +114,7 @@ public sealed class MigrationTests
     public async Task A_partially_applied_migration_can_be_retried()
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `movie_genres`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `movies`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `users`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DELETE FROM `__EFMigrationsHistory`");

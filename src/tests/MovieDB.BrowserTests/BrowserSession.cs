@@ -65,6 +65,29 @@ public sealed class BrowserSession : IAsyncDisposable
     /// <param name="label">The label of the field.</param>
     public ILocator Field(string label) => Page.GetByLabel(label, new() { Exact = true });
 
+    /// <summary>The selected chips of a chip multi-select field.</summary>
+    /// <param name="testId">The <c>data-testid</c> of the field.</param>
+    public ILocator Chips(string testId) => Page.Locator($"[data-testid={testId}] .chip-multi-select-chip");
+
+    /// <summary>The text input of a chip multi-select field.</summary>
+    /// <param name="testId">The <c>data-testid</c> of the field.</param>
+    public ILocator ChipInput(string testId) => Page.Locator($"[data-testid={testId}] input").First;
+
+    /// <summary>Adds a value to a chip multi-select field by picking it from the suggestions.</summary>
+    /// <param name="testId">The <c>data-testid</c> of the field.</param>
+    /// <param name="text">The value to type and pick.</param>
+    public async Task AddChipAsync(string testId, string text)
+    {
+        var input = ChipInput(testId);
+        await input.ClickAsync();
+        await input.FillAsync(text);
+        await Page.Locator(".mud-popover-open .mud-list-item").GetByText(text, new() { Exact = true }).ClickAsync();
+        await Assertions.Expect(Chips(testId).GetByText(text, new() { Exact = true })).ToBeVisibleAsync();
+
+        // The field gets the focus back to add the next value, which reopens the list over the rest of the form.
+        await DismissPopoverAsync(4000);
+    }
+
     /// <summary>A score input of the edit form.</summary>
     /// <param name="label">The label of the score.</param>
     public ILocator ScoreGroup(string label) => Page.Locator($"[role=group][aria-label='{label}']");
@@ -76,7 +99,26 @@ public sealed class BrowserSession : IAsyncDisposable
     {
         var field = Field(label);
         await field.FillAsync(value);
+        await DismissPopoverAsync(500);
         await field.BlurAsync();
+    }
+
+    /// <summary>Closes a suggestion list that opens after the debounce, also when the field was left in the meantime.</summary>
+    /// <param name="timeoutMs">How long to wait for a list to show up.</param>
+    private async Task DismissPopoverAsync(float timeoutMs)
+    {
+        var popover = Page.Locator(".mud-popover-open");
+        try
+        {
+            await popover.First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = timeoutMs });
+        }
+        catch (TimeoutException)
+        {
+            return;
+        }
+
+        await Page.Keyboard.PressAsync("Escape");
+        await Assertions.Expect(popover).ToHaveCountAsync(0);
     }
 
     /// <summary>Picks a score, using the toggle buttons on a wide screen and the select on a narrow one.</summary>

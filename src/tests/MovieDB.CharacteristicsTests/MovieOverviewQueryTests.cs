@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using MovieDB.Common;
 using MovieDB.Infrastructure;
 using MovieDB.Infrastructure.Entities;
@@ -23,7 +24,8 @@ public sealed class MovieOverviewQueryTests
         DateOnly WatchedOn,
         int? Score = null,
         string? Medium = null,
-        int Year = 2000
+        int Year = 2000,
+        string[]? Genres = null
     );
 
     private async Task<MovieQueries> SeedAsync(params Seed[] seeds)
@@ -32,8 +34,9 @@ public sealed class MovieOverviewQueryTests
         var factory = MariaDbFixture.CreateFactory(connectionString);
         await using (var db = factory.CreateDbContext())
         {
-            var genre = new Genre { Name = "Drama", CreatedAt = Now };
-            db.Genres.Add(genre);
+            var genres = await db
+                .Genres.AsNoTracking()
+                .ToDictionaryAsync(g => g.Name, TestContext.Current.CancellationToken);
             var media = new Dictionary<string, Medium>();
             foreach (var name in seeds.Select(s => s.Medium).OfType<string>().Distinct())
             {
@@ -50,7 +53,10 @@ public sealed class MovieOverviewQueryTests
                         Title = seed.Title,
                         ReleaseYear = seed.Year,
                         Director = "Director",
-                        GenreId = genre.Id,
+                        GenreLinks =
+                        [
+                            .. (seed.Genres ?? ["Drama"]).Select(g => new MovieGenre { GenreId = genres[g].Id }),
+                        ],
                         RuntimeMinutes = 100,
                         WatchedOn = seed.WatchedOn,
                         MediumId = seed.Medium is null ? null : media[seed.Medium].Id,
@@ -74,10 +80,17 @@ public sealed class MovieOverviewQueryTests
         OverviewSortField sort = OverviewSortField.WatchedOn,
         bool? descending = null,
         int page = 1,
-        int size = 50
-    ) => new(search, [new SortKey(sort, descending ?? OverviewState.DefaultDescending(sort))], page, size);
+        int size = 50,
+        params int[] genres
+    ) =>
+        new(search, [new SortKey(sort, descending ?? OverviewState.DefaultDescending(sort))], page, size)
+        {
+            Genres = OverviewState.NormalizeGenres(genres),
+        };
 
-    private static OverviewState State(params SortKey[] sorts) => new("", sorts, 1, 50);
+    private static int GenreId(string name) => MovieGenres.All.Single(g => g.Name == name).Id;
+
+    private static OverviewState State(SortKey first, params SortKey[] more) => new("", [first, .. more], 1, 50);
 
     [Fact]
     public async Task Multiple_sort_columns_apply_in_order_with_missing_values_last()
@@ -257,6 +270,116 @@ public sealed class MovieOverviewQueryTests
     }
 
     [Fact]
+    public async Task Rows_carry_their_genres_alphabetically()
+    {
+        var queries = await SeedAsync(new Seed("Heat", Day(1), Genres: ["Thriller", "Actie", "Misdaad"]));
+
+        var row = (await queries.ListOverviewAsync(State(), TestContext.Current.CancellationToken)).Rows.Single();
+
+        row.Genres.ShouldBe(["Actie", "Misdaad", "Thriller"]);
+        row.GenreText.ShouldBe("Actie, Misdaad, Thriller");
+    }
+
+    [Fact]
+    public async Task The_genre_filter_requires_every_selected_genre()
+    {
+        var queries = await SeedAsync(
+            new Seed("both", Day(1), Genres: ["Actie", "Komedie"]),
+            new Seed("action", Day(2), Genres: ["Actie"]),
+            new Seed("comedy", Day(3), Genres: ["Komedie", "Drama"]),
+            new Seed("drama", Day(4), Genres: ["Drama"])
+        );
+
+        var one = await queries.ListOverviewAsync(
+            State(genres: GenreId("Actie")),
+            TestContext.Current.CancellationToken
+        );
+        var two = await queries.ListOverviewAsync(
+            State(genres: [GenreId("Actie"), GenreId("Komedie")]),
+            TestContext.Current.CancellationToken
+        );
+        var none = await queries.ListOverviewAsync(
+            State(genres: [GenreId("Actie"), GenreId("Drama")]),
+            TestContext.Current.CancellationToken
+        );
+
+        Titles(one).ShouldBe(["action", "both"]);
+        one.TotalMatching.ShouldBe(2);
+        Titles(two).ShouldBe(["both"]);
+        Titles(none).ShouldBeEmpty();
+        none.TotalMatching.ShouldBe(0);
+        none.TotalMovies.ShouldBe(4);
+    }
+
+    [Fact]
+    public async Task A_filtered_row_still_shows_all_of_its_genres()
+    {
+        var queries = await SeedAsync(new Seed("both", Day(1), Genres: ["Actie", "Komedie"]));
+
+        var page = await queries.ListOverviewAsync(
+            State(genres: GenreId("Actie")),
+            TestContext.Current.CancellationToken
+        );
+
+        page.Rows.Single().Genres.ShouldBe(["Actie", "Komedie"]);
+    }
+
+    [Fact]
+    public async Task The_genre_filter_combines_with_the_search()
+    {
+        var queries = await SeedAsync(
+            new Seed("Heat", Day(1), Genres: ["Actie"]),
+            new Seed("Heathers", Day(2), Genres: ["Komedie"]),
+            new Seed("Alien", Day(3), Genres: ["Actie"])
+        );
+
+        var page = await queries.ListOverviewAsync(
+            State(search: "heat", genres: GenreId("Actie")),
+            TestContext.Current.CancellationToken
+        );
+
+        Titles(page).ShouldBe(["Heat"]);
+        page.TotalMatching.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Paging_with_a_genre_filter_counts_films_once()
+    {
+        var queries = await SeedAsync([
+            .. Enumerable.Range(1, 30).Select(i => new Seed($"Film {i:00}", Day(1), Genres: ["Actie", "Komedie"])),
+        ]);
+
+        var page = await queries.ListOverviewAsync(
+            State(page: 2, size: 25, genres: [GenreId("Actie"), GenreId("Komedie")]),
+            TestContext.Current.CancellationToken
+        );
+
+        page.TotalMatching.ShouldBe(30);
+        page.PageCount.ShouldBe(2);
+        page.Rows.Count.ShouldBe(5);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_genre_column_sorts_on_the_alphabetical_genre_list(bool descending)
+    {
+        var queries = await SeedAsync(
+            new Seed("b", Day(1), Genres: ["Drama", "Actie"]),
+            new Seed("a", Day(2), Genres: ["Komedie"]),
+            new Seed("c", Day(3), Genres: ["Actie"])
+        );
+
+        var page = await queries.ListOverviewAsync(
+            State(sort: OverviewSortField.Genre, descending: descending),
+            TestContext.Current.CancellationToken
+        );
+
+        // "Actie" < "Actie, Drama" < "Komedie"
+        Titles(page).ShouldBe(descending ? ["a", "b", "c"] : ["c", "b", "a"]);
+    }
+
+    [Fact]
     public async Task A_movie_is_found_by_id_with_its_genre_and_medium()
     {
         var queries = await SeedAsync(new Seed("Heat", Day(3), Score: 8, Medium: "DVD"));
@@ -266,7 +389,7 @@ public sealed class MovieOverviewQueryTests
 
         found.ShouldNotBeNull();
         found.Title.ShouldBe("Heat");
-        found.Genre.ShouldBe("Drama");
+        found.Genres.ShouldBe(["Drama"]);
         found.Medium.ShouldBe("DVD");
         found.OverallScore.ShouldBe(8);
         (

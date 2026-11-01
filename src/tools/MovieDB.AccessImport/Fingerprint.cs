@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using MovieDB.Infrastructure;
 
 namespace MovieDB.AccessImport;
 
@@ -16,9 +17,10 @@ internal static class Fingerprint
     /// <summary>Table identifiers cannot be parameters, so each table has its own fixed statement.</summary>
     private static readonly (string Table, string Sql)[] Queries =
     [
-        ("genres", "SELECT * FROM `genres` ORDER BY `id`"),
+        ("genres", "SELECT `id`, `name` FROM `genres` ORDER BY `id`"),
         ("media", "SELECT * FROM `media` ORDER BY `id`"),
         ("movies", "SELECT * FROM `movies` ORDER BY `id`"),
+        ("movie_genres", "SELECT * FROM `movie_genres` ORDER BY `movie_id`, `genre_id`"),
     ];
 
     public static async Task<IReadOnlyList<TableFingerprint>> ComputeAsync(
@@ -68,7 +70,7 @@ internal static class DumpComposer
 {
     /// <summary>
     /// Wraps a <c>mariadb-dump</c> data body into a guarded script: it aborts unless the schema is at the expected
-    /// migration and the three domain tables are empty, and loads everything in one transaction.
+    /// migration and the genres are the seeded ones and the domain tables are empty, and loads everything in one transaction.
     /// </summary>
     /// <param name="body">The <c>mariadb-dump</c> data statements.</param>
     /// <param name="sourceName">The file name of the source, for the header.</param>
@@ -83,6 +85,7 @@ internal static class DumpComposer
         DataStats stats
     )
     {
+        var genrePairs = string.Join(", ", MovieGenres.All.Select(g => $"({g.Id}, '{g.Name}')"));
         var created = createdAt.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
         var header = string.Create(
             CultureInfo.InvariantCulture,
@@ -91,7 +94,7 @@ internal static class DumpComposer
             -- Source: {sourceName}
             -- Created: {created} UTC
             -- Schema (latest migration): {migrationId}
-            -- Rows: movies={stats.Movies}, genres={stats.Genres}, media={stats.Media}
+            -- Rows: movies={stats.Movies}, movie_genres={stats.GenreLinks}, media={stats.Media} (genres are seeded by the migration, not dumped)
             SET NAMES utf8mb4;
             DELIMITER //
             BEGIN NOT ATOMIC
@@ -100,8 +103,11 @@ internal static class DumpComposer
               IF latest IS NULL OR latest <> '{migrationId}' THEN
                 SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: the database schema is not at the migration this dump was made for.';
               END IF;
-              IF (SELECT COUNT(*) FROM `movies`) > 0 OR (SELECT COUNT(*) FROM `genres`) > 0 OR (SELECT COUNT(*) FROM `media`) > 0 THEN
-                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: movies, genres or media already contain data.';
+              IF (SELECT COUNT(*) FROM `movies`) > 0 OR (SELECT COUNT(*) FROM `movie_genres`) > 0 OR (SELECT COUNT(*) FROM `media`) > 0 THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: movies, movie_genres or media already contain data.';
+              END IF;
+              IF (SELECT COUNT(*) FROM `genres`) <> {MovieGenres.All.Count} OR (SELECT COUNT(*) FROM `genres` WHERE (`id`, `name`) IN ({genrePairs})) <> {MovieGenres.All.Count} THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: the genres table does not hold exactly the seeded genres.';
               END IF;
             END //
             DELIMITER ;

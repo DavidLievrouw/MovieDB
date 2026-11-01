@@ -40,7 +40,7 @@ MariaDB container.
 ```powershell
 .\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -DryRun   # counts only, no database changes
 .\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb           # migrate, import, report, dump, verify the dump
-.\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -Reset    # clear movies/genres/media first (asks for RESET)
+.\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -Reset    # clear movies/movie_genres/media first (asks for RESET)
 ```
 
 The dump lands in `artifacts\import\moviedb-data.sql`. It contains personal reviews: never commit it and delete all

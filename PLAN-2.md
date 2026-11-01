@@ -3,7 +3,7 @@
 Phase 1 ([`PLAN.md`](PLAN.md)) reached feature parity with the Access database. This plan covers the first round of
 improvements requested by the owner. Read it together with [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** M7 (drop Extra's, mandatory scores) is implemented and awaiting the owner's review; M8-M10 are planned.
+**Status:** M7 (drop Extra's, mandatory scores) is done; M8 (multi-genre + genre filter) is implemented and awaiting the owner's review; M9-M10 are planned.
 The owner's answers are in §2. A review of this plan against the code added the clarifications in §2a, which the
 owner has confirmed. There are no open questions (§10).
 
@@ -236,6 +236,14 @@ matching rows in PLAN.md §6.3 and §6.4.
   removing and re-adding. Label "Regisseur(s)" (hint "Maximaal 5").
 - Both fields go into `Ui` as one reusable generic component (strings in, strings out, `AllowNew` flag, `MaxSelected`,
   Dutch texts), independent of Movies and Infrastructure. bUnit tests cover it.
+- **Required chip fields (lesson from M8, applies to Regisseur(s) in M9):** the chip component never passes `Required`
+  to its inner `MudAutocomplete`. That input is always empty while chips exist, so MudBlazor would flag "Required" on
+  blur even though values are chosen. The component only appends "*" to the label (`Required`) and shows an error
+  when the parent says so (`Error`/`ErrorText`), i.e. only when **no** value is selected and the field has been
+  left. Tab does not select the highlighted suggestion (`SelectValueOnTab=false`) for the closed-list field;
+  for the free-entry director field Tab adds the typed text only. Tests: bUnit (leaving a required field that has
+  values shows no error) and Playwright (leaving the field with zero values shows "Geef minstens één regisseur op.",
+  with a value shows no error; new and edit page, 390 and 1440 px), mirroring the genre tests.
 - **Evaluatie card:** five `ScoreInput`s: "Totaal (geen gemiddelde)", "Film", "Beeld", "Muziek", "Geluid". "Extra's" is
   gone. `ScoreInput` gets an `AllowEmpty` parameter (default true, so the component stays reusable): the edit page
   passes false, so there is no "–" option, and a new film starts with no score selected. The mobile select shows a

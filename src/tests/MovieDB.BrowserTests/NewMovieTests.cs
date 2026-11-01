@@ -18,6 +18,28 @@ public sealed class NewMovieTests
     [Theory]
     [InlineData(390, 844)]
     [InlineData(1440, 900)]
+    public async Task Leaving_the_genre_field_is_only_an_error_when_no_genre_is_chosen(int width, int height)
+    {
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        var genreError = session.Page.Locator("[data-testid=genre-field] .mud-input-error");
+
+        await session.ChipInput("genre-field").ClickAsync();
+        await session.Field("Filmtitel").ClickAsync();
+        await Expect(session.Page.GetByText("Kies minstens één genre.")).ToBeVisibleAsync();
+
+        await session.AddChipAsync("genre-field", "Drama");
+        await Expect(session.Page.GetByText("Kies minstens één genre.")).ToHaveCountAsync(0);
+        await session.ChipInput("genre-field").ClickAsync();
+        await session.Field("Filmtitel").ClickAsync();
+
+        await Expect(genreError).ToHaveCountAsync(0);
+        await Expect(session.Page.GetByText("Kies minstens één genre.")).ToHaveCountAsync(0);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
     public async Task Saving_an_empty_form_shows_the_validation_messages_and_stores_nothing(int width, int height)
     {
         await using var session = await _fixture.OpenAsync(width, height);
@@ -27,7 +49,7 @@ public sealed class NewMovieTests
 
         await Expect(session.Page.GetByText("Controleer de gemarkeerde velden.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Filmtitel is verplicht.")).ToBeVisibleAsync();
-        await Expect(session.Page.GetByText("Genre is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Kies minstens één genre.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Regisseur is verplicht.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Duur is verplicht.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Jaar is verplicht.")).ToBeVisibleAsync();
@@ -47,7 +69,7 @@ public sealed class NewMovieTests
         await using var session = await _fixture.OpenAsync(width, height);
         await session.OpenNewAsync();
         await session.FillAsync("Filmtitel", BrowserFixture.Unique("Bereikfilm"));
-        await session.FillAsync("Genre", "Drama");
+        await session.AddChipAsync("genre-field", "Drama");
         await session.FillAsync("Regisseur", "Synthetische Regisseur");
         await session.FillAsync("Duur", "1000");
         await session.FillAsync("Jaar", "1800");
@@ -69,7 +91,7 @@ public sealed class NewMovieTests
         await using var session = await _fixture.OpenAsync(width, height);
         await session.OpenNewAsync();
         await session.FillAsync("Filmtitel", title);
-        await session.FillAsync("Genre", "Drama");
+        await session.AddChipAsync("genre-field", "Drama");
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2002");
         await session.FillAsync("Regisseur", "Synthetische Regisseur");
@@ -96,7 +118,8 @@ public sealed class NewMovieTests
         await session.OpenNewAsync();
 
         await session.FillAsync("Filmtitel", title);
-        await session.FillAsync("Genre", "Thriller");
+        await session.AddChipAsync("genre-field", "Thriller");
+        await session.AddChipAsync("genre-field", "Detective");
         await session.FillAsync("Duur", "123");
         await session.FillAsync("Jaar", "2001");
         await session.FillAsync("Regisseur", "Synthetische Regisseur");
@@ -116,7 +139,7 @@ public sealed class NewMovieTests
         saved.ShouldNotBeNull();
         saved.Title.ShouldBe(title);
         saved.ReleaseYear.ShouldBe(2001);
-        saved.Genre.ShouldBe("Thriller");
+        saved.Genres.ShouldBe(["Detective", "Thriller"]);
         saved.Medium.ShouldBe("Bioscoop");
         saved.OverallScore.ShouldBe(8);
         saved.StoryScore.ShouldBe(7);
@@ -131,7 +154,7 @@ public sealed class NewMovieTests
         var id = await _fixture.SeedMovieAsync(BrowserFixture.Unique("Vorige film"));
         await using var session = await _fixture.OpenAsync(width, height);
         await session.OpenEditAsync(id);
-        await session.Field("Genre").ClickAsync();
+        await session.ChipInput("genre-field").ClickAsync();
 
         await session
             .Page.Locator(".films-record-nav")
@@ -141,7 +164,8 @@ public sealed class NewMovieTests
         await Expect(session.Page).ToHaveURLAsync(new Regex("/films/nieuw"));
         await Expect(session.Page.Locator("h1.films-title")).ToHaveTextAsync("Nieuwe film");
         await Expect(session.Field("Filmtitel")).ToHaveValueAsync("");
-        await Expect(session.Field("Genre")).ToHaveValueAsync("");
+        await Expect(session.Chips("genre-field")).ToHaveCountAsync(0);
+        await Expect(session.ChipInput("genre-field")).ToHaveValueAsync("");
         await Expect(session.Field("Regisseur")).ToHaveValueAsync("");
         await Expect(session.Page.Locator(".films-fields .mud-input-error")).ToHaveCountAsync(0);
         await Expect(session.Page.Locator(".films-fields [aria-invalid=true]")).ToHaveCountAsync(0);
@@ -159,7 +183,7 @@ public sealed class NewMovieTests
         await session.OpenNewAsync();
 
         await session.FillAsync("Filmtitel", title.ToUpperInvariant());
-        await session.FillAsync("Genre", "Drama");
+        await session.AddChipAsync("genre-field", "Drama");
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2005");
         await session.FillAsync("Regisseur", "synthetische regisseur");
@@ -183,7 +207,7 @@ public sealed class NewMovieTests
         await using var session = await _fixture.OpenAsync(width, height);
         await session.OpenNewAsync();
         await session.FillAsync("Filmtitel", title);
-        await session.FillAsync("Genre", "Drama");
+        await session.AddChipAsync("genre-field", "Drama");
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2010");
         await session.FillAsync("Regisseur", "Tweede Regisseur");

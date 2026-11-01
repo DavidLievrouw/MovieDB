@@ -31,6 +31,15 @@
                       AdornmentIcon="@Icons.Material.Filled.Search" AdornmentAriaLabel="Zoeken"
                       Variant="Variant.Outlined" Margin="Margin.Dense" aria-label="Zoek op titel"
                       Class="films-search"/>
+        <div class="films-genre-filter">
+            <ChipMultiSelect Label="Genre" Dense="true" Values="SelectedGenreNames" ValuesChanged="OnGenresChanged"
+                             Suggestions="SuggestGenres" AllowNew="false" MaxItems="40" data-testid="genre-filter"/>
+            @if (_state.Genres.Count > 0)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.FilterListOff" OnClick="ClearGenres"
+                               aria-label="Genrefilter wissen"/>
+            }
+        </div>
         <div class="films-sort-mobile d-md-none">
             <MudSelect T="OverviewSortField" Value="_state.PrimarySort.Field" ValueChanged="OnSortFieldSelected"
                        Label="Sorteren op" Variant="Variant.Outlined" Margin="Margin.Dense" Dense="true">
@@ -69,10 +78,12 @@
     else if (_page.Rows.Count == 0)
     {
         <div class="films-empty">
-            <p>@(_state.Search.Length > 0 ? "Geen films gevonden voor deze zoekopdracht." : "Er zijn nog geen films.")</p>
-            @if (_state.Search.Length > 0)
+            <p>@(_state.IsFiltered ? "Geen films gevonden voor deze zoekopdracht." : "Er zijn nog geen films.")</p>
+            @if (_state.IsFiltered)
             {
-                <MudButton Variant="Variant.Outlined" OnClick="ClearSearch">Zoekopdracht wissen</MudButton>
+                <MudButton Variant="Variant.Outlined" OnClick="ClearFilters">
+                    @(_state.Genres.Count == 0 ? "Zoekopdracht wissen" : "Filters wissen")
+                </MudButton>
             }
         </div>
     }
@@ -103,7 +114,7 @@
                     </TemplateColumn>
                     <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Genre" HeaderClass="films-col-lg films-c-genre" CellClass="films-col-lg">
                         <HeaderTemplate>@SortHeader(OverviewSortField.Genre)</HeaderTemplate>
-                        <CellTemplate>@context.Item.Genre</CellTemplate>
+                        <CellTemplate>@context.Item.GenreText</CellTemplate>
                     </TemplateColumn>
                     <TemplateColumn T="MovieOverviewRow" Sortable="false" Title="Duur" HeaderClass="films-col-xl films-c-runtime" CellClass="films-col-xl">
                         <HeaderTemplate>@SortHeader(OverviewSortField.RuntimeMinutes)</HeaderTemplate>
@@ -131,7 +142,12 @@
                             <span class="films-card-meta">
                                 <span class="films-num">@row.ReleaseYear</span> · <span class="films-num">@Formats.Date(row.WatchedOn)</span>
                             </span>
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="films-card-genre">@row.Genre</MudChip>
+                            <span class="films-card-genres">
+                                @foreach (var genre in row.Genres)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="films-card-genre">@genre</MudChip>
+                                }
+                            </span>
                         </span>
                         <ScorePill Value="row.OverallScore" Label="Totaal"/>
                     </a>
@@ -182,15 +198,25 @@
     [SupplyParameterFromQuery(Name = "size")]
     private string? PageSizeQuery { get; set; }
 
+    [SupplyParameterFromQuery(Name = "genre")]
+    private string? GenreQuery { get; set; }
+
+    private IReadOnlyList<GenreOption>? _genres;
+
+    private IReadOnlyList<string> SelectedGenreNames =>
+        _genres is null
+            ? []
+            : [.. _state.Genres.Select(id => _genres.FirstOrDefault(g => g.Id == id)?.Name).OfType<string>()];
+
     private string TotalValue =>
-        _page is null ? "–" : Formats.Count(_state.Search.Length > 0 ? _page.TotalMatching : _page.TotalMovies);
+        _page is null ? "–" : Formats.Count(_state.IsFiltered ? _page.TotalMatching : _page.TotalMovies);
 
     private string TotalLabel =>
-        _page is not null && _state.Search.Length > 0 ? $"van {Formats.Count(_page.TotalMovies)} films" : "films";
+        _page is not null && _state.IsFiltered ? $"van {Formats.Count(_page.TotalMovies)} films" : "films";
 
     protected override async Task OnParametersSetAsync()
     {
-        var parsed = OverviewState.FromQuery(Q, Sort, PageNumber, PageSizeQuery);
+        var parsed = OverviewState.FromQuery(Q, Sort, PageNumber, PageSizeQuery, GenreQuery);
         if (OverviewState.NormalizeSearch(_searchText) != parsed.Search)
         {
             _searchText = parsed.Search;
@@ -201,6 +227,29 @@
         {
             _state = parsed;
             return;
+        }
+
+        if (_genres is null)
+        {
+            try
+            {
+                _genres = await Queries.ListGenresAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Loading the genres failed.");
+                _state = parsed;
+                _error = true;
+                return;
+            }
+        }
+
+        // Unknown genre ids in the URL are dropped, and the URL is corrected.
+        var known = parsed.Genres.Where(id => _genres.Any(g => g.Id == id)).ToList();
+        if (known.Count != parsed.Genres.Count)
+        {
+            parsed = parsed.WithGenres(known) with { Page = parsed.Page };
+            Navigation.NavigateTo("/films" + parsed.ToQueryString(), replace: true);
         }
 
         if (_loaded && parsed == _state)
@@ -276,7 +325,25 @@
         }
     }
 
-    private void ClearSearch() => Go(_state with { Search = "", Page = 1 });
+    private void ClearGenres() => Go(_state.WithGenres([]));
+
+    private void ClearFilters() => Go(_state.WithoutFilters());
+
+    private void OnGenresChanged(IReadOnlyList<string> names) =>
+        Go(
+            _state.WithGenres(
+                names.Select(n => _genres?.FirstOrDefault(g => g.Name == n)?.Id).OfType<int>()
+            )
+        );
+
+    private Task<IReadOnlyList<string>> SuggestGenres(string text, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<string> result =
+            _genres is null
+                ? []
+                : [.. _genres.Select(g => g.Name).Where(n => n.Contains(text, StringComparison.CurrentCultureIgnoreCase))];
+        return Task.FromResult(result);
+    }
 
     private void OnPageSelected(int page) => Go(_state with { Page = page });
 

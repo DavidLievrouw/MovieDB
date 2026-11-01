@@ -172,6 +172,58 @@ public class OverviewStateTests
             .ShouldBe("?sort=watchedOn:asc");
     }
 
+    [Theory]
+    [InlineData("3,7", new[] { 3, 7 })]
+    [InlineData("7,3,7", new[] { 3, 7 })]
+    [InlineData(" 7 , x, 0, -2, 3,,", new[] { 3, 7 })]
+    [InlineData("x", new int[0])]
+    [InlineData("", new int[0])]
+    [InlineData(null, new int[0])]
+    public void The_genre_filter_is_parsed_sorted_and_deduplicated(string? genre, int[] expected) =>
+        OverviewState.FromQuery(null, null, null, null, genre).Genres.ShouldBe(expected);
+
+    [Fact]
+    public void The_genre_filter_is_limited_to_the_size_of_the_genre_list()
+    {
+        var genre = string.Join(",", Enumerable.Range(1, 80));
+
+        OverviewState.FromQuery(null, null, null, null, genre).Genres.Count.ShouldBe(OverviewState.MaxGenres);
+    }
+
+    [Fact]
+    public void The_genre_filter_is_written_between_the_search_and_the_sort()
+    {
+        var state = new OverviewState("heat", [new SortKey(OverviewSortField.Title, false)], 1, 50).WithGenres([7, 3]);
+
+        state.ToQueryString().ShouldBe("?q=heat&genre=3,7&sort=title");
+        OverviewState.Default.WithGenres([4]).ToQueryString().ShouldBe("?genre=4");
+    }
+
+    [Fact]
+    public void Filtering_goes_back_to_the_first_page_and_filters_are_cleared_together()
+    {
+        var state = (OverviewState.Default with { Page = 4, Search = "x" }).WithGenres([2]);
+
+        state.Page.ShouldBe(1);
+        state.IsFiltered.ShouldBeTrue();
+        state.WithoutSearch().IsFiltered.ShouldBeTrue();
+        state.WithoutFilters().IsFiltered.ShouldBeFalse();
+        state.WithoutFilters().Genres.ShouldBeEmpty();
+        OverviewState.Default.IsFiltered.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void A_state_with_genres_survives_a_round_trip_through_the_query_string()
+    {
+        var state = new OverviewState("x", [new SortKey(OverviewSortField.Genre, true)], 2, 25).WithGenres([5, 9, 21]);
+        state = state with { Page = 2 };
+        var query = System.Web.HttpUtility.ParseQueryString(state.ToQueryString());
+
+        OverviewState
+            .FromQuery(query["q"], query["sort"], query["page"], query["size"], query["genre"])
+            .ShouldBe(state);
+    }
+
     [Fact]
     public void A_state_survives_a_round_trip_through_the_query_string()
     {

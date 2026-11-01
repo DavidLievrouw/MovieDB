@@ -1,3 +1,5 @@
+using MovieDB.Infrastructure;
+
 namespace MovieDB.AccessImport;
 
 internal sealed class ImportPlan
@@ -7,6 +9,8 @@ internal sealed class ImportPlan
     public IReadOnlyList<CleanMovie> Movies { get; init; } = [];
     public IReadOnlyList<DuplicateGroup> DuplicateGroups { get; init; } = [];
     public IReadOnlyList<CorrectionOutcome> Corrections { get; init; } = [];
+
+    /// <summary>The seeded genres, which the import verifies but never writes.</summary>
     public IReadOnlyList<string> Genres { get; init; } = [];
     public IReadOnlyList<string> Media { get; init; } = [];
     public IReadOnlyList<int> TitleExtraPartsIds { get; init; } = [];
@@ -20,32 +24,6 @@ internal sealed class ImportPlan
 
 internal static class ImportPlanner
 {
-    /// <summary>Genre suggestions known from the Access form's value list.</summary>
-    public static readonly IReadOnlyList<string> KnownGenres =
-    [
-        "Actie",
-        "Animatie",
-        "Avontuur",
-        "Bond",
-        "Detective",
-        "Detective-thriller",
-        "Documentaire",
-        "Drama",
-        "Horror",
-        "Kinder",
-        "Komedie",
-        "Melodrama",
-        "Misdaad",
-        "Oorlogs",
-        "Rampen",
-        "Romantisch",
-        "Sci-fi",
-        "Thriller",
-        "Western",
-        "Zwarte komedie",
-        "Andere",
-    ];
-
     /// <summary>
     /// Medium suggestions: the Access form's value list, plus "Streaming" and "Download", which the Access form did
     /// not have but later viewings use. No imported movie has them; they exist so the suggestions are complete.
@@ -78,17 +56,26 @@ internal static class ImportPlanner
         var (kept, groups) = DuplicateResolver.Resolve(cleaned);
         var (corrected, outcomes) = AttributeCorrections.Apply(kept, AttributeCorrections.Known);
 
-        var genres = new LookupResolver(KnownGenres);
+        var genres = MovieGenres.All.ToDictionary(g => CollationKey.Of(g.Name), g => g.Name, StringComparer.Ordinal);
         var media = new LookupResolver(KnownMedia);
-        var resolved = corrected
-            .Select(m =>
-                m with
+        var resolved = new List<CleanMovie>();
+        foreach (var movie in corrected)
+        {
+            // The genres are the closed seeded list; a genre outside it must be added to the list on purpose.
+            if (!genres.TryGetValue(CollationKey.Of(movie.Genre), out var genre))
+            {
+                errors.Add(new RowError(movie.Id, "Genre", "is not one of the known genres"));
+                continue;
+            }
+
+            resolved.Add(
+                movie with
                 {
-                    Genre = genres.Resolve(m.Genre),
-                    Medium = m.Medium is null ? null : media.Resolve(m.Medium),
+                    Genre = genre,
+                    Medium = movie.Medium is null ? null : media.Resolve(movie.Medium),
                 }
-            )
-            .ToList();
+            );
+        }
 
         return new ImportPlan
         {
@@ -97,7 +84,7 @@ internal static class ImportPlanner
             Movies = resolved,
             DuplicateGroups = groups,
             Corrections = outcomes,
-            Genres = genres.Names,
+            Genres = [.. MovieGenres.All.Select(g => g.Name)],
             Media = media.Names,
             TitleExtraPartsIds = results.Where(r => r.TitleExtraPartsDropped).Select(r => r.FilmId).ToList(),
             DirectorExtraPartsIds = results.Where(r => r.DirectorExtraPartsDropped).Select(r => r.FilmId).ToList(),

@@ -84,8 +84,8 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - **Language:** UI text, validation messages, page titles and routes are Dutch (`/films`, `/films/nieuw`,
   `/films/{id}`, `/login`). Identifiers, DB objects, comments, logs and docs are English. Use the term mapping in
   PLAN.md §4.3 (`Movie`, `Genre`, `Medium`, `Title`, `ReleaseYear`, `Director`, `WatchedOn`, `Review`,
-  `OverallScore`, `StoryScore`, `PictureScore`, `MusicScore`, `SoundScore`). Suggestion values (genres,
-  media) are Dutch domain data. In the UI, a viewing of a film is called a **"Vertoning"** (never "kijkbeurt").
+  `OverallScore`, `StoryScore`, `PictureScore`, `MusicScore`, `SoundScore`). The genre list and suggestion values
+  (media) are Dutch domain data. In the UI, a viewing of a film is called a **"Vertoning"** (never "kijkbeurt").
 - Database objects use lowercase `snake_case` with plural table names, mapped explicitly. This deliberately differs
   from the reference implementation.
 - Build settings live in `src/Directory.Build.props` (net10.0, C# 14, nullable, `TreatWarningsAsErrors`, Roslynator,
@@ -141,7 +141,9 @@ These are enforced by architecture tests. Each slice registers through `*Module.
     accent-insensitive.
   - There is a single `movies` table: one row per movie, holding its viewing date, medium, scores and review.
     Re-watches are not logged. The same title with a different year or director is a different movie.
-  - Genre and medium values are suggestion rows. New typed values are inserted in the same transaction as the save.
+  - Genres are a **closed, seeded list** of 35 (`MovieGenres`, seeded by the `Initial` migration; ids are stable because
+    URLs carry them). A movie has 1-4 genres (`movie_genres`), chosen from the list; an unknown genre is a validation
+    error. Medium values are suggestion rows: new typed values are inserted in the same transaction as the save.
   - `version` columns are concurrency tokens: 1 on insert, incremented by the app on every update.
 - Evolve the schema through explicit EF Core migrations with usable `Down` methods. Preserve existing data and test
   migrations against representative schemas. **Exception:** during phase 2 (M7-M10) the schema is rewritten in place
@@ -292,7 +294,8 @@ Record only decisions that are binding for this repository:
   - The five scores (Totaal, Film, Beeld, Muziek, Geluid) are required, 1–10, with no empty option, validated in the UI
     and on the server. The DB columns stay nullable (with 1–10 CHECKs) because a few imported films miss a score and
     are completed on edit. Extra's no longer exists. "Totaal" is manual, not an average.
-  - Genre and "Gezien op/in" are free text with DB-backed suggestions.
+  - Genre is a multi-select (1-4) from the closed list; the overview can be filtered by genre (a film must have all selected
+    genres, URL `genre=3,7`). "Gezien op/in" is free text with DB-backed suggestions.
   - Datum defaults to today in `App:TimeZone`.
   - Default sort is Datum DESC, Title ASC. Search is a debounced title search. Save is explicit.
 - **Security/privacy requirements:**

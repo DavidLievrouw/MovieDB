@@ -17,6 +17,7 @@ public sealed class MovieDbContext : DbContext, IDataProtectionKeyContext
 
     public DbSet<Movie> Movies => Set<Movie>();
     public DbSet<Genre> Genres => Set<Genre>();
+    public DbSet<MovieGenre> MovieGenreLinks => Set<MovieGenre>();
     public DbSet<Medium> Media => Set<Medium>();
     public DbSet<User> Users => Set<User>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();

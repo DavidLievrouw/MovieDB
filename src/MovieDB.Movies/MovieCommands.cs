@@ -66,7 +66,7 @@ internal sealed class MovieCommands
             return Error.Validation(errors);
         }
 
-        // Read committed, so a genre or medium that a racing transaction has just committed is visible on re-read.
+        // Read committed, so a medium that a racing transaction has just committed is visible on re-read.
         return await _factory.InTransactionAsync(
             (db, ct) => SaveInTransactionAsync(db, id, expectedVersion, values, ct),
             IsolationLevel.ReadCommitted,
@@ -84,6 +84,12 @@ internal sealed class MovieCommands
     {
         var title = input.Title!;
         var year = input.ReleaseYear!.Value;
+        var genreIds = await ResolveGenresAsync(db, input.Genres, cancellationToken);
+        if (genreIds.Error is { } genreError)
+        {
+            return genreError;
+        }
+
         var director = await ResolveDirectorAsync(db, input.Director!, id, cancellationToken);
         var duplicates = db.Movies.Where(m => m.Title == title && m.ReleaseYear == year && m.Director == director);
         if (id is { } ownId)
@@ -117,14 +123,11 @@ internal sealed class MovieCommands
             movie = new Movie();
         }
 
-        // Resolving saves new lookup rows, so it must happen before the movie has pending changes.
+        // Resolving saves new medium rows, so it must happen before the movie has pending changes.
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var genreId = await ResolveGenreAsync(db, input.Genre!, now, cancellationToken);
-        var mediumId = input.Medium is null
-            ? (MediumId?)null
+        movie.MediumId = input.Medium is null
+            ? null
             : await ResolveMediumAsync(db, input.Medium, now, cancellationToken);
-        movie.GenreId = genreId;
-        movie.MediumId = mediumId;
         movie.Title = title;
         movie.ReleaseYear = year;
         movie.Director = director;
@@ -146,7 +149,11 @@ internal sealed class MovieCommands
         else
         {
             movie.Version++;
+            // Replace the links: delete first, so the new rows cannot collide with the old primary keys.
+            await db.MovieGenreLinks.Where(l => l.MovieId == movie.Id).ExecuteDeleteAsync(cancellationToken);
         }
+
+        movie.GenreLinks = [.. genreIds.Ids.Select(genreId => new MovieGenre { GenreId = genreId })];
 
         try
         {
@@ -196,40 +203,42 @@ internal sealed class MovieCommands
             : spellings.GroupBy(s => s, StringComparer.Ordinal).OrderByDescending(g => g.Count()).First().Key;
     }
 
-    private static async Task<GenreId> ResolveGenreAsync(
+    /// <summary>
+    /// Maps the genre names onto the ids of the closed genre list. A name that is not in the list (compared with the
+    /// database collation), or two names that resolve to the same genre, is a validation error: genres are never created.
+    /// </summary>
+    /// <param name="db">The context of the current save.</param>
+    /// <param name="names">The typed genre names.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The distinct genre ids, or the validation error.</returns>
+    private static async Task<(IReadOnlyList<GenreId> Ids, Error? Error)> ResolveGenresAsync(
         MovieDbContext db,
-        string name,
-        DateTime now,
+        IReadOnlyList<string> names,
         CancellationToken cancellationToken
     )
     {
-        var existing = await db
-            .Genres.AsNoTracking()
-            .Where(g => g.Name == name)
-            .Select(g => (GenreId?)g.Id)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (existing is { } id)
+        var ids = new List<GenreId>(names.Count);
+        foreach (var name in names)
         {
-            return id;
-        }
-
-        var genre = new Genre { Name = name, CreatedAt = now };
-        db.Genres.Add(genre);
-        try
-        {
-            await db.SaveChangesAsync(cancellationToken);
-            return genre.Id;
-        }
-        catch (DbUpdateException ex) when (DbOperations.Classify(ex) == DbFailure.Duplicate)
-        {
-            // A concurrent save created the same genre first: use that one.
-            db.Entry(genre).State = EntityState.Detached;
-            return await db
+            var found = await db
                 .Genres.AsNoTracking()
                 .Where(g => g.Name == name)
-                .Select(g => g.Id)
-                .SingleAsync(cancellationToken);
+                .Select(g => (GenreId?)g.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (found is not { } genreId)
+            {
+                return ([], Error.Validation(nameof(MovieInput.Genres), $"Onbekend genre: {name}."));
+            }
+
+            if (ids.Contains(genreId))
+            {
+                return ([], Error.Validation(nameof(MovieInput.Genres), "Een genre komt maar één keer voor."));
+            }
+
+            ids.Add(genreId);
         }
+
+        return (ids, null);
     }
 
     private static async Task<MediumId> ResolveMediumAsync(

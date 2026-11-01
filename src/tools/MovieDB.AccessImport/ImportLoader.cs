@@ -32,11 +32,12 @@ internal sealed class ImportLoader
         await context.Database.OpenConnectionAsync(cancellationToken);
         var connection = context.Database.GetDbConnection();
 
+        await VerifySeededGenresAsync(connection, cancellationToken);
         var existing = await CountAllAsync(connection, cancellationToken);
         if (existing > 0 && !reset)
         {
             throw new ImportException(
-                "The movies, genres or media tables already contain data. Use --reset to clear them first."
+                "The movies, movie_genres or media tables already contain data. Use --reset to clear them first."
             );
         }
 
@@ -48,9 +49,8 @@ internal sealed class ImportLoader
         var now = _clock.GetUtcNow().UtcDateTime;
         await using (var transaction = await context.Database.BeginTransactionAsync(cancellationToken))
         {
-            var genres = plan.Genres.ToDictionary(n => n, n => new Genre { Name = n, CreatedAt = now });
+            var genreIds = MovieGenres.All.ToDictionary(g => g.Name, g => GenreId.From(g.Id), StringComparer.Ordinal);
             var media = plan.Media.ToDictionary(n => n, n => new Medium { Name = n, CreatedAt = now });
-            context.Genres.AddRange(genres.Values);
             context.Media.AddRange(media.Values);
             await context.SaveChangesAsync(cancellationToken);
 
@@ -61,7 +61,7 @@ internal sealed class ImportLoader
                     Title = m.Title,
                     ReleaseYear = m.ReleaseYear,
                     Director = m.Director,
-                    GenreId = genres[m.Genre].Id,
+                    GenreLinks = [new MovieGenre { GenreId = genreIds[m.Genre] }],
                     RuntimeMinutes = m.RuntimeMinutes,
                     WatchedOn = m.WatchedOn,
                     MediumId = m.Medium is null ? null : media[m.Medium].Id,
@@ -84,10 +84,38 @@ internal sealed class ImportLoader
         return await VerifyAsync(connection, plan, cancellationToken);
     }
 
+    /// <summary>The tables the import fills. <c>genres</c> is not one of them: it is seeded by the migration.</summary>
+    private static readonly string[] DomainTables = ["movie_genres", "movies", "media"];
+
+    /// <summary>Fails unless the genres table holds exactly the seeded list, with the ids the URLs rely on.</summary>
+    /// <param name="connection">An open connection to the target database.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <exception cref="ImportException">The genres table differs from the seeded list.</exception>
+    internal static async Task VerifySeededGenresAsync(DbConnection connection, CancellationToken cancellationToken)
+    {
+        var actual = new List<(int Id, string Name)>();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT `id`, `name` FROM `genres` ORDER BY `id`";
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                actual.Add((Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture), reader.GetString(1)));
+            }
+        }
+
+        if (!actual.SequenceEqual(MovieGenres.All))
+        {
+            throw new ImportException(
+                "The genres table does not hold exactly the seeded genres. Run the migrations on a fresh database."
+            );
+        }
+    }
+
     private static async Task<int> CountAllAsync(DbConnection connection, CancellationToken cancellationToken)
     {
         var total = 0;
-        foreach (var table in new[] { "movies", "genres", "media" })
+        foreach (var table in DomainTables)
         {
             total += Convert.ToInt32(
                 await ScalarAsync(connection, $"SELECT COUNT(*) FROM `{table}`", cancellationToken),
@@ -98,7 +126,7 @@ internal sealed class ImportLoader
         return total;
     }
 
-    /// <summary>Clears only the three domain tables. Users, data-protection keys and throttling data are untouched.</summary>
+    /// <summary>Clears only the domain tables (never the seeded genres). Users, data-protection keys and throttling data are untouched.</summary>
     /// <param name="connection">An open connection to the target database.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     private static async Task ResetAsync(DbConnection connection, CancellationToken cancellationToken)
@@ -106,7 +134,7 @@ internal sealed class ImportLoader
         await ExecuteAsync(connection, "SET FOREIGN_KEY_CHECKS=0", cancellationToken);
         try
         {
-            foreach (var table in new[] { "movies", "genres", "media" })
+            foreach (var table in DomainTables)
             {
                 await ExecuteAsync(connection, $"TRUNCATE TABLE `{table}`", cancellationToken);
             }
@@ -176,7 +204,8 @@ internal sealed class ImportLoader
                    COALESCE(MAX(CHAR_LENGTH(`review`)), 0),
                    DATE_FORMAT(MIN(`watched_on`), '%Y-%m-%d'), DATE_FORMAT(MAX(`watched_on`), '%Y-%m-%d'),
                    COALESCE(MAX(`id`), 0),
-                   (SELECT COUNT(*) FROM `genres`), (SELECT COUNT(*) FROM `media`)
+                   (SELECT COUNT(*) FROM `genres`), (SELECT COUNT(*) FROM `media`),
+                   (SELECT COUNT(*) FROM `movie_genres`)
             FROM `movies`
             """;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -191,6 +220,7 @@ internal sealed class ImportLoader
         return new DataStats(
             Movies: Int(0),
             Genres: Int(14),
+            GenreLinks: Int(16),
             Media: Int(15),
             NullOverall: Int(1),
             NullStory: Int(2),

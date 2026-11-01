@@ -1,5 +1,6 @@
 using FluentValidation;
 using MovieDB.Common;
+using MovieDB.Infrastructure;
 
 namespace MovieDB.Movies;
 
@@ -26,7 +27,10 @@ internal sealed class MovieInput
     public const int DirectorMaxLength = 150;
 
     /// <summary>The longest genre or medium name.</summary>
-    public const int LookupMaxLength = 50;
+    public const int LookupMaxLength = MovieGenres.MaxNameLength;
+
+    /// <summary>The largest number of genres of a movie.</summary>
+    public const int MaxGenres = MovieGenres.MaxPerMovie;
 
     /// <summary>The longest review.</summary>
     public const int ReviewMaxLength = 20_000;
@@ -40,8 +44,8 @@ internal sealed class MovieInput
     /// <summary>The title.</summary>
     public string? Title { get; set; }
 
-    /// <summary>The genre name.</summary>
-    public string? Genre { get; set; }
+    /// <summary>The genre names, in the order they were added.</summary>
+    public List<string> Genres { get; set; } = [];
 
     /// <summary>The runtime in minutes.</summary>
     public int? RuntimeMinutes { get; set; }
@@ -78,27 +82,33 @@ internal sealed class MovieInput
 
     /// <summary>Creates a copy.</summary>
     /// <returns>An independent copy with the same values.</returns>
-    public MovieInput Clone() => (MovieInput)MemberwiseClone();
+    public MovieInput Clone()
+    {
+        var copy = (MovieInput)MemberwiseClone();
+        copy.Genres = [.. Genres];
+        return copy;
+    }
 
-    /// <summary>Creates a copy with trimmed text; an empty medium or review becomes <c>null</c>.</summary>
+    /// <summary>Creates a copy with trimmed text; empty genres are dropped, and an empty medium or review becomes <c>null</c>.</summary>
     /// <returns>The normalized copy.</returns>
     public MovieInput Normalized()
     {
         var copy = Clone();
         copy.Title = Trim(Title);
-        copy.Genre = Trim(Genre);
+        copy.Genres = [.. Genres.Select(g => g?.Trim() ?? "").Where(g => g.Length > 0)];
         copy.Director = Trim(Director);
         copy.Medium = NullIfEmpty(Medium);
         copy.Review = NullIfEmpty(Review);
         return copy;
     }
 
-    /// <summary>Tells whether all values equal those of another input.</summary>
+    /// <summary>Tells whether all values equal those of another input. The genres are compared as an unordered set.</summary>
     /// <param name="other">The input to compare with.</param>
     /// <returns><c>true</c> when every value is the same.</returns>
     public bool SameAs(MovieInput other) =>
         Title == other.Title
-        && Genre == other.Genre
+        && Genres.Count == other.Genres.Count
+        && Genres.ToHashSet(StringComparer.Ordinal).SetEquals(other.Genres)
         && RuntimeMinutes == other.RuntimeMinutes
         && ReleaseYear == other.ReleaseYear
         && Director == other.Director
@@ -131,11 +141,15 @@ internal sealed class MovieInputValidator : AbstractValidator<MovieInput>
             .WithMessage("Filmtitel is verplicht.")
             .MaximumLength(MovieInput.TitleMaxLength)
             .WithMessage($"Filmtitel mag maximaal {MovieInput.TitleMaxLength} tekens bevatten.");
-        RuleFor(x => x.Genre)
-            .NotEmpty()
-            .WithMessage("Genre is verplicht.")
-            .MaximumLength(MovieInput.LookupMaxLength)
-            .WithMessage($"Genre mag maximaal {MovieInput.LookupMaxLength} tekens bevatten.");
+        RuleFor(x => x.Genres)
+            .Must(genres => genres.Count >= 1)
+            .WithMessage("Kies minstens één genre.")
+            .Must(genres => genres.Count <= MovieInput.MaxGenres)
+            .WithMessage($"Kies maximaal {MovieInput.MaxGenres} genres.")
+            .Must(genres => genres.All(g => g.Length <= MovieInput.LookupMaxLength))
+            .WithMessage($"Genre mag maximaal {MovieInput.LookupMaxLength} tekens bevatten.")
+            .Must(genres => genres.Distinct(StringComparer.OrdinalIgnoreCase).Count() == genres.Count)
+            .WithMessage("Een genre komt maar één keer voor.");
         RuleFor(x => x.Director)
             .NotEmpty()
             .WithMessage("Regisseur is verplicht.")

@@ -75,6 +75,12 @@ Read AGENTS.md and PLAN.md and PLAN-2.md and HANDOVER.md. We are implementing PL
 
 ----------
 
+- Genre filter on the overview is higher than the title filter. I would like those to align. Now it looks like a UI mess.
+- When editing a film, focusing on Genre, en leaving that control, it turns red, because it is required. However, one or more values are selected. This is a bug, it should not turn red. Only when leaving the control and there are NO genres selected. Add a test for this. And add this to the PLAN so the same mistake is not done for the Director control.
+- Make sure no tests use windows-only paths. they will run on linux too. e.g. when using stuff like TEMP files, use an appropriate env var to determine the temp folder path.
+
+----------
+
 Finishing:
 
 Performance is key, every cpu cycle costs, and every byte in memory too.

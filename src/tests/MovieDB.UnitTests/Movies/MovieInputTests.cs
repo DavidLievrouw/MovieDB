@@ -1,4 +1,5 @@
 using MovieDB.Common;
+using MovieDB.Infrastructure;
 using MovieDB.Movies;
 using Shouldly;
 
@@ -30,7 +31,7 @@ public sealed class MovieInputTests
         new()
         {
             Title = "Heat",
-            Genre = "Thriller",
+            Genres = ["Thriller"],
             Director = "Michael Mann",
             ReleaseYear = 1995,
             RuntimeMinutes = 170,
@@ -62,7 +63,7 @@ public sealed class MovieInputTests
                 new Dictionary<string, string>
                 {
                     ["Title"] = "Filmtitel is verplicht.",
-                    ["Genre"] = "Genre is verplicht.",
+                    ["Genres"] = "Kies minstens één genre.",
                     ["Director"] = "Regisseur is verplicht.",
                     ["RuntimeMinutes"] = "Duur is verplicht.",
                     ["ReleaseYear"] = "Jaar is verplicht.",
@@ -183,14 +184,67 @@ public sealed class MovieInputTests
         var input = Valid();
         input.Title = new string('a', MovieInput.TitleMaxLength + 1);
         input.Director = new string('a', MovieInput.DirectorMaxLength + 1);
-        input.Genre = new string('a', MovieInput.LookupMaxLength + 1);
+        input.Genres = [new string('a', MovieInput.LookupMaxLength + 1)];
         input.Medium = new string('a', MovieInput.LookupMaxLength + 1);
         input.Review = new string('a', MovieInput.ReviewMaxLength + 1);
 
         Validator
             .Validate(input)
             .Errors.Select(e => e.PropertyName)
-            .ShouldBe(["Title", "Genre", "Director", "Medium", "Review"], ignoreOrder: true);
+            .ShouldBe(["Title", "Genres", "Director", "Medium", "Review"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void A_movie_needs_at_least_one_genre()
+    {
+        var input = Valid();
+        input.Genres = [];
+
+        ErrorsFor(input, "Genres").ShouldBe(["Kies minstens één genre."]);
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(4, true)]
+    [InlineData(5, false)]
+    public void A_movie_has_at_most_four_genres(int count, bool valid)
+    {
+        var input = Valid();
+        input.Genres = [.. MovieGenres.All.Take(count).Select(g => g.Name)];
+
+        ErrorsFor(input, "Genres").ShouldBe(valid ? [] : ["Kies maximaal 4 genres."]);
+    }
+
+    [Fact]
+    public void A_genre_cannot_be_chosen_twice()
+    {
+        var input = Valid();
+        input.Genres = ["Thriller", "thriller"];
+
+        ErrorsFor(input, "Genres").ShouldBe(["Een genre komt maar één keer voor."]);
+    }
+
+    [Fact]
+    public void Normalizing_drops_empty_genres_and_trims_the_others()
+    {
+        var input = Valid();
+        input.Genres = [" Actie ", "  ", "Drama"];
+
+        input.Normalized().Genres.ShouldBe(["Actie", "Drama"]);
+    }
+
+    [Fact]
+    public void The_genres_are_compared_as_an_unordered_set()
+    {
+        var first = Valid();
+        first.Genres = ["Actie", "Drama"];
+        var second = Valid();
+        second.Genres = ["Drama", "Actie"];
+        var third = Valid();
+        third.Genres = ["Drama"];
+
+        first.SameAs(second).ShouldBeTrue();
+        first.SameAs(third).ShouldBeFalse();
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using MovieDB.AccessImport;
+using MovieDB.Infrastructure;
 using Shouldly;
 
 namespace MovieDB.UnitTests.Import;
@@ -150,7 +151,7 @@ public sealed class AttributeCorrectionTests
 public sealed class ImportPlannerTests
 {
     [Fact]
-    public void Plan_counts_rows_drops_duplicates_and_seeds_suggestions()
+    public void Plan_counts_rows_drops_duplicates_and_seeds_media_suggestions()
     {
         var plan = ImportPlanner.Plan([
             SyntheticFilms.Film(1, title: "A", genre: "Drama"),
@@ -160,27 +161,37 @@ public sealed class ImportPlannerTests
                 genre: "DRAMA",
                 watchedOn: new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Unspecified)
             ),
-            SyntheticFilms.Film(3, title: "B", genre: "Ongekend", medium: "Laserdisc"),
+            SyntheticFilms.Film(3, title: "B", genre: "Thriller", medium: "Laserdisc"),
         ]);
 
         plan.HasErrors.ShouldBeFalse();
         plan.SourceRows.ShouldBe(3);
         plan.Movies.Select(m => m.Id).ShouldBe([1, 3]);
         plan.DroppedRows.ShouldBe(1);
-        plan.Genres.Count.ShouldBe(ImportPlanner.KnownGenres.Count + 1);
-        plan.Genres.ShouldContain("Ongekend");
+        plan.Genres.ShouldBe(MovieGenres.All.Select(g => g.Name));
         plan.Media.ShouldContain("Laserdisc");
         plan.Media.Count.ShouldBe(ImportPlanner.KnownMedia.Count + 1);
     }
 
     [Fact]
-    public void Genre_and_medium_values_resolve_to_the_canonical_suggestion()
+    public void Genre_and_medium_values_resolve_to_the_canonical_name()
     {
         var plan = ImportPlanner.Plan([SyntheticFilms.Film(1, genre: " drama ", medium: "dvd")]);
 
         plan.Movies.Single().Genre.ShouldBe("Drama");
         plan.Movies.Single().Medium.ShouldBe("DVD");
-        plan.Genres.Count.ShouldBe(ImportPlanner.KnownGenres.Count);
+        plan.Genres.Count.ShouldBe(MovieGenres.All.Count);
+        plan.Stats.GenreLinks.ShouldBe(1);
+    }
+
+    [Fact]
+    public void A_genre_outside_the_seeded_list_is_an_error_not_a_new_genre()
+    {
+        var plan = ImportPlanner.Plan([SyntheticFilms.Film(7, genre: "Ongekend")]);
+
+        plan.HasErrors.ShouldBeTrue();
+        plan.Errors.ShouldContain(e => e.FilmId == 7 && e.Field == "Genre");
+        plan.Movies.ShouldBeEmpty();
     }
 
     [Fact]
@@ -246,11 +257,11 @@ public sealed class DumpComposerTests
             "FilmsBase.mdb",
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             "20260101000000_Initial",
-            new DataStats(1, 2, 3, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, null, null, 1)
+            new DataStats(1, 35, 1, 3, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, null, null, 1)
         );
 
         script.ShouldContain("-- Source: FilmsBase.mdb");
-        script.ShouldContain("-- Rows: movies=1, genres=2, media=3");
+        script.ShouldContain("-- Rows: movies=1, movie_genres=1, media=3");
         script.ShouldContain("latest <> '20260101000000_Initial'");
         script.ShouldContain("SIGNAL SQLSTATE '45000'");
         script
