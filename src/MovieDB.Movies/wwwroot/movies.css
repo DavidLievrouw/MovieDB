@@ -225,10 +225,7 @@
 
 .films-genre-filter .chip-multi-select {
     flex: 1 1 auto;
-}
-
-/* The dense autocomplete has a larger top margin than the dense text field next to it. */
-.films-genre-filter .chip-multi-select .mud-input-control {
+    /* The dense search field next to it has the same top margin (MudBlazor input control). */
     margin-top: 4px;
 }
 
@@ -496,6 +493,17 @@
 
 .films-field-wide {
     grid-column: 1 / -1;
+}
+
+/* MudBlazor input controls in the form carry a top margin; give the chip box the same, so rows line up. */
+.films-fields > .chip-multi-select {
+    margin-top: 8px;
+}
+
+/* In the form, the placeholder uses the same gray as the labels of the neighbouring fields. */
+.films-fields > .chip-multi-select input::placeholder {
+    color: var(--mud-palette-text-secondary);
+    opacity: 1;
 }
 
 .films-subsection {

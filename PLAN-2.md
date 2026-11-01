@@ -234,8 +234,22 @@ matching rows in PLAN.md §6.3 and §6.4.
   ("Nieuw"). A pasted "A, B" becomes two chips. Suggestions: directors used by at least one film, sorted alphabetically by name (decision 3b),
   contains-match (extends `MovieQueries.SuggestDirectorsAsync`). Chips keep the entered order; reordering is done by
   removing and re-adding. Label "Regisseur(s)" (hint "Maximaal 5").
-- Both fields go into `Ui` as one reusable generic component (strings in, strings out, `AllowNew` flag, `MaxSelected`,
-  Dutch texts), independent of Movies and Infrastructure. bUnit tests cover it.
+- Both fields go into `Ui` as one reusable generic component (`ChipMultiSelect`; strings in, strings out, `AllowNew`
+  flag, `MaxSelected`, Dutch texts), independent of Movies and Infrastructure. bUnit tests cover it.
+- **In-box chips (M8 extension, applies to Regisseur(s) in M9):** the chips are rendered **inside** the outlined input
+  box, like a tag input, followed by the text input that fills the remaining space (a `fieldset` with a `legend` gives
+  the native notched label border). A chip is removed **only** by clicking the X on the chip itself; Backspace in an
+  empty input never removes a chip. Clicking anywhere in the box focuses the input. Focus, hover, error and
+  disabled states follow the MudBlazor outlined look; the `Hint` or error text sits under the box. The Regisseur(s)
+  field must use this same control (including the free-entry chips and the "Nieuw" marker). There are no other
+  multi-selects in the app: `ScoreInput`, the sort select and the page-size select are single selects and
+  `SuggestField` (Gezien op/in) is single-valued.
+- **Placeholder and deferred blur (lesson from M8, applies to Regisseur(s) in M9):** the control has a `Placeholder`
+  (shown only while nothing is selected; "Kies een genre" on the edit page, "Alle genres" on the filter). Its `OnBlur`
+  is raised 250 ms late and cancelled when a value is added meanwhile: mouse-down on a suggestion blurs the input, and
+  an immediate blur error shifts the layout so that the mouse-up misses the item (the first pick on "Nieuwe film" was
+  lost). For the same reason the "Controleer de gemarkeerde velden." banner shows only after a Save attempt, never
+  for blur validation. Test: a slow mouse click (move, down, wait, up) on the first suggestion selects it at 390/1440.
 - **Required chip fields (lesson from M8, applies to Regisseur(s) in M9):** the chip component never passes `Required`
   to its inner `MudAutocomplete`. That input is always empty while chips exist, so MudBlazor would flag "Required" on
   blur even though values are chosen. The component only appends "*" to the label (`Required`) and shows an error
@@ -262,7 +276,7 @@ matching rows in PLAN.md §6.3 and §6.4.
   alphabetical for genres; mobile cards: genre chips). Sorting on these columns is by the displayed joined text,
   computed **server-side** (no in-memory sorting).
 - **Genre filter:** a multi-select in the toolbar next to the search box (on mobile in the same row or a collapsible
-  row), plus a clear action. Semantics: **all** selected genres must be present. URL state: `genre=3,7` (genre ids, ascending),
+  row), using the same in-box `ChipMultiSelect` as the edit page (dense, `AllowNew=false`), plus a clear action. Semantics: **all** selected genres must be present. URL state: `genre=3,7` (genre ids, ascending),
   omitted when empty, combined with `q`, `sort`, `page`, `size`; invalid or unknown ids are ignored. Changing the
   filter resets the page to 1. The total count and the empty state ("Geen films gevonden") reflect the filter.
 - **Record navigation** on the edit page follows the overview's context including the genre filter (same raw-SQL

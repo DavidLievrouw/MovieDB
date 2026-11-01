@@ -109,12 +109,33 @@ public sealed class OverviewTests
         await using var session = await _fixture.OpenAsync(1440, 900);
         await session.OpenOverviewAsync();
         var search = session.Page.Locator(".films-search");
-        var genre = session.Page.Locator("[data-testid=genre-filter] .mud-input-control").First;
+        var genre = session.Page.Locator("[data-testid=genre-filter] .chip-multi-select-box").First;
 
         await AssertSameRowAsync(search, genre);
         await session.AddChipAsync("genre-filter", "Western");
 
         await AssertSameRowAsync(search, genre);
+    }
+
+    [Fact]
+    public async Task The_genre_filter_placeholder_and_chips_are_vertically_centered()
+    {
+        await _fixture.SeedMovieAsync(BrowserFixture.Unique("Centrering"), genres: ["Western"]);
+        await using var session = await _fixture.OpenAsync(1440, 900);
+        await session.OpenOverviewAsync();
+        var box = session.Page.Locator("[data-testid=genre-filter] .chip-multi-select-box").First;
+
+        await AssertCenteredAsync(box, session.ChipInput("genre-filter"));
+        await session.AddChipAsync("genre-filter", "Western");
+        await AssertCenteredAsync(box, session.Chips("genre-filter").First);
+        await AssertCenteredAsync(box, session.ChipInput("genre-filter"));
+    }
+
+    private static async Task AssertCenteredAsync(ILocator box, ILocator inner)
+    {
+        var outer = await box.BoundingBoxAsync();
+        outer.ShouldNotBeNull();
+        (await BrowserSession.ContentCenterYAsync(inner)).ShouldBe(outer.Y + (outer.Height / 2), 1);
     }
 
     private static async Task AssertSameRowAsync(ILocator first, ILocator second)

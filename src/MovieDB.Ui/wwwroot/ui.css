@@ -91,15 +91,109 @@
     min-width: 0;
 }
 
-.chip-multi-select-chips {
+/* One outlined box that holds the chips and the input, styled like a MudBlazor outlined field. */
+.chip-multi-select-box {
+    align-items: center;
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: var(--mud-default-borderradius);
+    box-sizing: border-box;
+    cursor: text;
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem;
-    margin-top: 0.25rem;
+    margin: 0;
+    min-height: 56px;
+    min-width: 0;
+    padding: 0.25rem 0.75rem;
+}
+
+.chip-multi-select-box legend {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.75rem;
+    height: 0;
+    line-height: 0;
+    padding: 0 0.25rem;
+}
+
+.chip-multi-select-box:hover {
+    border-color: var(--mud-palette-text-primary);
+}
+
+.chip-multi-select-box:focus-within {
+    border-color: var(--mud-palette-primary);
+    box-shadow: 0 0 0 1px var(--mud-palette-primary);
+}
+
+.chip-multi-select-box:focus-within legend {
+    color: var(--mud-palette-primary);
+}
+
+.chip-multi-select-box.chip-multi-select-invalid,
+.chip-multi-select-box.chip-multi-select-invalid:focus-within {
+    border-color: var(--mud-palette-error);
+}
+
+.chip-multi-select-box.chip-multi-select-invalid:focus-within {
+    box-shadow: 0 0 0 1px var(--mud-palette-error);
+}
+
+.chip-multi-select-box.chip-multi-select-invalid legend {
+    color: var(--mud-palette-error);
+}
+
+.chip-multi-select-box.chip-multi-select-dense {
+    min-height: 40px;
+    padding-bottom: 0.125rem;
+    padding-top: 0.125rem;
+}
+
+.chip-multi-select-box:disabled,
+.chip-multi-select-disabled {
+    opacity: 0.6;
+}
+
+.chip-multi-select-chip-host {
+    display: inline-flex;
 }
 
 .chip-multi-select-chip {
     margin: 0;
+}
+
+.chip-multi-select-box .chip-multi-select-input.mud-input-control {
+    flex: 1 1 auto;
+    margin: 0;
+    min-width: 0;
+}
+
+/*
+ * The row height comes from the autocomplete (46px, 34px when dense), and the box simply wraps it. A fieldset does
+ * not stretch its content to its own min-height, so the box must not rely on min-height for vertical centering.
+ */
+.chip-multi-select-box > .mud-autocomplete {
+    align-items: center;
+    display: flex;
+    flex: 1 1 6rem;
+    min-height: 46px;
+    min-width: 6rem;
+}
+
+.chip-multi-select-dense > .mud-autocomplete {
+    min-height: 34px;
+}
+
+/* MudBlazor's dense input has 3px above and 7px below the text, which puts it above the middle. */
+.chip-multi-select-box .mud-input.mud-input-text > input.mud-input-slot.mud-input-root {
+    padding-bottom: 5px;
+    padding-top: 5px;
+}
+
+.chip-multi-select-popover {
+    min-width: 14rem;
+}
+
+.chip-multi-select-helper {
+    margin: 3px 14px 0;
 }
 
 .chip-multi-select-new {

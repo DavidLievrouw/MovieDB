@@ -40,6 +40,144 @@ public sealed class NewMovieTests
     [Theory]
     [InlineData(390, 844)]
     [InlineData(1440, 900)]
+    public async Task Picking_the_first_genre_with_a_slow_mouse_click_selects_it_without_an_error(int width, int height)
+    {
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        var input = session.ChipInput("genre-field");
+        await Expect(input).ToHaveAttributeAsync("placeholder", "Kies een genre");
+
+        await input.ClickAsync();
+        var item = session.Page.Locator(".mud-popover-open .mud-list-item").First;
+        await item.WaitForAsync();
+        var name = (await item.InnerTextAsync()).Trim();
+        var box = (await item.BoundingBoxAsync())!;
+
+        // The input blurs on mouse down; the click only counts when nothing moved or changed before the mouse is released.
+        await session.Page.Mouse.MoveAsync(box.X + 20, box.Y + (box.Height / 2));
+        await session.Page.Mouse.DownAsync();
+        await Task.Delay(600, TestContext.Current.CancellationToken);
+        await session.Page.Mouse.UpAsync();
+
+        await Expect(session.Chips("genre-field").GetByText(name, new() { Exact = true })).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Kies minstens één genre.")).ToHaveCountAsync(0);
+        await Expect(session.Page.GetByText("Controleer de gemarkeerde velden.")).ToHaveCountAsync(0);
+        await Expect(input).Not.ToHaveAttributeAsync("placeholder", "Kies een genre");
+    }
+
+    [Fact]
+    public async Task The_genre_box_and_the_duration_field_share_a_row_and_are_aligned_on_desktop()
+    {
+        await using var session = await _fixture.OpenAsync(1440, 900);
+        await session.OpenNewAsync();
+        var genre = session.ChipBox("genre-field");
+        var duration = session.Field("Duur").Locator("xpath=ancestor::div[contains(@class,'mud-input')][1]");
+
+        await AssertSameRowAsync(genre, duration);
+        await session.AddChipAsync("genre-field", "Drama");
+        await AssertSameRowAsync(genre, duration);
+    }
+
+    [Fact]
+    public async Task The_genre_placeholder_has_the_same_gray_as_the_labels_of_the_other_fields()
+    {
+        await using var session = await _fixture.OpenAsync(1440, 900);
+        await session.OpenNewAsync();
+
+        var placeholder = await session
+            .ChipInput("genre-field")
+            .EvaluateAsync<string>(
+                "el => { const s = getComputedStyle(el, '::placeholder'); return `${s.color}/${s.opacity}`; }"
+            );
+        var label = await session
+            .Page.Locator("label:has-text('Jaar')")
+            .First.EvaluateAsync<string>("el => `${getComputedStyle(el).color}/1`");
+
+        placeholder.ShouldBe(label);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task The_placeholder_and_the_chips_are_vertically_centered_in_the_box(int width, int height)
+    {
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        var box = session.ChipBox("genre-field");
+
+        await AssertCenteredAsync(box, session.ChipInput("genre-field"));
+        await session.AddChipAsync("genre-field", "Drama");
+        await AssertCenteredAsync(box, session.Chips("genre-field").First);
+        await AssertCenteredAsync(box, session.ChipInput("genre-field"));
+    }
+
+    private static async Task AssertCenteredAsync(ILocator box, ILocator inner)
+    {
+        var outer = await box.BoundingBoxAsync();
+        outer.ShouldNotBeNull();
+        (await BrowserSession.ContentCenterYAsync(inner)).ShouldBe(outer.Y + (outer.Height / 2), 1);
+    }
+
+    private static async Task AssertSameRowAsync(ILocator first, ILocator second)
+    {
+        var a = await first.BoundingBoxAsync();
+        var b = await second.BoundingBoxAsync();
+        a.ShouldNotBeNull();
+        b.ShouldNotBeNull();
+        b.Y.ShouldBe(a.Y, 1);
+        b.Height.ShouldBe(a.Height, 1);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task The_chips_are_inside_the_box_and_only_their_x_button_removes_them(int width, int height)
+    {
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        await session.AddChipAsync("genre-field", "Drama");
+        await session.AddChipAsync("genre-field", "Thriller");
+
+        var box = await session.ChipBox("genre-field").BoundingBoxAsync();
+        box.ShouldNotBeNull();
+        foreach (
+            var inner in new[]
+            {
+                session.Chips("genre-field").First,
+                session.Chips("genre-field").Last,
+                session.ChipInput("genre-field"),
+            }
+        )
+        {
+            var inside = await inner.BoundingBoxAsync();
+            inside.ShouldNotBeNull();
+            inside.X.ShouldBeGreaterThanOrEqualTo(box.X);
+            (inside.X + inside.Width).ShouldBeLessThanOrEqualTo(box.X + box.Width + 1);
+            inside.Y.ShouldBeGreaterThanOrEqualTo(box.Y);
+            (inside.Y + inside.Height).ShouldBeLessThanOrEqualTo(box.Y + box.Height + 1);
+        }
+
+        // Clicking the box itself focuses the input; Backspace in an empty input keeps the chips.
+        await session
+            .ChipBox("genre-field")
+            .ClickAsync(
+                new()
+                {
+                    Position = new() { X = box.Width - 6, Y = box.Height - 6 },
+                }
+            );
+        await Expect(session.ChipInput("genre-field")).ToBeFocusedAsync();
+        await session.Page.Keyboard.PressAsync("Escape");
+        await session.Page.Keyboard.PressAsync("Backspace");
+        await Expect(session.Chips("genre-field")).ToHaveTextAsync(["Drama", "Thriller"]);
+
+        await session.Chips("genre-field").First.Locator(".mud-chip-close-button").ClickAsync();
+        await Expect(session.Chips("genre-field")).ToHaveTextAsync(["Thriller"]);
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
     public async Task Saving_an_empty_form_shows_the_validation_messages_and_stores_nothing(int width, int height)
     {
         await using var session = await _fixture.OpenAsync(width, height);

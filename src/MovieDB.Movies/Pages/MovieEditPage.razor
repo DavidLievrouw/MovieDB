@@ -105,7 +105,7 @@
             <MudAlert Severity="Severity.Error" Class="mt-3" role="alert">@_formError</MudAlert>
         }
 
-        @if (_errors.Count > 0)
+        @if (_showSummary && _errors.Count > 0)
         {
             <MudAlert Severity="Severity.Error" Class="mt-3" role="alert">Controleer de gemarkeerde velden.</MudAlert>
         }
@@ -128,6 +128,7 @@
                         }
 
                         <ChipMultiSelect @ref="_genre" Label="Genre" Hint="Maximaal 4" Required="true"
+                                         Placeholder="Kies een genre"
                                          Values="_model.Genres" ValuesChanged="OnGenresChangedAsync"
                                          Suggestions="SuggestGenresAsync" AllowNew="false"
                                          MaxSelected="MovieInput.MaxGenres" MaxItems="40"
@@ -245,6 +246,10 @@
     ];
 
     private readonly Dictionary<string, string> _errors = [];
+
+    // The summary banner only appears after a save attempt: showing it while a field is left would shift the page
+    // under the pointer, for example while a suggestion is being clicked.
+    private bool _showSummary;
     private LoadState _state = LoadState.Loading;
     private MovieInput _model = new();
     private MovieInput _baseline = new();
@@ -410,6 +415,7 @@
         _duplicateId = null;
         _conflict = false;
         _formError = null;
+        _showSummary = false;
     }
 
     private void Cancel()
@@ -556,6 +562,7 @@
         }
 
         _formError = null;
+        _showSummary = true;
         var values = _model.Normalized();
         var errors = Commands.Validate(values);
         _errors.Clear();

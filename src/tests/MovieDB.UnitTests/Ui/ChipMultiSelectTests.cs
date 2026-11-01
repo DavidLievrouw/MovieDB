@@ -1,5 +1,6 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using MovieDB.Ui;
 using MudBlazor;
@@ -58,6 +59,28 @@ public class ChipMultiSelectTests : BunitContext
         var cut = RenderSelect(["Actie", "Drama"]);
 
         cut.FindAll(".chip-multi-select-chip").Select(c => c.TextContent.Trim()).ShouldBe(["Actie", "Drama"]);
+    }
+
+    [Fact]
+    public void The_chips_and_the_input_are_inside_the_outlined_box()
+    {
+        var cut = RenderSelect(["Actie", "Drama"]);
+
+        var box = cut.Find(".chip-multi-select-box");
+        box.QuerySelectorAll(".chip-multi-select-chip").Length.ShouldBe(2);
+        box.QuerySelector("input").ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void Backspace_in_the_empty_input_does_not_remove_a_chip()
+    {
+        IReadOnlyList<string>? raised = null;
+        var cut = RenderSelect(["Actie", "Drama"], v => raised = v);
+
+        cut.Find("input").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Backspace" });
+
+        raised.ShouldBeNull();
+        cut.FindAll(".chip-multi-select-chip").Count.ShouldBe(2);
     }
 
     [Fact]
@@ -146,11 +169,13 @@ public class ChipMultiSelectTests : BunitContext
         cut.Find("input").Focus();
         cut.Find("input").Blur();
         cut.FindAll(".mud-input-error").ShouldBeEmpty();
-        cut.Find("label").TextContent.ShouldContain("*");
+        cut.Find("legend").TextContent.ShouldContain("*");
+        cut.FindAll(".chip-multi-select-invalid").ShouldBeEmpty();
 
         cut.Render(parameters => parameters.Add(p => p.Error, true).Add(p => p.ErrorText, "Kies minstens één genre."));
 
         cut.FindAll(".mud-input-error").ShouldNotBeEmpty();
+        cut.FindAll(".chip-multi-select-invalid").ShouldNotBeEmpty();
         cut.Markup.ShouldContain("Kies minstens één genre.");
     }
 
@@ -163,5 +188,34 @@ public class ChipMultiSelectTests : BunitContext
         cut.Find("input").Input("Drama, Thriller");
 
         cut.WaitForAssertion(() => raised.ShouldBe(["Actie", "Drama"]));
+    }
+
+    private IRenderedComponent<ChipMultiSelect> RenderWithBlur(IReadOnlyList<string> values, Action onBlur) =>
+        Render<ChipMultiSelect>(parameters =>
+            parameters
+                .Add(p => p.Values, values)
+                .Add(p => p.Label, "Genre")
+                .Add(p => p.Placeholder, "Kies een genre")
+                .Add(p => p.OnBlur, EventCallback.Factory.Create<FocusEventArgs>(this, onBlur))
+                .Add(p => p.Suggestions, (_, _) => Task.FromResult<IReadOnlyList<string>>([.. Genres]))
+        );
+
+    [Fact]
+    public void The_placeholder_is_shown_only_while_nothing_is_selected()
+    {
+        RenderWithBlur([], () => { }).Find("input").GetAttribute("placeholder").ShouldBe("Kies een genre");
+        RenderWithBlur(["Actie"], () => { }).Find("input").GetAttribute("placeholder").ShouldBeNullOrEmpty();
+    }
+
+    [Fact]
+    public void Leaving_the_input_raises_the_blur_after_a_short_delay()
+    {
+        var blurred = 0;
+        var cut = RenderWithBlur([], () => Interlocked.Increment(ref blurred));
+
+        cut.Find("input").Blur();
+
+        blurred.ShouldBe(0);
+        cut.WaitForAssertion(() => blurred.ShouldBe(1), TimeSpan.FromSeconds(2));
     }
 }

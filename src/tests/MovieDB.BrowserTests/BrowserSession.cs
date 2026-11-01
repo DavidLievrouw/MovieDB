@@ -73,6 +73,27 @@ public sealed class BrowserSession : IAsyncDisposable
     /// <param name="testId">The <c>data-testid</c> of the field.</param>
     public ILocator ChipInput(string testId) => Page.Locator($"[data-testid={testId}] input").First;
 
+    /// <summary>The outlined box that holds the chips and the input of a chip multi-select field.</summary>
+    /// <param name="testId">The <c>data-testid</c> of the field.</param>
+    public ILocator ChipBox(string testId) => Page.Locator($"[data-testid={testId}] .chip-multi-select-box");
+
+    /// <summary>
+    /// The vertical centre of an element's content box (without padding), which is where its text or chip is drawn.
+    /// </summary>
+    /// <param name="element">The element to measure.</param>
+    public static async Task<double> ContentCenterYAsync(ILocator element) =>
+        await element.EvaluateAsync<double>(
+            """
+            el => {
+                const r = el.getBoundingClientRect();
+                const s = getComputedStyle(el);
+                const top = r.y + parseFloat(s.paddingTop);
+                const bottom = r.y + r.height - parseFloat(s.paddingBottom);
+                return (top + bottom) / 2;
+            }
+            """
+        );
+
     /// <summary>Adds a value to a chip multi-select field by picking it from the suggestions.</summary>
     /// <param name="testId">The <c>data-testid</c> of the field.</param>
     /// <param name="text">The value to type and pick.</param>

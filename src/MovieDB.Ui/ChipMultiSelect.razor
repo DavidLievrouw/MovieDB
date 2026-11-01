@@ -1,20 +1,13 @@
 @namespace MovieDB.Ui
+@implements IDisposable
 
 <div class="chip-multi-select" @attributes="AdditionalAttributes">
-    <MudAutocomplete T="string" @ref="_input" @key="_generation" Value="_pending" ValueChanged="AddAsync"
-                     TextChanged="OnTextChangedAsync" Label="@LabelText" HelperText="@Hint" SearchFunc="SearchAsync"
-                     CoerceValue="AllowNew" CoerceText="false" Immediate="false" ResetValueOnEmptyText="true"
-                     DebounceInterval="DebounceMs" MinCharacters="0" OpenOnFocus="true" MaxItems="MaxItems"
-                     SelectValueOnTab="false" Variant="Variant.Outlined" Margin="Dense ? Margin.Dense : Margin.None" Error="Error"
-                     ErrorText="@ErrorText" MaxLength="MaxLength" Clearable="false" OnBlur="OnBlur"
-                     Disabled="Disabled || AtMaximum"/>
-
-    @if (Values.Count > 0)
-    {
-        <div class="chip-multi-select-chips">
-            @foreach (var value in Values)
-            {
-                var item = value;
+    <fieldset class="@BoxClass" disabled="@Disabled" @onclick="FocusAsync">
+        <legend>@LabelText</legend>
+        @foreach (var value in Values)
+        {
+            var item = value;
+            <span class="chip-multi-select-chip-host" @onclick="Ignore" @onclick:stopPropagation="true">
                 <MudChip T="string" Size="Size.Small" Class="chip-multi-select-chip" Disabled="Disabled"
                          OnClose="@(() => RemoveAsync(item))">
                     @item
@@ -23,15 +16,39 @@
                         <span class="chip-multi-select-new">nieuw</span>
                     }
                 </MudChip>
-            }
-        </div>
+            </span>
+        }
+        <MudAutocomplete T="string" @ref="_input" @key="_generation" Value="_pending" ValueChanged="AddAsync"
+                         TextChanged="OnTextChangedAsync" SearchFunc="SearchAsync" CoerceValue="AllowNew"
+                         CoerceText="false" Immediate="false" ResetValueOnEmptyText="true"
+                         DebounceInterval="DebounceMs" MinCharacters="0" OpenOnFocus="true" MaxItems="MaxItems"
+                         SelectValueOnTab="false" Variant="Variant.Text" Underline="false" Margin="Margin.Dense"
+                         MaxLength="MaxLength" Clearable="false" OnBlur="OnInputBlurAsync" Disabled="Disabled || AtMaximum"
+                         Placeholder="@(Values.Count == 0 ? Placeholder : null)"
+                         RelativeWidth="DropdownWidth.Adaptive" PopoverClass="chip-multi-select-popover"
+                         Class="chip-multi-select-input" aria-label="@Label"/>
+    </fieldset>
+    @if (Error && !string.IsNullOrEmpty(ErrorText))
+    {
+        <p class="chip-multi-select-helper mud-input-helper-text mud-input-error">@ErrorText</p>
+    }
+    else if (!string.IsNullOrEmpty(Hint))
+    {
+        <p class="chip-multi-select-helper mud-input-helper-text">@Hint</p>
     }
 </div>
-
 @code {
     /// <summary>The debounce interval, in milliseconds, between typing and a suggestion lookup.</summary>
     public const int DebounceMs = 150;
 
+    /// <summary>
+    /// How long, in milliseconds, <see cref="OnBlur"/> waits after the input lost the focus. Picking a suggestion with
+    /// the mouse blurs the input first; the value that is added right after cancels the pending blur, so the field does
+    /// not flash an error (and the page does not shift) while the user is choosing.
+    /// </summary>
+    public const int BlurDelayMs = 250;
+
+    private CancellationTokenSource? _blurDelay;
     private MudAutocomplete<string>? _input;
     private string? _pending;
     private int _generation;
@@ -72,6 +89,10 @@
     [Parameter]
     public string? Hint { get; set; }
 
+    /// <summary>The placeholder of the input, shown while no value is selected.</summary>
+    [Parameter]
+    public string? Placeholder { get; set; }
+
     /// <summary>The largest number of suggestions that is shown.</summary>
     [Parameter]
     public int MaxItems { get; set; } = 40;
@@ -96,7 +117,7 @@
     [Parameter]
     public EventCallback<FocusEventArgs> OnBlur { get; set; }
 
-    /// <summary>Whether the field uses the compact height, for example in a toolbar next to other dense fields.</summary>
+    /// <summary>Whether the box uses the compact height, for example in a toolbar next to other dense fields.</summary>
     [Parameter]
     public bool Dense { get; set; }
 
@@ -111,6 +132,37 @@
     // Required is not passed on: the inner input is always empty, so MudBlazor would flag it as missing on blur even when
     // chips are selected. Whether a value is missing is decided by the parent, through Error.
     private string LabelText => Required ? Label + "*" : Label;
+
+    private string BoxClass =>
+        "chip-multi-select-box" + (Dense ? " chip-multi-select-dense" : "") + (Error ? " chip-multi-select-invalid" : "") + (Disabled ? " chip-multi-select-disabled" : "");
+
+    private static void Ignore() { }
+
+    private async Task OnInputBlurAsync(FocusEventArgs args)
+    {
+        CancelPendingBlur();
+        var delay = _blurDelay = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(BlurDelayMs, delay.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await OnBlur.InvokeAsync(args);
+    }
+
+    private void CancelPendingBlur()
+    {
+        _blurDelay?.Cancel();
+        _blurDelay?.Dispose();
+        _blurDelay = null;
+    }
+
+    /// <inheritdoc />
+    public void Dispose() => CancelPendingBlur();
 
     private bool AtMaximum => MaxSelected is { } max && Values.Count >= max;
 
@@ -182,6 +234,7 @@
         _focusAfterRender = true;
         if (next.Count != Values.Count)
         {
+            CancelPendingBlur();
             await ValuesChanged.InvokeAsync(next);
         }
     }
