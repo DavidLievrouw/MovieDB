@@ -7,7 +7,7 @@ milestones in §10) first. Update this file at the end of every milestone.
 
 - Do **one milestone at a time**, then stop and wait for the owner's review. Do not start the next milestone
   unprompted.
-- Do not commit unless asked. M1 is committed; M2, M3, M4 and M5 are uncommitted in the working tree.
+- Do not commit unless asked. M1 is committed; M2, M3, M4, M5 and M6 are uncommitted in the working tree.
 - Ask before taking product or schema decisions that the docs do not settle.
 
 ## Keeping this handover current (required)
@@ -35,7 +35,29 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M3 Import | Done, awaiting owner review (uncommitted) |
 | M4 UI shell + overview | Done, awaiting owner review (uncommitted) |
 | M5 Edit/new | Done, awaiting owner review (uncommitted) |
-| M6 Browser tests, Docker, compose, backup, docs | **Next. Not started** |
+| M6 Browser tests, Docker, compose, backup, docs | Done, awaiting owner review (uncommitted) |
+
+### What M6 delivered
+
+- **Browser tests** (`src/tests/MovieDB.BrowserTests`, 50 tests = 25 theories x 390x844 and 1440x900, Docker required):
+  `BrowserFixture` (Testcontainers MariaDB 12.3.3, `WebApplicationFactory<Program>` on a real Kestrel listener via
+  `UseKestrel(0)` + `StartServer()`, Playwright Chromium, a logged-in `storageState`, synthetic seeding through the
+  app's own commands) and `BrowserSession` helpers. Classes: LoginTests (redirect, login, wrong password, logout),
+  OverviewTests (debounced search, empty state, open + back link, new-film button), MovieEditTests (save, cancel,
+  conflict, not found, record
+  navigation, unsaved-changes dialog, discard, Ctrl+S), NewMovieTests (validation, ranges, create, duplicate with link,
+  same-title dialog, "Nieuwe film" from the edit page gives a pristine form), ChangePasswordTests. They never touch the developer database (env vars override user-secrets,
+  cleaned up on dispose). The fixture raises the login throttle limits and `LoginAsync` retries (at most 5 attempts) while the 1 s cooldown after a failed
+  login ("tijdelijk beperkt") is active.
+- **Deployment:** `src/MovieDB.Web/Dockerfile` (build context = repo root; sdk:10.0-noble -> aspnet:10.0-noble-chiseled-extra,
+  port 8080, exec-form HEALTHCHECK), `docker-compose/moviedb-web/docker-compose.yml` (container `moviedb`, external
+  network `motorsports_net`, no host port), `backup.ps1` (see learnings), README deployment, restore and
+  browser-test sections.
+- **Verified:** image built (`moviedb-web:1.0.0`); run on `mariadb_default` against the local `moviedb` database with a
+  throwaway PFX it became `healthy` (migrations ran, `/health` 200); container and PFX removed. `backup.ps1` run against the
+  local database: key table has structure only, movies data present; temp files removed.
+- **Not verified here:** the compose stack itself (network `motorsports_net` does not exist locally) and the owner
+  check of PLAN.md §8.6 ("every imported record shows the same values as in Access"), which is still open.
 
 ### What M5 delivered
 
@@ -182,12 +204,24 @@ health endpoints, options validation and Serilog.
 - Playwright chromium is installed (via `playwright.ps1 install chromium` after a build).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M6 – Browser tests, Docker, compose, backup, docs (PLAN.md §10, with §9 and §11)
+## Next: first deployment (PLAN.md §11.2)
 
-Playwright .NET browser tests against a real HTTP listener with a Testcontainers DB and synthetic seed data
-(login, search -> open -> edit -> save, new film, duplicate, record navigation, unsaved-changes dialog, validation,
-change password; 390px and 1440px), the Dockerfile and compose stack, backup script, README and deployment notes.
-Follow PLAN.md §9 and §11. Done when the §10 M6 criteria hold. Stop for owner review afterwards.
+All milestones are implemented. Remaining work is owner-driven: review/commit, the §8.6 data check, and the first
+deployment following the step-by-step README section (local import and dump, deploy the container, load the dump,
+smoke-test, run `backup.ps1`, delete every copy of the dump). Phase 2 items are in PLAN.md §12.
+
+## Learnings from M6
+
+- `WebApplicationFactory` in .NET 10 can host Kestrel (`UseKestrel(0)`, `StartServer()`), so Playwright can drive it.
+  The default factory environment is Development, so no DataProtection PFX is needed in browser tests.
+- Login throttling is real in the browser tests: a failed login blocks the source for a short cooldown, and the
+  following login in another test is refused (page stays on /login with "tijdelijk beperkt"), not delayed.
+- `backup.ps1` reads the password from `MARIADB_ROOT_PASSWORD` or prompts (the Motorsports script hardcodes one; not
+  copied). It dumps inside the container with `--result-file` and `docker cp`, because PowerShell 5.1 redirection
+  writes UTF-16. Output goes to the git-ignored `backup/moviedb-backup-YYYYMMDD-mariadb.sql`.
+- Navigating within `MovieEditPage` (existing film to `/films/nieuw`) reuses the component, so MudBlazor fields kept
+  their required-validation state (red Genre/Regisseur). The field grid is keyed on the loaded record to prevent that.
+- Roslynator in the build rejects needless verbatim strings (RCS1192) and the static `Regex.Match` (RCS1186).
 
 ## Learnings from M5
 

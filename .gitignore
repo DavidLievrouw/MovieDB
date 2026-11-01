@@ -61,6 +61,7 @@ BenchmarkDotNet.Artifacts/
 project.lock.json
 project.fragment.lock.json
 artifacts/
+backup/
 
 # Data dumps (personal data); SQL sources under src/ are fine
 /*.sql

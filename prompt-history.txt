@@ -26,10 +26,21 @@ Allow for either saving to continue, or cancel the entering of the data entirely
 
 ----------
 
-Changes:
-- Allow multi-select on genre, and add more well-known genres to the list.
-- Allow selecting multiple directors for a film.
-- "Extra's" is hardly ever used, so drop it completely, from the database and the UI.
+The back-up script should write files in the form of "moviedb-backup-${date}-mariadb.sql"
+BrowserFixture.LoginAsync has an unbounded for loop. that' a policy breach.
+when clicking "Nieuw" button when editing a film, the Genre and Regisseur input boxes are "red", because a value is required. That is not the case when clicking "Nieuwe film" on the overview page. It should behave like the latter. add playwright test.
+also check that all methods have required xml comments by enabling xml documentation file generation and looking for RCS errors when running -warnaserror
+
+----------
+
+We have now reached feature-parity with the original Access database. However, now is the time to improve the user experience and add some new features. The following changes are requested:
+- Allow multi-select on genre, and add more well-known genres to the list. Look at Motorsports project and look at the EditRound form, you can multi-select winning participants there. That's very similar. Make sure the tests still pass, and that the migration script takes these changes into account. If you have any questions, ask them first.
+- Allow selecting multiple directors for a film.  Look at Motorsports project and look at the EditRound form, you can multi-select winning participants there. That's very similar, but I should be able to add non-existing directors too. Make sure the tests still pass, and that the migration script takes these changes into account. If you have any questions, ask them first.
+- "Extra's" is hardly ever used, so drop it completely, from the database and the UI. So every rating type is now mandatory, none of them can remain in "NVT" when adding or updating a film. If you have any questions, ask them first.
+
+Create another PLAN.md with the new features and changes, and update the HANDOVER.md to reflect the new state of the project.
+
+
 
 Finishing:
 

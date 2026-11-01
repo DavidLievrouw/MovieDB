@@ -110,7 +110,8 @@
             <MudAlert Severity="Severity.Error" Class="mt-3" role="alert">Controleer de gemarkeerde velden.</MudAlert>
         }
 
-        <MudGrid Class="mt-1" Spacing="3">
+        @* A fresh set of fields per loaded movie, so required-field validation state never leaks between records. *@
+        <MudGrid @key="_loadedKey" Class="mt-1" Spacing="3">
             <MudItem xs="12" md="8">
                 <MudPaper Class="films-panel pa-4" Outlined="true" Elevation="0">
                     <h2 class="films-section">Gegevens</h2>

@@ -1,0 +1,32 @@
+services:
+  moviedb:
+    image: moviedb-web:${MOVIEDB_VERSION:-1.0.0}
+    container_name: moviedb
+    restart: unless-stopped
+    environment:
+      - ConnectionStrings__MovieDb=${MOVIEDB_CONNECTION_STRING:?Set MOVIEDB_CONNECTION_STRING in your environment}
+      - App__TimeZone=Europe/Brussels
+      - Health__PublicUrl=https://mdb.dalion.eu
+      - Auth__SecureCookies=true
+      - Auth__DefaultPassword=${MOVIEDB_DEFAULT_PASSWORD:?Set MOVIEDB_DEFAULT_PASSWORD in your environment}
+      - ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0:-172.18.0.3}
+      - DataProtection__CertificatePath=/run/secrets/dataprotection.pfx
+      - DataProtection__CertificatePassword=${DATAPROTECTION_CERTIFICATE_PASSWORD:?Set DATAPROTECTION_CERTIFICATE_PASSWORD in your environment}
+    volumes:
+      - type: bind
+        source: /etc/dalion/moviedb/secrets/dataprotection.pfx
+        target: /run/secrets/dataprotection.pfx
+        read_only: true
+    healthcheck:
+      test: ["CMD", "dotnet", "MovieDB.Web.dll", "--health-check"]
+      interval: 30s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
+    networks:
+      - motorsports_network
+
+networks:
+  motorsports_network:
+    name: motorsports_net
+    external: true
