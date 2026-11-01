@@ -40,11 +40,11 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M5 Edit/new | Done (committed) |
 | M6 Browser tests, Docker, compose, backup, docs | Done (committed) |
 | M7 Drop Extra's, mandatory scores | Done (committed) |
-| M8 Multi-genre + genre filter | **Done, awaiting owner review (uncommitted)** |
-| M9 Multi-director | Planned (next) |
-| M10 Phase 2 wrap-up | Planned |
+| M8 Multi-genre + genre filter | Done (committed) |
+| M9 Multi-director | Done (committed) |
+| M10 Phase 2 wrap-up | Planned (next) |
 
-## Phase 2: M7-M8 done, M9-M10 planned
+## Phase 2: M7-M9 done, M10 planned
 
 The owner has reached feature parity with Access and asked for improvements. [`PLAN-2.md`](PLAN-2.md) holds the
 decisions, data model, UI and import changes and the milestones. All questions are answered. Summary:
@@ -71,7 +71,41 @@ decisions, data model, UI and import changes and the milestones. All questions a
 Local data facts used for the plan (counts only): 1,203 movies; 21 genres used; 4 director values contain a comma;
 9 movies miss at least one score; 16 movies have an Extra's value.
 
-### What M8 delivered (uncommitted, awaiting owner review)
+### What M9 delivered (committed)
+
+- **Data model:** `movies.director` is replaced by `directors` (unique name, collation `utf8mb4_uca1400_ai_ci`),
+  `movie_directors` (PK `movie_id` + `director_id`, `position`, unique `movie_id` + `position`, restrict FKs) and
+  `movies.directors_key` (max 64; sorted numeric director ids joined with `,`, built by the public
+  `DirectorsKey.Of`) with the unique index `ux_movies_title_year_directors`. `Initial`, both Designers and the snapshot
+  were edited in place; `MigrationTests` (`HasPendingModelChanges`) pass. New Vogen id `DirectorId`.
+- **Movies:** `MovieInput.Directors` (`List<string>`, 1-5 names, max 150 characters, no comma, no duplicates; Dutch
+  messages "Geef minstens één regisseur op.", "Maximaal 5 regisseurs.", "Regisseur mag maximaal 150 tekens bevatten.",
+  "Een regisseur mag geen komma bevatten.", "Een regisseur komt maar één keer voor."). The duplicate message is "Deze film
+  bestaat al (Jaar en Regisseurs zijn gelijk).". `MovieCommands` finds or creates directors by collation, renames a
+  director in place when no other movie links it, replaces the links (entered order kept as `position`), bumps `version`
+  for a list-only change, and deletes orphan directors afterwards (an FK race with a concurrent link is swallowed on
+  purpose; covered by a characteristics test). The same director set in another order is a duplicate. The same title with
+  a different set is a different film (the same-title dialog shows the directors). `SuggestDirectorsAsync` is
+  alphabetical. Statistics count a film once per director. The overview shows all directors (mobile cards and desktop
+  column) and sorts by the `GROUP_CONCAT` of the names; record navigation uses the same SQL.
+- **UI:** the Regisseur field is a `ChipMultiSelect` with `AllowNew`, `data-testid="director-field"`, and the new `Class`
+  parameter (`films-field-wide`). A comma, Enter, Tab or leaving the field commits typed text; pasted comma lists are
+  split and de-duplicated; candidates longer than `MaxLength` are skipped; adding stops at 5.
+- **Import tool:** `MovieCleaner` splits the director text on commas (parts equal by collation collapse, source order
+  kept, 1-5 names), `ImportPlan`/`ImportLoader` write `directors`, `movie_directors` and `directors_key`, `-Reset` also
+  empties `movie_directors` and `directors`, dump order is `media`, `directors`, `movies`, `movie_genres`,
+  `movie_directors`, the guard needs those tables empty, and report and fingerprints cover the new tables.
+- **Tests:** unit 251, architecture 17, characteristics 213, browser 80 (new: reversed-order duplicate, two genres + two
+  directors saved in order, commit by comma/Tab/leaving the field, `DirectorsKey`, concurrent director creation and the
+  orphan-delete race). All pass.
+- **Local DB rebuilt** (dropped/recreated as root in the container, app start migrated and seeded `admin`, then
+  `Import-Access.ps1` without `-Reset`): 1,222 source rows, **19 duplicates dropped, 1,203 movies, 715 directors, 1,207
+  director links (4 split FilmIDs: 996, 1077, 1082, 1088)**, 35 genres, 1,203 genre links, 8 media; plan figures equal
+  database figures; the dump was written and verified in the scratch database (same as the plan, no difference).
+- Checks: build `-warnaserror`, XML-doc build (0 warnings), `csharpier check` and all four test projects pass.
+- Not done: no manual look at 390/1440 px beyond the automated browser tests.
+
+### What M8 delivered (committed)
 
 - **Closed genre list:** `MovieGenres` (public static in Infrastructure: `All` = 35 `(Id, Name)` tuples, ids 1-35 stable
   because URLs carry them, `MaxNameLength`, `MaxPerMovie` = 4). The hand-written `Initial` migration (edited in place,
@@ -273,7 +307,7 @@ health endpoints, options validation and Serilog.
   `dotnet user-secrets list --id 9b46a74e-075e-4f32-b29a-dc9bd38c1cec | ForEach-Object { ($_ -split '=')[0] }`.
   The owner granted the user rights on `moviedb.*` and `moviedb_dumpcheck.*`.
 - Production database and user also exist (owner-managed). Nothing for the agent to do there.
-- `scripts/Import-Access.ps1` exists (M3). The local `moviedb` already contains the imported 1,203 movies (35 genres, 1,203 genre links); re-run with
+- `scripts/Import-Access.ps1` exists (M3). The local `moviedb` already contains the imported 1,203 movies (35 genres, 1,203 genre links, 715 directors, 1,207 director links); re-run with
   `-Reset` to redo it. The dump is at `artifacts\import\moviedb-data.sql` (git-ignored, personal reviews).
 - Docker (Rancher Desktop) is running with `mariadb:12.3.3` locally. Testcontainers pulled from the same image.
 - PowerShell 7 is installed at `C:\Users\David\AppData\Local\Microsoft\WindowsApps\pwsh.exe`. The default tool shell
@@ -282,25 +316,29 @@ health endpoints, options validation and Serilog.
 - Playwright chromium is installed (via `playwright.ps1 install chromium` after a build).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M9 (PLAN-2.md §9, §4, §5, §6, §7)
+## Next: M10 (PLAN-2.md §9)
 
-Start with M9, then stop for the owner's review. Read PLAN-2 §4.1-4.2 (tables, director rules, the order-insensitive
-`directors_key`), §5 (import: split "A, B" directors, dump order), §6 (edit and overview UI), §7 (notes and risks) and §8
-(tests) first. Summary:
-
-1. `directors` + `movie_directors` (position) replace `movies.director`; `movies.directors_key` (sorted director ids) with a
-   unique index enforces Title + Year + the set of directors. Edit `Initial`, both Designers and the snapshot in place.
-2. Edit page: reuse `ChipMultiSelect` with `AllowNew=true` (and `IsKnown` for the "nieuw" marker), 1-5 directors, entered
-   order kept, `SuggestDirectorsAsync` sorted alphabetically (decision 3b); typed names are matched by collation first and
-   inserted on save. Overview column, navigation SQL, statistics ("Top regisseurs" once per director) adapted.
-3. Import: split the 4 comma values, new tables in the loader/dump order/guard/report/fingerprints.
-4. Rebuild the local DB (drop/create `moviedb` as root in the container, start the app once to migrate, then
-   `scripts/Import-Access.ps1 -Source .\FilmsBase.mdb`; with `-Reset` the script needs an interactive prompt, so pipe
-   `RESET` from a real shell: tool shells are non-interactive). Expect 1,203 movies.
-
-Done when: see the M9 row in PLAN-2 §9.
+Start with M10 (M7-M9 are validated and committed), then stop for review. Wrap-up: documentation (README, AGENTS.md
+domain rules, PLAN.md §12 and the status pointer), full regression including the browser tests, the final dump and its
+verification, and this file. Done when: see the M10 row in PLAN-2 §9.
 
 The first deployment (README, PLAN.md §11.2) is owner-driven and should wait for the phase 2 structure.
+
+## Learnings from M9
+
+- **Enter right after typing can pick a stale suggestion.** `ChipMultiSelect` debounces the autocomplete by 150 ms. If
+  the typed name matches an existing director and Enter is pressed before the debounce ran, the first item of the
+  not-yet-filtered list is added instead of the typed text. `BrowserSession.TypeChipAsync` waits 450 ms before Enter. A
+  fast human typist could hit this too; a component tweak (commit the typed text on Enter unless a list item was
+  explicitly highlighted) may be worth considering.
+- bUnit cannot drive Enter, Tab or blur-commit of `MudAutocomplete` (it needs real JS/DOM behaviour): the browser tests
+  cover those.
+- A movie holds at most 5 directors, so test seeds must respect it (a seed of 8 failed the validator-level limit).
+  Fixtures that clear tables must clear `movie_directors` before `directors` and `movies`, and must not clear `genres`.
+  Movies written straight through EF need `DirectorLinks` and `DirectorsKey` (`DirectorTestData.AssignAsync`).
+- Roslynator RCS1246: use `[0]` instead of `First()` on lists.
+- A cancelled `dotnet test ... | Select-Object -First N` leaves the test host running and locks `MovieDB.BrowserTests.exe`
+  (build error MSB3026). Write test output to a file instead of piping into `Select -First`.
 
 ## Learnings from M8
 

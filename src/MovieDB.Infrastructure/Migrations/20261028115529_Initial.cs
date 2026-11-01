@@ -84,11 +84,23 @@ internal partial class Initial : Migration
 
         migrationBuilder.Sql(
             $"""
+            CREATE TABLE IF NOT EXISTS `directors` (
+                `id` int NOT NULL AUTO_INCREMENT,
+                `name` varchar(150) NOT NULL,
+                `created_at` datetime(6) NOT NULL,
+                CONSTRAINT `pk_directors` PRIMARY KEY (`id`),
+                UNIQUE INDEX `ux_directors_name` (`name`)
+            ) {TableOptions};
+            """
+        );
+
+        migrationBuilder.Sql(
+            $"""
             CREATE TABLE IF NOT EXISTS `movies` (
                 `id` int NOT NULL AUTO_INCREMENT,
                 `title` varchar(200) NOT NULL,
                 `release_year` smallint NOT NULL,
-                `director` varchar(150) NOT NULL,
+                `directors_key` varchar(64) NOT NULL,
                 `runtime_minutes` smallint NOT NULL,
                 `watched_on` date NOT NULL,
                 `medium_id` int NULL,
@@ -108,7 +120,7 @@ internal partial class Initial : Migration
                 CONSTRAINT `ck_movies_picture_score` CHECK (`picture_score` IS NULL OR `picture_score` BETWEEN 1 AND 10),
                 CONSTRAINT `ck_movies_music_score` CHECK (`music_score` IS NULL OR `music_score` BETWEEN 1 AND 10),
                 CONSTRAINT `ck_movies_sound_score` CHECK (`sound_score` IS NULL OR `sound_score` BETWEEN 1 AND 10),
-                UNIQUE INDEX `ux_movies_title_year_director` (`title`, `release_year`, `director`),
+                UNIQUE INDEX `ux_movies_title_year_directors` (`title`, `release_year`, `directors_key`),
                 INDEX `ix_movies_medium_id` (`medium_id`),
                 CONSTRAINT `fk_movies_media` FOREIGN KEY (`medium_id`) REFERENCES `media` (`id`) ON DELETE RESTRICT
             ) {TableOptions};
@@ -124,6 +136,21 @@ internal partial class Initial : Migration
                 INDEX `ix_movie_genres_genre_id` (`genre_id`),
                 CONSTRAINT `fk_movie_genres_movies` FOREIGN KEY (`movie_id`) REFERENCES `movies` (`id`) ON DELETE RESTRICT,
                 CONSTRAINT `fk_movie_genres_genres` FOREIGN KEY (`genre_id`) REFERENCES `genres` (`id`) ON DELETE RESTRICT
+            ) {TableOptions};
+            """
+        );
+
+        migrationBuilder.Sql(
+            $"""
+            CREATE TABLE IF NOT EXISTS `movie_directors` (
+                `movie_id` int NOT NULL,
+                `director_id` int NOT NULL,
+                `position` tinyint NOT NULL,
+                CONSTRAINT `pk_movie_directors` PRIMARY KEY (`movie_id`, `director_id`),
+                UNIQUE INDEX `ux_movie_directors_movie_position` (`movie_id`, `position`),
+                INDEX `ix_movie_directors_director_id` (`director_id`),
+                CONSTRAINT `fk_movie_directors_movies` FOREIGN KEY (`movie_id`) REFERENCES `movies` (`id`) ON DELETE RESTRICT,
+                CONSTRAINT `fk_movie_directors_directors` FOREIGN KEY (`director_id`) REFERENCES `directors` (`id`) ON DELETE RESTRICT
             ) {TableOptions};
             """
         );
@@ -179,8 +206,10 @@ internal partial class Initial : Migration
     /// <inheritdoc />
     protected override void Down(MigrationBuilder migrationBuilder)
     {
+        migrationBuilder.Sql("DROP TABLE IF EXISTS `movie_directors`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `movie_genres`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `movies`;");
+        migrationBuilder.Sql("DROP TABLE IF EXISTS `directors`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `genres`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `media`;");
         migrationBuilder.Sql("DROP TABLE IF EXISTS `users`;");

@@ -45,6 +45,9 @@ public sealed class MovieOverviewQueryTests
             }
 
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var director = new Director { Name = "Director", CreatedAt = Now };
+            db.Directors.Add(director);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
             foreach (var seed in seeds)
             {
                 db.Movies.Add(
@@ -52,7 +55,8 @@ public sealed class MovieOverviewQueryTests
                     {
                         Title = seed.Title,
                         ReleaseYear = seed.Year,
-                        Director = "Director",
+                        DirectorsKey = DirectorsKey.Of([director.Id]),
+                        DirectorLinks = [new MovieDirector { DirectorId = director.Id, Position = 1 }],
                         GenreLinks =
                         [
                             .. (seed.Genres ?? ["Drama"]).Select(g => new MovieGenre { GenreId = genres[g].Id }),

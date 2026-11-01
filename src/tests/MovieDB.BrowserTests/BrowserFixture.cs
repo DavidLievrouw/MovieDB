@@ -175,7 +175,7 @@ public sealed class BrowserFixture : IAsyncLifetime
     /// <summary>Creates a movie directly in the database through the application's own command.</summary>
     /// <param name="title">The title.</param>
     /// <param name="year">The release year.</param>
-    /// <param name="director">The director.</param>
+    /// <param name="director">The directors, separated with <c>|</c> when there are several.</param>
     /// <param name="genres">The genre names; <c>Drama</c> when omitted.</param>
     /// <param name="medium">The medium, if any.</param>
     /// <param name="overallScore">The overall score, if any.</param>
@@ -200,7 +200,7 @@ public sealed class BrowserFixture : IAsyncLifetime
             {
                 Title = title,
                 ReleaseYear = year,
-                Director = director,
+                Directors = [.. director.Split('|')],
                 Genres = [.. genres ?? ["Drama"]],
                 Medium = medium,
                 RuntimeMinutes = 100,
@@ -266,7 +266,7 @@ public sealed class BrowserFixture : IAsyncLifetime
             : new SavedMovieValues(
                 edit.Input.Title!,
                 edit.Input.ReleaseYear!.Value,
-                edit.Input.Director!,
+                edit.Input.Directors,
                 edit.Input.Genres,
                 edit.Input.Medium,
                 edit.Input.OverallScore,
@@ -280,7 +280,7 @@ public sealed class BrowserFixture : IAsyncLifetime
 /// <summary>The values of a saved movie that the tests verify.</summary>
 /// <param name="Title">The title.</param>
 /// <param name="ReleaseYear">The release year.</param>
-/// <param name="Director">The director.</param>
+/// <param name="Directors">The director names, in order.</param>
 /// <param name="Genres">The genre names, alphabetically.</param>
 /// <param name="Medium">The medium name, if any.</param>
 /// <param name="OverallScore">The overall score, if any.</param>
@@ -290,7 +290,7 @@ public sealed class BrowserFixture : IAsyncLifetime
 public sealed record SavedMovieValues(
     string Title,
     int ReleaseYear,
-    string Director,
+    IReadOnlyList<string> Directors,
     IReadOnlyList<string> Genres,
     string? Medium,
     int? OverallScore,

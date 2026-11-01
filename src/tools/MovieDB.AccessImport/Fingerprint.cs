@@ -19,8 +19,10 @@ internal static class Fingerprint
     [
         ("genres", "SELECT `id`, `name` FROM `genres` ORDER BY `id`"),
         ("media", "SELECT * FROM `media` ORDER BY `id`"),
+        ("directors", "SELECT * FROM `directors` ORDER BY `id`"),
         ("movies", "SELECT * FROM `movies` ORDER BY `id`"),
         ("movie_genres", "SELECT * FROM `movie_genres` ORDER BY `movie_id`, `genre_id`"),
+        ("movie_directors", "SELECT * FROM `movie_directors` ORDER BY `movie_id`, `position`"),
     ];
 
     public static async Task<IReadOnlyList<TableFingerprint>> ComputeAsync(
@@ -94,7 +96,7 @@ internal static class DumpComposer
             -- Source: {sourceName}
             -- Created: {created} UTC
             -- Schema (latest migration): {migrationId}
-            -- Rows: movies={stats.Movies}, movie_genres={stats.GenreLinks}, media={stats.Media} (genres are seeded by the migration, not dumped)
+            -- Rows: movies={stats.Movies}, movie_genres={stats.GenreLinks}, media={stats.Media}, directors={stats.Directors}, movie_directors={stats.DirectorLinks} (genres are seeded by the migration, not dumped)
             SET NAMES utf8mb4;
             DELIMITER //
             BEGIN NOT ATOMIC
@@ -103,8 +105,8 @@ internal static class DumpComposer
               IF latest IS NULL OR latest <> '{migrationId}' THEN
                 SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: the database schema is not at the migration this dump was made for.';
               END IF;
-              IF (SELECT COUNT(*) FROM `movies`) > 0 OR (SELECT COUNT(*) FROM `movie_genres`) > 0 OR (SELECT COUNT(*) FROM `media`) > 0 THEN
-                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: movies, movie_genres or media already contain data.';
+              IF (SELECT COUNT(*) FROM `movies`) > 0 OR (SELECT COUNT(*) FROM `movie_genres`) > 0 OR (SELECT COUNT(*) FROM `media`) > 0 OR (SELECT COUNT(*) FROM `directors`) > 0 OR (SELECT COUNT(*) FROM `movie_directors`) > 0 THEN
+                SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: movies, movie_genres, media, directors or movie_directors already contain data.';
               END IF;
               IF (SELECT COUNT(*) FROM `genres`) <> {MovieGenres.All.Count} OR (SELECT COUNT(*) FROM `genres` WHERE (`id`, `name`) IN ({genrePairs})) <> {MovieGenres.All.Count} THEN
                 SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Refusing to load: the genres table does not hold exactly the seeded genres.';

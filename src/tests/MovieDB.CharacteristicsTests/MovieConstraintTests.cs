@@ -25,23 +25,27 @@ public sealed class MovieConstraintTests
     private static Task<Genre> AddGenreAsync(MovieDbContext context, string name = "Drama") =>
         context.Genres.SingleAsync(g => g.Name == name, TestContext.Current.CancellationToken);
 
-    private static Movie NewMovie(
+    private static async Task<Movie> NewMovieAsync(
+        MovieDbContext context,
         Genre genre,
         string title = "Léon",
         int year = 1994,
-        string director = "Luc Besson"
-    ) =>
-        new()
+        IReadOnlyList<string>? directors = null
+    )
+    {
+        var movie = new Movie
         {
             Title = title,
             ReleaseYear = year,
-            Director = director,
             GenreLinks = [new MovieGenre { GenreId = genre.Id }],
             RuntimeMinutes = 110,
             WatchedOn = new DateOnly(2026, 1, 15),
             CreatedAt = Now,
             UpdatedAt = Now,
         };
+        await DirectorTestData.AssignAsync(context, movie, directors ?? ["Luc Besson"]);
+        return movie;
+    }
 
     private static async Task<int?> SaveFailureNumberAsync(MovieDbContext context)
     {
@@ -58,7 +62,7 @@ public sealed class MovieConstraintTests
         await using (var context = NewContext(connectionString))
         {
             var genre = await AddGenreAsync(context);
-            var movie = NewMovie(genre, title: "Amélie — 少年", director: "Jean-Pierre Jeunet");
+            var movie = await NewMovieAsync(context, genre, title: "Amélie — 少年", directors: ["Jean-Pierre Jeunet"]);
             movie.Review = "Très bien ✓";
             context.Movies.Add(movie);
             await context.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -75,15 +79,32 @@ public sealed class MovieConstraintTests
     }
 
     [Fact]
-    public async Task Title_year_and_director_are_unique_ignoring_case_and_accents()
+    public async Task Title_year_and_director_set_are_unique_ignoring_case_and_accents()
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         var genre = await AddGenreAsync(context);
-        context.Movies.Add(NewMovie(genre, "Léon", 1994, "Luc Besson"));
+        context.Movies.Add(await NewMovieAsync(context, genre, "Léon", 1994, ["Luc Besson"]));
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        context.Movies.Add(NewMovie(genre, "LEON", 1994, "luc besson"));
+        context.Movies.Add(await NewMovieAsync(context, genre, "LEON", 1994, ["luc besson"]));
+
+        (await SaveFailureNumberAsync(context)).ShouldBe(1062);
+    }
+
+    [Fact]
+    public async Task The_same_director_set_in_another_order_has_the_same_key_and_is_a_duplicate()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await using var context = NewContext(connectionString);
+        var genre = await AddGenreAsync(context);
+        var first = await NewMovieAsync(context, genre, "Fargo", 1996, ["Joel Coen", "Ethan Coen"]);
+        context.Movies.Add(first);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        var reversed = await NewMovieAsync(context, genre, "Fargo", 1996, ["Ethan Coen", "Joel Coen"]);
+        reversed.DirectorsKey.ShouldBe(first.DirectorsKey);
+        context.Movies.Add(reversed);
 
         (await SaveFailureNumberAsync(context)).ShouldBe(1062);
     }
@@ -91,18 +112,110 @@ public sealed class MovieConstraintTests
     [Theory]
     [InlineData("Léon", 1995, "Luc Besson")]
     [InlineData("Léon", 1994, "Besson, Luc")]
+    [InlineData("Léon", 1994, "Luc Besson|Someone Else")]
     [InlineData("Léon 2", 1994, "Luc Besson")]
-    public async Task A_different_year_director_or_title_is_a_different_movie(string title, int year, string director)
+    public async Task A_different_year_director_set_or_title_is_a_different_movie(
+        string title,
+        int year,
+        string directors
+    )
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
         var genre = await AddGenreAsync(context);
-        context.Movies.Add(NewMovie(genre, "Léon", 1994, "Luc Besson"));
-        context.Movies.Add(NewMovie(genre, title, year, director));
+        context.Movies.Add(await NewMovieAsync(context, genre, "Léon", 1994, ["Luc Besson"]));
+        context.Movies.Add(await NewMovieAsync(context, genre, title, year, [.. directors.Split('|')]));
 
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         (await context.Movies.CountAsync(TestContext.Current.CancellationToken)).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task Director_names_are_unique_ignoring_case_and_accents()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await using var context = NewContext(connectionString);
+        context.Directors.Add(new Director { Name = "Pedro Almodóvar", CreatedAt = Now });
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        context.Directors.Add(new Director { Name = "PEDRO ALMODOVAR", CreatedAt = Now });
+
+        (await SaveFailureNumberAsync(context)).ShouldBe(1062);
+    }
+
+    [Fact]
+    public async Task A_movie_keeps_its_directors_in_order_and_cannot_have_one_twice_or_two_at_one_position()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await using (var context = NewContext(connectionString))
+        {
+            context.Movies.Add(
+                await NewMovieAsync(context, await AddGenreAsync(context), directors: ["Zed", "Amy", "Bob"])
+            );
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var read = NewContext(connectionString);
+        var movie = await read
+            .Movies.Include(m => m.DirectorLinks)
+                .ThenInclude(l => l.Director)
+            .AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        movie
+            .DirectorLinks.OrderBy(l => l.Position)
+            .Select(l => l.Director.Name)
+            .ToList()
+            .ShouldBe(["Zed", "Amy", "Bob"]);
+
+        var extra = new Director { Name = "Cat", CreatedAt = Now };
+        read.Directors.Add(extra);
+        await read.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var existing = movie.DirectorLinks[0];
+        read.MovieDirectorLinks.Add(
+            new MovieDirector
+            {
+                MovieId = movie.Id,
+                DirectorId = existing.DirectorId,
+                Position = 9,
+            }
+        );
+        (await SaveFailureNumberAsync(read)).ShouldBe(1062);
+
+        await using var samePosition = NewContext(connectionString);
+        var cat = await samePosition.Directors.SingleAsync(d => d.Name == "Cat", TestContext.Current.CancellationToken);
+        samePosition.MovieDirectorLinks.Add(
+            new MovieDirector
+            {
+                MovieId = movie.Id,
+                DirectorId = cat.Id,
+                Position = 1,
+            }
+        );
+        (await SaveFailureNumberAsync(samePosition)).ShouldBe(1062);
+    }
+
+    [Fact]
+    public async Task A_director_that_is_linked_cannot_be_deleted_and_a_movie_needs_an_existing_director()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await using (var context = NewContext(connectionString))
+        {
+            context.Movies.Add(await NewMovieAsync(context, await AddGenreAsync(context)));
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var delete = NewContext(connectionString);
+        var failure = await Should.ThrowAsync<MySqlException>(() =>
+            delete.Directors.ExecuteDeleteAsync(TestContext.Current.CancellationToken)
+        );
+        failure.Number.ShouldBe(1451);
+
+        await using var missing = NewContext(connectionString);
+        var movie = await NewMovieAsync(missing, await AddGenreAsync(missing), "Other");
+        movie.DirectorLinks = [new MovieDirector { DirectorId = DirectorId.From(99999), Position = 1 }];
+        missing.Movies.Add(movie);
+        (await SaveFailureNumberAsync(missing)).ShouldBe(1452);
     }
 
     [Fact]
@@ -141,7 +254,7 @@ public sealed class MovieConstraintTests
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using (var context = NewContext(connectionString))
         {
-            var movie = NewMovie(await AddGenreAsync(context));
+            var movie = await NewMovieAsync(context, await AddGenreAsync(context));
             movie.GenreLinks.Add(new MovieGenre { GenreId = (await AddGenreAsync(context, "Actie")).Id });
             context.Movies.Add(movie);
             await context.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -161,7 +274,7 @@ public sealed class MovieConstraintTests
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
-        context.Movies.Add(NewMovie(await AddGenreAsync(context)));
+        context.Movies.Add(await NewMovieAsync(context, await AddGenreAsync(context)));
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await using var delete = NewContext(connectionString);
@@ -180,7 +293,7 @@ public sealed class MovieConstraintTests
         var medium = new Medium { Name = "Bioscoop", CreatedAt = Now };
         context.Media.Add(medium);
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var movie = NewMovie(genre);
+        var movie = await NewMovieAsync(context, genre);
         movie.MediumId = medium.Id;
         context.Movies.Add(movie);
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -199,7 +312,7 @@ public sealed class MovieConstraintTests
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
-        var movie = NewMovie(new Genre { Id = GenreId.From(9999) });
+        var movie = await NewMovieAsync(context, new Genre { Id = GenreId.From(9999) });
         context.Movies.Add(movie);
 
         (await SaveFailureNumberAsync(context)).ShouldBe(1452);
@@ -212,7 +325,7 @@ public sealed class MovieConstraintTests
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using var context = NewContext(connectionString);
-        var movie = NewMovie(await AddGenreAsync(context));
+        var movie = await NewMovieAsync(context, await AddGenreAsync(context));
         movie.RuntimeMinutes = runtime;
         context.Movies.Add(movie);
 
@@ -231,14 +344,14 @@ public sealed class MovieConstraintTests
         foreach (var invalid in new[] { 0, 11 })
         {
             await using var context = NewContext(connectionString);
-            var movie = NewMovie(await AddGenreAsync(context));
+            var movie = await NewMovieAsync(context, await AddGenreAsync(context));
             Set(movie, score, invalid);
             context.Movies.Add(movie);
             (await SaveFailureNumberAsync(context)).ShouldBe(4025, $"{score} = {invalid}");
         }
 
         await using var valid = NewContext(connectionString);
-        var boundaries = NewMovie(await AddGenreAsync(valid));
+        var boundaries = await NewMovieAsync(valid, await AddGenreAsync(valid));
         Set(boundaries, score, 1);
         valid.Movies.Add(boundaries);
         await valid.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -289,7 +402,7 @@ public sealed class MovieConstraintTests
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
         await using (var seed = NewContext(connectionString))
         {
-            seed.Movies.Add(NewMovie(await AddGenreAsync(seed)));
+            seed.Movies.Add(await NewMovieAsync(seed, await AddGenreAsync(seed)));
             await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
@@ -298,11 +411,11 @@ public sealed class MovieConstraintTests
         var movieOne = await first.Movies.SingleAsync(TestContext.Current.CancellationToken);
         var movieTwo = await second.Movies.SingleAsync(TestContext.Current.CancellationToken);
 
-        movieOne.Director = "First";
+        movieOne.Review = "First";
         movieOne.Version++;
         await first.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        movieTwo.Director = "Second";
+        movieTwo.Review = "Second";
         movieTwo.Version++;
         await Should.ThrowAsync<DbUpdateConcurrencyException>(() =>
             second.SaveChangesAsync(TestContext.Current.CancellationToken)
@@ -310,7 +423,7 @@ public sealed class MovieConstraintTests
 
         await using var read = NewContext(connectionString);
         var stored = await read.Movies.AsNoTracking().SingleAsync(TestContext.Current.CancellationToken);
-        stored.Director.ShouldBe("First");
+        stored.Review.ShouldBe("First");
         stored.Version.ShouldBe(2);
     }
 

@@ -140,6 +140,29 @@ public sealed class MovieCleanerTests
     }
 
     [Fact]
+    public void Director_text_is_split_on_commas_into_ordered_distinct_names()
+    {
+        var split = MovieCleaner.Clean(SyntheticFilms.Film(1, director: " Joel Coen ,  Ethan   Coen,, joel coen "));
+        split.Errors.ShouldBeEmpty();
+        split.Movie.ShouldNotBeNull().Directors.ShouldBe(["Joel Coen", "Ethan Coen"]);
+        split.DirectorsSplit.ShouldBeTrue();
+
+        var single = MovieCleaner.Clean(SyntheticFilms.Film(2, director: "Michael Mann"));
+        single.Movie.ShouldNotBeNull().Directors.ShouldBe(["Michael Mann"]);
+        single.DirectorsSplit.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void Only_commas_or_too_many_directors_are_errors()
+    {
+        MovieCleaner.Clean(SyntheticFilms.Film(1, director: " , ,")).Errors.ShouldContain(e => e.Field == "Director");
+        MovieCleaner
+            .Clean(SyntheticFilms.Film(2, director: "A, B, C, D, E, F"))
+            .Errors.ShouldContain(e => e.Field == "Director");
+        Cleaned(SyntheticFilms.Film(3, director: "A, B, C, D, E")).Directors.Count.ShouldBe(5);
+    }
+
+    [Fact]
     public void Too_long_values_are_errors_and_counted_in_code_points()
     {
         var emoji = string.Concat(Enumerable.Repeat("😀", 200));
@@ -151,6 +174,8 @@ public sealed class MovieCleanerTests
         MovieCleaner
             .Clean(SyntheticFilms.Film(1, director: new string('x', 151)))
             .Errors.ShouldContain(e => e.Field == "Director");
+        Cleaned(SyntheticFilms.Film(1, director: $"{new string('x', 150)}, {new string('y', 150)}"))
+            .Directors.Count.ShouldBe(2);
         MovieCleaner
             .Clean(SyntheticFilms.Film(1, medium: new string('x', 51)))
             .Errors.ShouldContain(e => e.Field == "Medium");

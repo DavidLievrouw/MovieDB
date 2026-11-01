@@ -10,7 +10,7 @@ namespace MovieDB.Movies;
 /// <param name="Id">The movie id.</param>
 /// <param name="Title">The title.</param>
 /// <param name="ReleaseYear">The release year.</param>
-/// <param name="Director">The director.</param>
+/// <param name="Directors">The director names, in the order they were entered.</param>
 /// <param name="Genres">The genre names, alphabetically.</param>
 /// <param name="RuntimeMinutes">The runtime in minutes.</param>
 /// <param name="WatchedOn">The viewing date.</param>
@@ -20,7 +20,7 @@ internal sealed record MovieOverviewRow(
     MovieId Id,
     string Title,
     int ReleaseYear,
-    string Director,
+    IReadOnlyList<string> Directors,
     IReadOnlyList<string> Genres,
     int RuntimeMinutes,
     DateOnly WatchedOn,
@@ -28,6 +28,9 @@ internal sealed record MovieOverviewRow(
     int? OverallScore
 )
 {
+    /// <summary>The directors as shown in one cell: in the entered order, separated by a comma.</summary>
+    public string DirectorText => string.Join(", ", Directors);
+
     /// <summary>The genres as shown in one cell: alphabetical, separated by a comma.</summary>
     public string GenreText => string.Join(", ", Genres);
 }
@@ -48,14 +51,14 @@ internal sealed record MovieOverviewPage(
 
 /// <summary>An existing movie that has the same title and release year as the movie being saved.</summary>
 /// <param name="Id">The movie id.</param>
-/// <param name="Director">The director of the existing movie.</param>
-internal sealed record SameTitleMovie(MovieId Id, string Director);
+/// <param name="Directors">The directors of the existing movie, as one text.</param>
+internal sealed record SameTitleMovie(MovieId Id, string Directors);
 
 /// <summary>A movie as shown on the detail page.</summary>
 /// <param name="Id">The movie id.</param>
 /// <param name="Title">The title.</param>
 /// <param name="ReleaseYear">The release year.</param>
-/// <param name="Director">The director.</param>
+/// <param name="Directors">The director names, in the order they were entered.</param>
 /// <param name="Genres">The genre names, alphabetically.</param>
 /// <param name="RuntimeMinutes">The runtime in minutes.</param>
 /// <param name="WatchedOn">The viewing date.</param>
@@ -70,7 +73,7 @@ internal sealed record MovieDetail(
     MovieId Id,
     string Title,
     int ReleaseYear,
-    string Director,
+    IReadOnlyList<string> Directors,
     IReadOnlyList<string> Genres,
     int RuntimeMinutes,
     DateOnly WatchedOn,
@@ -215,7 +218,6 @@ internal sealed class MovieQueries
                 m.Id,
                 m.Title,
                 m.ReleaseYear,
-                m.Director,
                 m.RuntimeMinutes,
                 m.WatchedOn,
                 Medium = m.Medium == null ? null : m.Medium.Name,
@@ -232,6 +234,16 @@ internal sealed class MovieQueries
         )
             .GroupBy(l => l.MovieId)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(l => l.Name)]);
+        var directors = (
+            await db
+                .MovieDirectorLinks.AsNoTracking()
+                .Where(l => movieIds.Contains(l.MovieId))
+                .OrderBy(l => l.Position)
+                .Select(l => new { l.MovieId, l.Director.Name })
+                .ToListAsync(cancellationToken)
+        )
+            .GroupBy(l => l.MovieId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(l => l.Name)]);
 
         var byId = movies.ToDictionary(m => m.Id);
         return
@@ -241,7 +253,7 @@ internal sealed class MovieQueries
                     m.Id,
                     m.Title,
                     m.ReleaseYear,
-                    m.Director,
+                    directors.TryGetValue(m.Id, out var directorNames) ? directorNames : [],
                     genres.TryGetValue(m.Id, out var names) ? names : [],
                     m.RuntimeMinutes,
                     m.WatchedOn,
@@ -299,7 +311,12 @@ internal sealed class MovieQueries
             TopCount,
             cancellationToken
         );
-        var directors = await TopAsync(all.GroupBy(m => m.Director), TopCount, cancellationToken);
+        // A movie counts once for each of its directors.
+        var directors = await TopAsync(
+            db.MovieDirectorLinks.AsNoTracking().GroupBy(l => l.Director.Name),
+            TopCount,
+            cancellationToken
+        );
         var media = await TopAsync(
             all.Where(m => m.Medium != null).GroupBy(m => m.Medium!.Name),
             MaxMedia,
@@ -364,7 +381,7 @@ internal sealed class MovieQueries
                     Genres = m.GenreLinks.Select(l => l.Genre.Name).Order().ToList(),
                     RuntimeMinutes = m.RuntimeMinutes,
                     ReleaseYear = m.ReleaseYear,
-                    Director = m.Director,
+                    Directors = m.DirectorLinks.OrderBy(l => l.Position).Select(l => l.Director.Name).ToList(),
                     WatchedOn = m.WatchedOn,
                     Medium = m.Medium == null ? null : m.Medium.Name,
                     Review = m.Review,
@@ -378,27 +395,36 @@ internal sealed class MovieQueries
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    /// <summary>Finds another movie with the same title, year and director (compared by the column collation).</summary>
+    /// <summary>
+    /// Finds another movie with the same title, year and set of directors (compared by the column collation, in any
+    /// order).
+    /// </summary>
     /// <param name="title">The title.</param>
     /// <param name="year">The release year.</param>
-    /// <param name="director">The director.</param>
+    /// <param name="directors">The director names.</param>
     /// <param name="excludeId">The movie being edited, which is not a duplicate of itself; <c>null</c> for a new movie.</param>
     /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>The id of the existing movie, or <c>null</c> when there is none.</returns>
     public async Task<MovieId?> FindDuplicateAsync(
         string title,
         int year,
-        string director,
+        IReadOnlyList<string> directors,
         MovieId? excludeId,
         CancellationToken cancellationToken
     )
     {
         title = title.Trim();
-        director = director.Trim();
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
+        var key = await FindDirectorsKeyAsync(db, directors, cancellationToken);
+        if (key is null)
+        {
+            // A director that does not exist yet cannot be shared with another movie.
+            return null;
+        }
+
         var matches = db
             .Movies.AsNoTracking()
-            .Where(m => m.Title == title && m.ReleaseYear == year && m.Director == director);
+            .Where(m => m.Title == title && m.ReleaseYear == year && m.DirectorsKey == key);
         if (excludeId is { } own)
         {
             matches = matches.Where(m => m.Id != own);
@@ -407,13 +433,52 @@ internal sealed class MovieQueries
         return await matches.OrderBy(m => m.Id).Select(m => (MovieId?)m.Id).FirstOrDefaultAsync(cancellationToken);
     }
 
+    /// <summary>Resolves director names (by the column collation) to their key, when all of them exist.</summary>
+    /// <param name="db">The context to query.</param>
+    /// <param name="names">The director names.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The directors key, or <see langword="null"/> when a name is unknown or none is given.</returns>
+    private static async Task<string?> FindDirectorsKeyAsync(
+        MovieDbContext db,
+        IReadOnlyList<string> names,
+        CancellationToken cancellationToken
+    )
+    {
+        var ids = new List<DirectorId>(names.Count);
+        foreach (var raw in names)
+        {
+            var name = raw.Trim();
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
+            var found = await db
+                .Directors.AsNoTracking()
+                .Where(d => d.Name == name)
+                .Select(d => (DirectorId?)d.Id)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (found is not { } id)
+            {
+                return null;
+            }
+
+            if (!ids.Contains(id))
+            {
+                ids.Add(id);
+            }
+        }
+
+        return ids.Count == 0 ? null : DirectorsKey.Of(ids);
+    }
+
     /// <summary>
-    /// Finds other movies with the same title and release year but another director (compared by the column
-    /// collation). Movies with the same director are left out: those are duplicates, which saving rejects.
+    /// Finds other movies with the same title and release year but another set of directors (compared by the column
+    /// collation). Movies with the same directors are left out: those are duplicates, which saving rejects.
     /// </summary>
     /// <param name="title">The title.</param>
     /// <param name="year">The release year.</param>
-    /// <param name="director">The director of the movie that is being saved.</param>
+    /// <param name="directors">The director names of the movie that is being saved.</param>
     /// <param name="excludeId">The movie being edited; <c>null</c> for a new movie.</param>
     /// <param name="take">The largest number of movies to return.</param>
     /// <param name="cancellationToken">Cancels the query.</param>
@@ -421,28 +486,43 @@ internal sealed class MovieQueries
     public async Task<IReadOnlyList<SameTitleMovie>> FindSameTitleAndYearAsync(
         string title,
         int year,
-        string director,
+        IReadOnlyList<string> directors,
         MovieId? excludeId,
         int take,
         CancellationToken cancellationToken
     )
     {
         title = title.Trim();
-        director = director.Trim();
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
-        var matches = db
-            .Movies.AsNoTracking()
-            .Where(m => m.Title == title && m.ReleaseYear == year && m.Director != director);
+        var key = await FindDirectorsKeyAsync(db, directors, cancellationToken);
+        var matches = db.Movies.AsNoTracking().Where(m => m.Title == title && m.ReleaseYear == year);
+        if (key is not null)
+        {
+            matches = matches.Where(m => m.DirectorsKey != key);
+        }
+
         if (excludeId is { } own)
         {
             matches = matches.Where(m => m.Id != own);
         }
 
-        return await matches
-            .OrderBy(m => m.Id)
-            .Take(take)
-            .Select(m => new SameTitleMovie(m.Id, m.Director))
-            .ToListAsync(cancellationToken);
+        var ids = await matches.OrderBy(m => m.Id).Take(take).Select(m => m.Id).ToListAsync(cancellationToken);
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        var names = (
+            await db
+                .MovieDirectorLinks.AsNoTracking()
+                .Where(l => ids.Contains(l.MovieId))
+                .OrderBy(l => l.Position)
+                .Select(l => new { l.MovieId, l.Director.Name })
+                .ToListAsync(cancellationToken)
+        )
+            .GroupBy(l => l.MovieId)
+            .ToDictionary(g => g.Key, g => string.Join(", ", g.Select(l => l.Name)));
+        return [.. ids.Select(id => new SameTitleMovie(id, names.GetValueOrDefault(id, "")))];
     }
 
     /// <summary>Lists all genres, alphabetically (by the column collation).</summary>
@@ -458,10 +538,7 @@ internal sealed class MovieQueries
             .ToListAsync(cancellationToken);
     }
 
-    /// <summary>
-    /// Suggests directors that contain the text; without text, the most used ones. Directors that only differ in case
-    /// or accents (by the collation) are one suggestion.
-    /// </summary>
+    /// <summary>Suggests directors that contain the text, alphabetically (by the column collation).</summary>
     /// <param name="text">The typed text.</param>
     /// <param name="take">The largest number of suggestions.</param>
     /// <param name="cancellationToken">Cancels the query.</param>
@@ -473,20 +550,14 @@ internal sealed class MovieQueries
     )
     {
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
-        var movies = db.Movies.AsNoTracking();
+        var directors = db.Directors.AsNoTracking();
         if (text.Length > 0)
         {
             var pattern = ContainsPattern(text);
-            movies = movies.Where(m => EF.Functions.Like(m.Director, pattern));
+            directors = directors.Where(d => EF.Functions.Like(d.Name, pattern));
         }
 
-        return await movies
-            .GroupBy(m => m.Director)
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key)
-            .Take(take)
-            .Select(g => g.Key)
-            .ToListAsync(cancellationToken);
+        return await directors.OrderBy(d => d.Name).Take(take).Select(d => d.Name).ToListAsync(cancellationToken);
     }
 
     /// <summary>Suggests medium names that contain the text, sorted by name.</summary>
@@ -594,7 +665,12 @@ internal sealed class MovieQueries
                     parts.Add("m.release_year" + direction);
                     break;
                 case OverviewSortField.Director:
-                    parts.Add("m.director" + direction);
+                    // The directors as the overview shows them: in the entered order, joined by a comma.
+                    parts.Add(
+                        "(SELECT GROUP_CONCAT(d.name ORDER BY md2.position SEPARATOR ', ') FROM movie_directors md2 "
+                            + "JOIN directors d ON d.id = md2.director_id WHERE md2.movie_id = m.id)"
+                            + direction
+                    );
                     break;
                 case OverviewSortField.Genre:
                     // The genres as the overview shows them: alphabetical, joined by a comma.
@@ -643,7 +719,7 @@ internal sealed class MovieQueries
                 m.Id,
                 m.Title,
                 m.ReleaseYear,
-                m.Director,
+                m.DirectorLinks.OrderBy(l => l.Position).Select(l => l.Director.Name).ToList(),
                 m.GenreLinks.Select(l => l.Genre.Name).Order().ToList(),
                 m.RuntimeMinutes,
                 m.WatchedOn,

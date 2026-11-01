@@ -150,11 +150,16 @@
                                          ErrorText="@ErrorOf(nameof(MovieInput.ReleaseYear))"
                                          OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.ReleaseYear)))"/>
 
-                        <SuggestField @ref="_director" @bind-Value="_model.Director" Label="Regisseur" Required="true"
-                                      Suggestions="SuggestDirectorsAsync" MaxLength="MovieInput.DirectorMaxLength"
-                                      Error="@HasError(nameof(MovieInput.Director))"
-                                      ErrorText="@ErrorOf(nameof(MovieInput.Director))"
-                                      OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Director)))" Class="films-field-wide"/>
+                        <ChipMultiSelect @ref="_directors" Label="Regisseur(s)" Hint="Maximaal 5" Required="true"
+                                         Placeholder="Kies of typ een regisseur"
+                                         Values="_model.Directors" ValuesChanged="OnDirectorsChangedAsync"
+                                         Suggestions="SuggestDirectorsAsync" AllowNew="true"
+                                         IsKnown="IsKnownDirector" MaxLength="MovieInput.DirectorMaxLength"
+                                         MaxSelected="MovieInput.MaxDirectors" MaxItems="10"
+                                         Error="@HasError(nameof(MovieInput.Directors))"
+                                         ErrorText="@ErrorOf(nameof(MovieInput.Directors))"
+                                         OnBlur="@(() => CheckFieldAsync(nameof(MovieInput.Directors)))"
+                                         Class="films-field-wide" data-testid="director-field"/>
                     </div>
 
                     <h3 class="films-subsection">Vertoning</h3>
@@ -234,7 +239,7 @@
         nameof(MovieInput.Genres),
         nameof(MovieInput.RuntimeMinutes),
         nameof(MovieInput.ReleaseYear),
-        nameof(MovieInput.Director),
+        nameof(MovieInput.Directors),
         nameof(MovieInput.WatchedOn),
         nameof(MovieInput.Medium),
         nameof(MovieInput.Review),
@@ -270,7 +275,7 @@
     private ChipMultiSelect? _genre;
     private MudNumericField<int?>? _runtime;
     private MudNumericField<int?>? _year;
-    private SuggestField? _director;
+    private ChipMultiSelect? _directors;
     private MudDatePicker? _date;
     private SuggestField? _medium;
     private MudTextField<string>? _review;
@@ -443,8 +448,26 @@
         await CheckFieldAsync(nameof(MovieInput.Genres));
     }
 
-    private Task<IReadOnlyList<string>> SuggestDirectorsAsync(string text, CancellationToken cancellationToken) =>
-        Queries.SuggestDirectorsAsync(text, 10, cancellationToken);
+    private IReadOnlyList<string> _directorNames = [];
+
+    private async Task<IReadOnlyList<string>> SuggestDirectorsAsync(string text, CancellationToken cancellationToken)
+    {
+        var suggestions = await Queries.SuggestDirectorsAsync(text, 10, cancellationToken);
+        _directorNames = [.. _directorNames.Union(suggestions, StringComparer.OrdinalIgnoreCase)];
+        return suggestions;
+    }
+
+    // A director is known when it was suggested (or loaded with the movie); typed names that were never suggested get the
+    // "nieuw" marker. The server decides by collation when saving.
+    private bool IsKnownDirector(string name) =>
+        _directorNames.Contains(name, StringComparer.OrdinalIgnoreCase)
+        || _baseline.Directors.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    private async Task OnDirectorsChangedAsync(IReadOnlyList<string> directors)
+    {
+        _model.Directors = [.. directors];
+        await CheckFieldAsync(nameof(MovieInput.Directors));
+    }
 
     private Task<IReadOnlyList<string>> SuggestMediaAsync(string text, CancellationToken cancellationToken) =>
         Queries.SuggestMediaAsync(text, 10, cancellationToken);
@@ -455,7 +478,7 @@
         await CheckFieldAsync(nameof(MovieInput.WatchedOn));
     }
 
-    /// <summary>Validates one field after the user left it, and checks Title + Year + Director for a duplicate.</summary>
+    /// <summary>Validates one field after the user left it, and checks Title + Year + Directors for a duplicate.</summary>
     /// <param name="field">The property name of the field.</param>
     private async Task CheckFieldAsync(string field)
     {
@@ -471,7 +494,7 @@
             _errors[field] = fieldMessages[0];
         }
 
-        if (field is nameof(MovieInput.Title) or nameof(MovieInput.ReleaseYear) or nameof(MovieInput.Director))
+        if (field is nameof(MovieInput.Title) or nameof(MovieInput.ReleaseYear) or nameof(MovieInput.Directors))
         {
             await CheckDuplicateAsync(messages);
         }
@@ -488,7 +511,7 @@
         if (
             messages.ContainsKey(nameof(MovieInput.Title))
             || messages.ContainsKey(nameof(MovieInput.ReleaseYear))
-            || messages.ContainsKey(nameof(MovieInput.Director))
+            || messages.ContainsKey(nameof(MovieInput.Directors))
         )
         {
             return;
@@ -500,7 +523,7 @@
             _duplicateId = await Queries.FindDuplicateAsync(
                 values.Title!,
                 values.ReleaseYear!.Value,
-                values.Director!,
+                values.Directors,
                 _id,
                 CancellationToken.None
             );
@@ -630,7 +653,7 @@
             matches = await Queries.FindSameTitleAndYearAsync(
                 values.Title!,
                 values.ReleaseYear!.Value,
-                values.Director!,
+                values.Directors,
                 _id,
                 5,
                 CancellationToken.None
@@ -651,7 +674,7 @@
         {
             { x => x.Title, values.Title! },
             { x => x.Year, values.ReleaseYear!.Value },
-            { x => x.Matches, matches.Select(m => KeyValuePair.Create(m.Id.Value, m.Director)).ToList() },
+            { x => x.Matches, matches.Select(m => KeyValuePair.Create(m.Id.Value, m.Directors)).ToList() },
         };
         var dialog = await Dialogs.ShowAsync<SameTitleDialog>(
             (string?)null,
@@ -729,7 +752,7 @@
                     _duplicateId = await Queries.FindDuplicateAsync(
                         values.Title!,
                         values.ReleaseYear!.Value,
-                        values.Director!,
+                        values.Directors,
                         _id,
                         CancellationToken.None
                     );
@@ -765,7 +788,7 @@
             nameof(MovieInput.Genres) => _genre?.FocusAsync(),
             nameof(MovieInput.RuntimeMinutes) => _runtime?.FocusAsync().AsTask(),
             nameof(MovieInput.ReleaseYear) => _year?.FocusAsync().AsTask(),
-            nameof(MovieInput.Director) => _director?.FocusAsync(),
+            nameof(MovieInput.Directors) => _directors?.FocusAsync(),
             nameof(MovieInput.WatchedOn) => _date?.FocusAsync().AsTask(),
             nameof(MovieInput.Medium) => _medium?.FocusAsync(),
             nameof(MovieInput.Review) => _review?.FocusAsync().AsTask(),

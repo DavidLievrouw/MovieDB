@@ -225,7 +225,7 @@ public sealed class NewMovieTests
         await Expect(session.Page.GetByText("Controleer de gemarkeerde velden.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Filmtitel is verplicht.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Kies minstens één genre.")).ToBeVisibleAsync();
-        await Expect(session.Page.GetByText("Regisseur is verplicht.")).ToBeVisibleAsync();
+        await Expect(session.Page.GetByText("Geef minstens één regisseur op.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Duur is verplicht.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Jaar is verplicht.")).ToBeVisibleAsync();
         await Expect(session.Page.GetByText("Totaal is verplicht.")).ToBeVisibleAsync();
@@ -245,7 +245,7 @@ public sealed class NewMovieTests
         await session.OpenNewAsync();
         await session.FillAsync("Filmtitel", BrowserFixture.Unique("Bereikfilm"));
         await session.AddChipAsync("genre-field", "Drama");
-        await session.FillAsync("Regisseur", "Synthetische Regisseur");
+        await session.TypeChipAsync("director-field", "Synthetische Regisseur");
         await session.FillAsync("Duur", "1000");
         await session.FillAsync("Jaar", "1800");
 
@@ -269,7 +269,7 @@ public sealed class NewMovieTests
         await session.AddChipAsync("genre-field", "Drama");
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2002");
-        await session.FillAsync("Regisseur", "Synthetische Regisseur");
+        await session.TypeChipAsync("director-field", "Synthetische Regisseur");
         await session.SetScoreAsync("Film", 7);
 
         await session.SaveButton.ClickAsync();
@@ -297,7 +297,7 @@ public sealed class NewMovieTests
         await session.AddChipAsync("genre-field", "Detective");
         await session.FillAsync("Duur", "123");
         await session.FillAsync("Jaar", "2001");
-        await session.FillAsync("Regisseur", "Synthetische Regisseur");
+        await session.TypeChipAsync("director-field", "Synthetische Regisseur");
         await session.FillAsync("Gezien op/in", "Bioscoop");
         await session.FillAsync("Opmerkingen", "Een nieuwe, synthetische recensie.");
         await session.SetScoreAsync("Totaal (geen gemiddelde)", 8);
@@ -341,7 +341,8 @@ public sealed class NewMovieTests
         await Expect(session.Field("Filmtitel")).ToHaveValueAsync("");
         await Expect(session.Chips("genre-field")).ToHaveCountAsync(0);
         await Expect(session.ChipInput("genre-field")).ToHaveValueAsync("");
-        await Expect(session.Field("Regisseur")).ToHaveValueAsync("");
+        await Expect(session.Chips("director-field")).ToHaveCountAsync(0);
+        await Expect(session.ChipInput("director-field")).ToHaveValueAsync("");
         await Expect(session.Page.Locator(".films-fields .mud-input-error")).ToHaveCountAsync(0);
         await Expect(session.Page.Locator(".films-fields [aria-invalid=true]")).ToHaveCountAsync(0);
         await Expect(session.Page.GetByText("Controleer de gemarkeerde velden.")).ToHaveCountAsync(0);
@@ -361,15 +362,93 @@ public sealed class NewMovieTests
         await session.AddChipAsync("genre-field", "Drama");
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2005");
-        await session.FillAsync("Regisseur", "synthetische regisseur");
+        await session.TypeChipAsync("director-field", "synthetische regisseur");
         await session.SetAllScoresAsync(7);
         await session.SaveButton.ClickAsync();
 
-        await Expect(session.Page.GetByText("Deze film bestaat al (Jaar en Regisseur zijn gelijk)."))
+        await Expect(session.Page.GetByText("Deze film bestaat al (Jaar en Regisseurs zijn gelijk)."))
             .ToBeVisibleAsync();
         var link = session.Page.GetByRole(AriaRole.Link, new() { Name = "Bekijk bestaande film" });
         await Expect(link).ToHaveAttributeAsync("href", new Regex($"^/films/{existing}"));
         session.Page.Url.ShouldContain("/films/nieuw");
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task The_same_directors_in_another_order_are_a_duplicate(int width, int height)
+    {
+        var title = BrowserFixture.Unique("Omgekeerd");
+        await _fixture.SeedMovieAsync(title, year: 2006, director: "Eerste Regisseur|Tweede Regisseur");
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        await session.FillAsync("Filmtitel", title);
+        await session.AddChipAsync("genre-field", "Drama");
+        await session.FillAsync("Duur", "100");
+        await session.FillAsync("Jaar", "2006");
+        await session.TypeChipAsync("director-field", "Tweede Regisseur");
+        await session.TypeChipAsync("director-field", "Eerste Regisseur");
+        await session.SetAllScoresAsync(7);
+
+        await session.SaveButton.ClickAsync();
+
+        await Expect(session.Page.GetByText("Deze film bestaat al (Jaar en Regisseurs zijn gelijk)."))
+            .ToBeVisibleAsync();
+        session.Page.Url.ShouldContain("/films/nieuw");
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task Typed_directors_are_committed_by_a_comma_by_Tab_and_by_leaving_the_field(int width, int height)
+    {
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        var input = session.ChipInput("director-field");
+
+        await input.ClickAsync();
+        await input.PressSequentiallyAsync("Eerste Persoon,");
+        await Expect(session.Chips("director-field")).ToHaveCountAsync(1);
+
+        await input.PressSequentiallyAsync("Tweede Persoon");
+        await session.Page.Keyboard.PressAsync("Tab");
+        await Expect(session.Chips("director-field")).ToHaveCountAsync(2);
+
+        await input.ClickAsync();
+        await input.PressSequentiallyAsync("Derde Persoon");
+        await session.Field("Filmtitel").ClickAsync();
+        await Expect(session.Chips("director-field")).ToHaveCountAsync(3);
+        await Expect(session.Chips("director-field").Nth(2)).ToContainTextAsync("Derde Persoon");
+    }
+
+    [Theory]
+    [InlineData(390, 844)]
+    [InlineData(1440, 900)]
+    public async Task A_movie_with_two_genres_and_two_directors_one_of_them_new_is_saved_in_order(int width, int height)
+    {
+        var title = BrowserFixture.Unique("Meerdere regisseurs");
+        var known = BrowserFixture.Unique("Bekende Regisseur");
+        var brandNew = BrowserFixture.Unique("Nieuwe Regisseur");
+        await _fixture.SeedMovieAsync(BrowserFixture.Unique("Bekend werk"), director: known);
+        await using var session = await _fixture.OpenAsync(width, height);
+        await session.OpenNewAsync();
+        await session.FillAsync("Filmtitel", title);
+        await session.AddChipAsync("genre-field", "Thriller");
+        await session.AddChipAsync("genre-field", "Detective");
+        await session.FillAsync("Duur", "110");
+        await session.FillAsync("Jaar", "2011");
+        await session.TypeChipAsync("director-field", brandNew);
+        await session.TypeChipAsync("director-field", known);
+        await session.SetAllScoresAsync(6);
+
+        await session.SaveButton.ClickAsync();
+
+        await Expect(session.Page).ToHaveURLAsync(new Regex(@"/films/\d+"));
+        var id = int.Parse(new Regex(@"/films/(\d+)").Match(session.Page.Url).Groups[1].Value);
+        var saved = await _fixture.FindMovieAsync(id);
+        saved.ShouldNotBeNull();
+        saved.Genres.ShouldBe(["Detective", "Thriller"]);
+        saved.Directors.ShouldBe([brandNew, known]);
     }
 
     [Theory]
@@ -385,7 +464,7 @@ public sealed class NewMovieTests
         await session.AddChipAsync("genre-field", "Drama");
         await session.FillAsync("Duur", "100");
         await session.FillAsync("Jaar", "2010");
-        await session.FillAsync("Regisseur", "Tweede Regisseur");
+        await session.TypeChipAsync("director-field", "Tweede Regisseur");
         await session.SetAllScoresAsync(7);
         var dialog = session.Page.Locator(".mud-dialog");
 
@@ -395,7 +474,7 @@ public sealed class NewMovieTests
         await dialog.GetByRole(AriaRole.Button, new() { Name = "Terug naar formulier" }).ClickAsync();
         await Expect(dialog).ToBeHiddenAsync();
         session.Page.Url.ShouldContain("/films/nieuw");
-        await Expect(session.Field("Regisseur")).ToHaveValueAsync("Tweede Regisseur");
+        await Expect(session.Chips("director-field")).ToHaveTextAsync(new Regex("^Tweede Regisseur"));
 
         // Save anyway: the second movie is created.
         await session.SaveButton.ClickAsync();

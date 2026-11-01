@@ -137,10 +137,14 @@ These are enforced by architecture tests. Each slice registers through `*Module.
 - Use restrictive foreign keys unless the product explicitly requires database cascades. Guard deletes in application
   code when related records must be preserved.
 - **Domain rules** (PLAN.md §5):
-  - A movie is unique on Title + ReleaseYear + Director, enforced by the collation, so the match is case- and
-    accent-insensitive.
+  - A movie is unique on Title + ReleaseYear + the **set** of directors, in any order. This is enforced by the unique
+    index on `movies.directors_key` (the sorted director ids joined with `,`, built by `DirectorsKey.Of`) together with
+    the collation, so the match is case- and accent-insensitive.
   - There is a single `movies` table: one row per movie, holding its viewing date, medium, scores and review.
-    Re-watches are not logged. The same title with a different year or director is a different movie.
+    Re-watches are not logged. The same title with a different year or set of directors is a different movie.
+  - Directors are free-entry names (`directors`, unique by collation), 1-5 per movie (`movie_directors` with
+    `position`, which keeps the entered order). Typed names are matched by collation first and created in the save
+    transaction; a director no movie links any more is deleted.
   - Genres are a **closed, seeded list** of 35 (`MovieGenres`, seeded by the `Initial` migration; ids are stable because
     URLs carry them). A movie has 1-4 genres (`movie_genres`), chosen from the list; an unknown genre is a validation
     error. Medium values are suggestion rows: new typed values are inserted in the same transaction as the save.
@@ -290,12 +294,12 @@ without copying production secrets or data into development.
 Record only decisions that are binding for this repository:
 
 - **Business rules:** see PLAN.md §3 (decisions), §5 (data model) and §8 (UI). Highlights:
-  - One row per movie; uniqueness is on Title + Year + Director. Re-watches are not logged.
+  - One row per movie; uniqueness is on Title + Year + the set of directors (order-insensitive). Re-watches are not logged.
   - The five scores (Totaal, Film, Beeld, Muziek, Geluid) are required, 1–10, with no empty option, validated in the UI
     and on the server. The DB columns stay nullable (with 1–10 CHECKs) because a few imported films miss a score and
     are completed on edit. Extra's no longer exists. "Totaal" is manual, not an average.
   - Genre is a multi-select (1-4) from the closed list; the overview can be filtered by genre (a film must have all selected
-    genres, URL `genre=3,7`). "Gezien op/in" is free text with DB-backed suggestions.
+    genres, URL `genre=3,7`). Regisseur is a multi-entry chip field (1-5, new names allowed). "Gezien op/in" is free text with DB-backed suggestions.
   - Datum defaults to today in `App:TimeZone`.
   - Default sort is Datum DESC, Title ASC. Search is a debounced title search. Save is explicit.
 - **Security/privacy requirements:**
@@ -316,9 +320,11 @@ Record only decisions that are binding for this repository:
   - The Docker healthcheck image is chiseled (no shell), so it uses the exec form `["CMD", "dotnet", …]`.
   - The column `[Gezien op]` contains a space. `Duur`, `Jaar` and `Extras` are text in Access (`Extras` is not
     imported). Scores use `0` for "empty".
-  - Source data quirks (polluted titles and directors, whitespace, duplicate Title + Year + Director groups) are
-    documented in PLAN.md §2.3 and handled by the import rules in §6.3. Duplicate Title + Year + Director rows are
-    resolved by keeping the oldest row (earliest Datum, then lowest FilmID); the current `.mdb` yields 1,203 movies.
+  - Source data quirks (polluted titles and directors, whitespace, duplicate Title + Year + director-set groups) are
+    documented in PLAN.md §2.3 and handled by the import rules in §6.3 and PLAN-2 §5 (a director text with commas is
+    split into several directors). Duplicate rows are
+    resolved by keeping the oldest row (earliest Datum, then lowest FilmID); the current `.mdb` yields 1,203 movies
+    (715 directors, 1,207 director links).
     Six IMDb-verified attribute corrections are applied to kept rows (PLAN.md §2.3, §6.3).
   - Windows PowerShell `>` redirection writes UTF-16. Create SQL dumps with `mariadb-dump --result-file` inside the
     container and `docker cp` them out.

@@ -47,7 +47,7 @@ public sealed class MovieCommandTests
     private static MovieInput Input(
         string title = "Heat",
         int year = 1995,
-        string director = "Michael Mann",
+        string director = "Michael Mann", // several directors are separated with |
         string[]? genres = null,
         string? medium = "Bioscoop"
     ) =>
@@ -55,7 +55,7 @@ public sealed class MovieCommandTests
         {
             Title = title,
             ReleaseYear = year,
-            Director = director,
+            Directors = [.. director.Split('|')],
             Genres = [.. genres ?? ["Thriller"]],
             Medium = medium,
             RuntimeMinutes = 170,
@@ -248,7 +248,7 @@ public sealed class MovieCommandTests
             await setup.Queries.FindDuplicateAsync(
                 "heat",
                 1995,
-                "MICHAEL MANN",
+                ["MICHAEL MANN"],
                 null,
                 TestContext.Current.CancellationToken
             )
@@ -257,7 +257,7 @@ public sealed class MovieCommandTests
             await setup.Queries.FindDuplicateAsync(
                 "heat",
                 1995,
-                "MICHAEL MANN",
+                ["MICHAEL MANN"],
                 id,
                 TestContext.Current.CancellationToken
             )
@@ -539,18 +539,18 @@ public sealed class MovieCommandTests
         await CreateMovieAsync(setup, Input(title: "Other", year: 1996, director: "Nobody"));
         var ct = TestContext.Current.CancellationToken;
 
-        var found = await setup.Queries.FindSameTitleAndYearAsync("CRASH", 1996, "Paul Haggis", null, 5, ct);
+        var found = await setup.Queries.FindSameTitleAndYearAsync("CRASH", 1996, ["Paul Haggis"], null, 5, ct);
         var sameDirector = await setup.Queries.FindSameTitleAndYearAsync(
             "crash",
             1996,
-            "david cronenberg",
+            ["david cronenberg"],
             null,
             5,
             ct
         );
-        var excludingOwn = await setup.Queries.FindSameTitleAndYearAsync("Crash", 1996, "Paul Haggis", second, 5, ct);
-        var limited = await setup.Queries.FindSameTitleAndYearAsync("Crash", 1996, "Paul Haggis", null, 1, ct);
-        var none = await setup.Queries.FindSameTitleAndYearAsync("Unknown", 1996, "Paul Haggis", null, 5, ct);
+        var excludingOwn = await setup.Queries.FindSameTitleAndYearAsync("Crash", 1996, ["Paul Haggis"], second, 5, ct);
+        var limited = await setup.Queries.FindSameTitleAndYearAsync("Crash", 1996, ["Paul Haggis"], null, 1, ct);
+        var none = await setup.Queries.FindSameTitleAndYearAsync("Unknown", 1996, ["Paul Haggis"], null, 5, ct);
 
         found.Select(m => m.Id).ShouldBe([first, second]);
         sameDirector.Select(m => m.Id).ShouldBe([second]);
@@ -611,11 +611,17 @@ public sealed class MovieCommandTests
         (await DirectorOfAsync(setup, id)).ShouldBe("Jean-Pierre Jeunet");
     }
 
+    private static async Task<string[]> DirectorsOfAsync(Setup setup, MovieId id) =>
+        [.. (await setup.Queries.FindForEditAsync(id, TestContext.Current.CancellationToken))!.Input.Directors];
+
     private static async Task<string> DirectorOfAsync(Setup setup, MovieId id) =>
-        (await setup.Queries.FindForEditAsync(id, TestContext.Current.CancellationToken))!.Input.Director!;
+        (await DirectorsOfAsync(setup, id)).Single();
+
+    private static Task<long> CountAsync(Setup setup, string table) =>
+        MariaDbFixture.ScalarAsync<long>(setup.ConnectionString, $"SELECT COUNT(*) FROM {table}");
 
     [Fact]
-    public async Task Director_suggestions_are_distinct_by_collation_most_used_first_and_treat_wildcards_literally()
+    public async Task Director_suggestions_are_distinct_by_collation_alphabetical_and_treat_wildcards_literally()
     {
         var setup = await CreateAsync();
         await CreateMovieAsync(setup, Input(title: "A", director: "Jean-Pierre Jeunet"));
@@ -629,11 +635,188 @@ public sealed class MovieCommandTests
         var underscore = await setup.Queries.SuggestDirectorsAsync("_", 10, TestContext.Current.CancellationToken);
         var limited = await setup.Queries.SuggestDirectorsAsync("", 2, TestContext.Current.CancellationToken);
 
-        all.Count.ShouldBe(3);
-        all[0].ShouldBe("Jean-Pierre Jeunet", StringCompareShould.IgnoreCase);
-        pierre.Count.ShouldBe(2);
+        all.ShouldBe(["Jean-Pierre Jeunet", "Joe 100%_Smith", "Pierre Morel"]);
+        pierre.ShouldBe(["Jean-Pierre Jeunet", "Pierre Morel"]);
         percent.ShouldBe(["Joe 100%_Smith"]);
         underscore.ShouldBe(["Joe 100%_Smith"]);
         limited.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_movie_with_several_directors_keeps_their_order_and_a_reordering_is_a_change()
+    {
+        var setup = await CreateAsync();
+        var id = await CreateMovieAsync(setup, Input(title: "Fargo", director: "Joel Coen|Ethan Coen"));
+        (await DirectorsOfAsync(setup, id)).ShouldBe(["Joel Coen", "Ethan Coen"]);
+
+        var result = await setup.Commands.SaveAsync(
+            id,
+            1,
+            Input(title: "Fargo", director: "Ethan Coen|Joel Coen"),
+            TestContext.Current.CancellationToken
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Version.ShouldBe(2);
+        (await DirectorsOfAsync(setup, id)).ShouldBe(["Ethan Coen", "Joel Coen"]);
+        (await CountAsync(setup, "directors")).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task The_same_directors_in_another_order_are_a_duplicate()
+    {
+        var setup = await CreateAsync();
+        await CreateMovieAsync(setup, Input(title: "Fargo", director: "Joel Coen|Ethan Coen"));
+
+        var result = await setup.Commands.SaveAsync(
+            null,
+            1,
+            Input(title: "fargo", director: "ethan coen|JOEL COEN"),
+            TestContext.Current.CancellationToken
+        );
+
+        result.IsSuccess.ShouldBeFalse();
+        result.Error.Fields!["Title"].ShouldBe([MovieMessages.Duplicate]);
+        (await CountAsync(setup, "movies")).ShouldBe(1);
+        (await CountAsync(setup, "directors")).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_subset_or_superset_of_the_directors_is_another_movie()
+    {
+        var setup = await CreateAsync();
+        await CreateMovieAsync(setup, Input(title: "Fargo", director: "Joel Coen|Ethan Coen"));
+
+        await CreateMovieAsync(setup, Input(title: "Fargo", director: "Joel Coen"));
+        await CreateMovieAsync(setup, Input(title: "Fargo", director: "Joel Coen|Ethan Coen|Someone Else"));
+
+        (await CountAsync(setup, "movies")).ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task A_director_shared_by_movies_is_stored_once_and_orphans_are_removed_when_unlinked()
+    {
+        var setup = await CreateAsync();
+        var first = await CreateMovieAsync(setup, Input(title: "A", director: "Shared|Only A"));
+        await CreateMovieAsync(setup, Input(title: "B", director: "SHARED"));
+        (await CountAsync(setup, "directors")).ShouldBe(2);
+        (await CountAsync(setup, "movie_directors")).ShouldBe(3);
+
+        var result = await setup.Commands.SaveAsync(
+            first,
+            1,
+            Input(title: "A", director: "Shared"),
+            TestContext.Current.CancellationToken
+        );
+
+        result.IsSuccess.ShouldBeTrue();
+        (await CountAsync(setup, "directors")).ShouldBe(1);
+        (await CountAsync(setup, "movie_directors")).ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_list_only_change_of_the_directors_bumps_the_version_and_a_stale_version_conflicts()
+    {
+        var setup = await CreateAsync();
+        var id = await CreateMovieAsync(setup, Input(director: "A|B"));
+        await setup.Commands.SaveAsync(id, 1, Input(director: "B|A"), TestContext.Current.CancellationToken);
+
+        var stale = await setup.Commands.SaveAsync(
+            id,
+            1,
+            Input(director: "A|B"),
+            TestContext.Current.CancellationToken
+        );
+
+        stale.IsSuccess.ShouldBeFalse();
+        stale.Error.Kind.ShouldBe(ErrorKind.Conflict);
+    }
+
+    [Fact]
+    public async Task Concurrent_saves_with_the_same_new_director_create_it_once()
+    {
+        var setup = await CreateAsync();
+
+        var results = await Task.WhenAll(
+            Enumerable
+                .Range(0, 6)
+                .Select(i =>
+                    setup.Commands.SaveAsync(
+                        null,
+                        1,
+                        Input(title: $"Movie {i}", director: "Race Director"),
+                        TestContext.Current.CancellationToken
+                    )
+                )
+        );
+
+        results.ShouldAllBe(r => r.IsSuccess);
+        (await CountAsync(setup, "movies")).ShouldBe(6);
+        (await CountAsync(setup, "directors")).ShouldBe(1);
+        (await CountAsync(setup, "movie_directors")).ShouldBe(6);
+    }
+
+    [Fact]
+    public async Task Unlinking_a_director_while_other_saves_link_it_never_leaves_a_dangling_link()
+    {
+        var setup = await CreateAsync();
+        var id = await CreateMovieAsync(setup, Input(title: "Holder", director: "Race Director"));
+
+        var saves = Enumerable
+            .Range(0, 5)
+            .Select(i =>
+                setup.Commands.SaveAsync(
+                    null,
+                    1,
+                    Input(title: $"Linker {i}", director: "Race Director"),
+                    TestContext.Current.CancellationToken
+                )
+            )
+            .Append(
+                setup.Commands.SaveAsync(
+                    id,
+                    1,
+                    Input(title: "Holder", director: "Other Director"),
+                    TestContext.Current.CancellationToken
+                )
+            );
+        var results = await Task.WhenAll(saves);
+
+        results.ShouldAllBe(r => r.IsSuccess);
+        (await CountAsync(setup, "movies")).ShouldBe(6);
+        (await CountAsync(setup, "movie_directors")).ShouldBe(6);
+        (
+            await MariaDbFixture.ScalarAsync<long>(
+                setup.ConnectionString,
+                "SELECT COUNT(*) FROM directors d WHERE NOT EXISTS (SELECT 1 FROM movie_directors md WHERE md.director_id = d.id)"
+            )
+        ).ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task The_directors_key_is_the_sorted_ids_whatever_the_order_entered()
+    {
+        var setup = await CreateAsync();
+        var random = new Random(42);
+        var names = Enumerable.Range(1, 8).Select(i => $"Director {i}").ToList();
+        await CreateMovieAsync(setup, Input(title: "Seed 1", director: string.Join('|', names.Take(4))));
+        await CreateMovieAsync(setup, Input(title: "Seed 2", director: string.Join('|', names.Skip(4))));
+
+        for (var round = 0; round < 5; round++)
+        {
+            var count = random.Next(1, 6);
+            var subset = names.OrderBy(_ => random.Next()).Take(count).ToList();
+            var title = $"Film {round}";
+            var id = await CreateMovieAsync(setup, Input(title: title, director: string.Join('|', subset)));
+
+            await using var db = await setup.Factory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+            var movie = await db
+                .Movies.AsNoTracking()
+                .Include(m => m.DirectorLinks)
+                .SingleAsync(m => m.Id == id, TestContext.Current.CancellationToken);
+            movie.DirectorsKey.ShouldBe(DirectorsKey.Of(movie.DirectorLinks.Select(l => l.DirectorId)));
+            movie.DirectorLinks.Select(l => l.Position).Order().ShouldBe(Enumerable.Range(1, count));
+            movie.DirectorsKey.Split(',').Length.ShouldBe(count);
+        }
     }
 }

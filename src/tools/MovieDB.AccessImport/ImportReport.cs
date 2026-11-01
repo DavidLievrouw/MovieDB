@@ -16,6 +16,8 @@ internal static class ImportReport
             $"Genres (verified):    {plan.Genres.Count}",
             $"Genre links:          {plan.Movies.Count}",
             $"Media:                 {plan.Media.Count}",
+            $"Directors:             {plan.Stats.Directors}",
+            $"Director links:        {plan.Stats.DirectorLinks}",
             "",
             $"Duplicate groups ({plan.DuplicateGroups.Count}), kept id <- dropped ids:",
         };
@@ -33,6 +35,7 @@ internal static class ImportReport
         lines.Add("");
         lines.Add($"Title had extra lines/tabs (first part kept): {Ids(plan.TitleExtraPartsIds)}");
         lines.Add($"Director had extra lines/tabs (first part kept): {Ids(plan.DirectorExtraPartsIds)}");
+        lines.Add($"Director text split into several names: {Ids(plan.DirectorsSplitIds)}");
         lines.Add($"Rows with whitespace cleanup: {plan.WhitespaceCleanedIds.Count}");
 
         lines.Add("");

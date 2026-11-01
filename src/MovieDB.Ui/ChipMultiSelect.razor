@@ -1,7 +1,7 @@
 @namespace MovieDB.Ui
 @implements IDisposable
 
-<div class="chip-multi-select" @attributes="AdditionalAttributes">
+<div class="@WrapperClass" @attributes="AdditionalAttributes">
     <fieldset class="@BoxClass" disabled="@Disabled" @onclick="FocusAsync">
         <fieldset class="chip-multi-select-outline" aria-hidden="true">
             @if (!HideLabel)
@@ -141,9 +141,15 @@
     [Parameter]
     public bool Disabled { get; set; }
 
+    /// <summary>Extra CSS classes of the wrapping element.</summary>
+    [Parameter]
+    public string? Class { get; set; }
+
     /// <summary>Extra attributes, passed on to the wrapping element.</summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string WrapperClass => string.IsNullOrWhiteSpace(Class) ? "chip-multi-select" : "chip-multi-select " + Class;
 
     // Required is not passed on: the inner input is always empty, so MudBlazor would flag it as missing on blur even when
     // chips are selected. Whether a value is missing is decided by the parent, through Error.

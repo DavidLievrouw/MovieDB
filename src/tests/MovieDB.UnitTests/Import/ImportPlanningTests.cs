@@ -17,7 +17,7 @@ public sealed class DuplicateResolverTests
             id,
             title,
             year,
-            director,
+            [.. director.Split('|')],
             "Drama",
             100,
             watchedOn ?? new DateOnly(2020, 1, 1),
@@ -71,10 +71,23 @@ public sealed class DuplicateResolverTests
             Movie(1),
             Movie(2, year: 2001),
             Movie(3, director: "Someone Else"),
+            Movie(4, director: "Director|Someone Else"),
         ]);
 
-        kept.Count.ShouldBe(3);
+        kept.Count.ShouldBe(4);
         groups.ShouldBeEmpty();
+    }
+
+    [Theory]
+    [InlineData("A|B", "B|A")]
+    [InlineData("A|B", "b|À")]
+    [InlineData("A|B", "A|B|a")]
+    public void The_director_set_decides_regardless_of_order(string first, string second)
+    {
+        var (kept, groups) = DuplicateResolver.Resolve([Movie(1, director: first), Movie(2, director: second)]);
+
+        kept.Select(m => m.Id).ShouldBe([1]);
+        groups.ShouldHaveSingleItem().DroppedIds.ShouldBe([2]);
     }
 
     [Fact]
@@ -93,7 +106,7 @@ public sealed class AttributeCorrectionTests
             id,
             title,
             1995,
-            "Director",
+            ["Director"],
             genre,
             runtime,
             new DateOnly(2020, 1, 1),
@@ -231,6 +244,22 @@ public sealed class ImportPlannerTests
     }
 
     [Fact]
+    public void Directors_are_planned_as_distinct_canonical_names_with_ordered_links()
+    {
+        var plan = ImportPlanner.Plan([
+            SyntheticFilms.Film(1, title: "One", director: "Joel Coen, Ethan Coen"),
+            SyntheticFilms.Film(2, title: "Two", director: "ethan coen"),
+            SyntheticFilms.Film(3, title: "Three", director: "Joel Coen"),
+        ]);
+
+        plan.Directors.ShouldBe(["Joel Coen", "Ethan Coen"]);
+        plan.Movies.Single(m => m.Id == 2).Directors.ShouldBe(["Ethan Coen"]);
+        plan.DirectorsSplitIds.ShouldBe([1]);
+        plan.Stats.Directors.ShouldBe(2);
+        plan.Stats.DirectorLinks.ShouldBe(4);
+    }
+
+    [Fact]
     public void Report_contains_counts_but_no_film_content()
     {
         var plan = ImportPlanner.Plan([
@@ -257,11 +286,12 @@ public sealed class DumpComposerTests
             "FilmsBase.mdb",
             new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero),
             "20260101000000_Initial",
-            new DataStats(1, 35, 1, 3, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, null, null, 1)
+            new DataStats(1, 35, 1, 3, 2, 2, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, null, null, 1)
         );
 
         script.ShouldContain("-- Source: FilmsBase.mdb");
-        script.ShouldContain("-- Rows: movies=1, movie_genres=1, media=3");
+        script.ShouldContain("-- Rows: movies=1, movie_genres=1, media=3, directors=2, movie_directors=2");
+        script.ShouldContain("directors or movie_directors already contain data");
         script.ShouldContain("latest <> '20260101000000_Initial'");
         script.ShouldContain("SIGNAL SQLSTATE '45000'");
         script

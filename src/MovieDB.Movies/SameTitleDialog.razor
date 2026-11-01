@@ -8,7 +8,7 @@
             @foreach (var match in Matches)
             {
                 <li>
-                    Regisseur: <MudLink Href="@($"/films/{match.Key}")" Target="_blank" rel="noopener noreferrer">@match.Value</MudLink>
+                    Regisseur(s): <MudLink Href="@($"/films/{match.Key}")" Target="_blank" rel="noopener noreferrer">@match.Value</MudLink>
                 </li>
             }
         </ul>
@@ -33,7 +33,7 @@
     [Parameter, EditorRequired]
     public int Year { get; set; }
 
-    /// <summary>The existing movies with that title and year: movie id and director.</summary>
+    /// <summary>The existing movies with that title and year: movie id and directors as one text.</summary>
     [Parameter, EditorRequired]
     public IReadOnlyList<KeyValuePair<int, string>> Matches { get; set; } = [];
 

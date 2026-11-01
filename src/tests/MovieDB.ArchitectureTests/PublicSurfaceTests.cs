@@ -19,6 +19,7 @@ public class PublicSurfaceTests
     {
         [typeof(UserClock).Assembly] =
         [
+            "DirectorId",
             "Error",
             "ErrorKind",
             "GenreId",
@@ -45,10 +46,13 @@ public class PublicSurfaceTests
             "DbOperations",
             "DefaultUserOptions",
             "DefaultUserSeeder",
+            "Director",
+            "DirectorsKey",
             "Genre",
             "Medium",
             "Movie",
             "MovieDbContext",
+            "MovieDirector",
             "MovieGenre",
             "MovieGenres",
             "User",

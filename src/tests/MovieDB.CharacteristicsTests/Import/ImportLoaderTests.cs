@@ -49,6 +49,7 @@ public sealed class ImportLoaderTests
             Film(250, "Amélie", 2001, "Jean-Pierre Jeunet", "Komedie", null, null),
             Film(11, "LEON", 1999),
             Film(300, "Ongekend", 2005, "X", "Sci-fi", "Laserdisc"),
+            Film(12, "Fargo", 1996, "Joel Coen, Ethan Coen", "Misdaad"),
         ]);
 
     private static async Task<ImportLoader> LoaderAsync(string connectionString) =>
@@ -84,6 +85,21 @@ public sealed class ImportLoaderTests
         (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM media")).ShouldBe(
             ImportPlanner.KnownMedia.Count + 1
         );
+        (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM directors")).ShouldBe(5);
+        (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM movie_directors")).ShouldBe(5);
+        (
+            await MariaDbFixture.ScalarAsync<string>(
+                connectionString,
+                "SELECT GROUP_CONCAT(d.name ORDER BY md.position SEPARATOR '|') FROM movie_directors md "
+                    + "JOIN directors d ON d.id = md.director_id WHERE md.movie_id = 12"
+            )
+        ).ShouldBe("Joel Coen|Ethan Coen");
+        (
+            await MariaDbFixture.ScalarAsync<int>(
+                connectionString,
+                "SELECT COUNT(*) FROM movies WHERE directors_key = '' OR directors_key IS NULL"
+            )
+        ).ShouldBe(0);
     }
 
     [Fact]
@@ -98,8 +114,8 @@ public sealed class ImportLoaderTests
 
         await MariaDbFixture.ExecuteAsync(
             connectionString,
-            "INSERT INTO movies (title, release_year, director, runtime_minutes, watched_on, created_at, updated_at, version) "
-                + "VALUES ('Next', 2024, 'Y', 100, '2024-01-01', NOW(6), NOW(6), 1)"
+            "INSERT INTO movies (title, release_year, directors_key, runtime_minutes, watched_on, created_at, updated_at, version) "
+                + "VALUES ('Next', 2024, '', 100, '2024-01-01', NOW(6), NOW(6), 1)"
         );
 
         (
@@ -138,6 +154,8 @@ public sealed class ImportLoaderTests
         (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM movies")).ShouldBe(1);
         (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM users")).ShouldBe(1);
         (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM movie_genres")).ShouldBe(1);
+        (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM directors")).ShouldBe(1);
+        (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM movie_directors")).ShouldBe(1);
         (await MariaDbFixture.ScalarAsync<int>(connectionString, "SELECT COUNT(*) FROM genres")).ShouldBe(
             MovieGenres.All.Count
         );
@@ -185,7 +203,14 @@ public sealed class DumpRoundTripTests
     {
         var connectionString = await fixture.CreateMigratedDatabaseAsync();
         var plan = ImportPlanner.Plan([
-            Film(10, "Léon", "Luc Besson", "Actie", "DVD", "Eerste regel\nTweede regel — 😀 'quote' \"dq\" \\ back"),
+            Film(
+                10,
+                "Léon",
+                "Luc Besson, Anne Parillaud",
+                "Actie",
+                "DVD",
+                "Eerste regel\nTweede regel — 😀 'quote' \"dq\" \\ back"
+            ),
             Film(250, "Amélie", "Jean-Pierre Jeunet", "Komedie", null, null),
             Film(300, "Ongekend", "X", "Sci-fi", "Laserdisc", "Ça va"),
         ]);

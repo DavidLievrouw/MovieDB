@@ -7,8 +7,8 @@ namespace MovieDB.Movies;
 /// <summary>The Dutch messages of the edit page and the save command.</summary>
 internal static class MovieMessages
 {
-    /// <summary>Shown when another movie has the same title, year and director.</summary>
-    public const string Duplicate = "Deze film bestaat al (Jaar en Regisseur zijn gelijk).";
+    /// <summary>Shown when another movie has the same title, year and directors.</summary>
+    public const string Duplicate = "Deze film bestaat al (Jaar en Regisseurs zijn gelijk).";
 
     /// <summary>Shown when the movie was changed by someone else since it was loaded.</summary>
     public const string Changed = "Deze film is intussen gewijzigd.";
@@ -23,8 +23,11 @@ internal sealed class MovieInput
     /// <summary>The longest title.</summary>
     public const int TitleMaxLength = 200;
 
-    /// <summary>The longest director.</summary>
+    /// <summary>The longest director name.</summary>
     public const int DirectorMaxLength = 150;
+
+    /// <summary>The largest number of directors of a movie.</summary>
+    public const int MaxDirectors = 5;
 
     /// <summary>The longest genre or medium name.</summary>
     public const int LookupMaxLength = MovieGenres.MaxNameLength;
@@ -53,8 +56,8 @@ internal sealed class MovieInput
     /// <summary>The release year.</summary>
     public int? ReleaseYear { get; set; }
 
-    /// <summary>The director.</summary>
-    public string? Director { get; set; }
+    /// <summary>The director names, in the order they were added.</summary>
+    public List<string> Directors { get; set; } = [];
 
     /// <summary>The viewing date.</summary>
     public DateOnly? WatchedOn { get; set; }
@@ -86,23 +89,30 @@ internal sealed class MovieInput
     {
         var copy = (MovieInput)MemberwiseClone();
         copy.Genres = [.. Genres];
+        copy.Directors = [.. Directors];
         return copy;
     }
 
-    /// <summary>Creates a copy with trimmed text; empty genres are dropped, and an empty medium or review becomes <c>null</c>.</summary>
+    /// <summary>
+    /// Creates a copy with trimmed text; empty genres and directors are dropped, and an empty medium or review becomes
+    /// <c>null</c>.
+    /// </summary>
     /// <returns>The normalized copy.</returns>
     public MovieInput Normalized()
     {
         var copy = Clone();
         copy.Title = Trim(Title);
         copy.Genres = [.. Genres.Select(g => g?.Trim() ?? "").Where(g => g.Length > 0)];
-        copy.Director = Trim(Director);
+        copy.Directors = [.. Directors.Select(d => d?.Trim() ?? "").Where(d => d.Length > 0)];
         copy.Medium = NullIfEmpty(Medium);
         copy.Review = NullIfEmpty(Review);
         return copy;
     }
 
-    /// <summary>Tells whether all values equal those of another input. The genres are compared as an unordered set.</summary>
+    /// <summary>
+    /// Tells whether all values equal those of another input. The genres are compared as an unordered set; the
+    /// directors as an ordered sequence, because their order is shown.
+    /// </summary>
     /// <param name="other">The input to compare with.</param>
     /// <returns><c>true</c> when every value is the same.</returns>
     public bool SameAs(MovieInput other) =>
@@ -111,7 +121,7 @@ internal sealed class MovieInput
         && Genres.ToHashSet(StringComparer.Ordinal).SetEquals(other.Genres)
         && RuntimeMinutes == other.RuntimeMinutes
         && ReleaseYear == other.ReleaseYear
-        && Director == other.Director
+        && Directors.SequenceEqual(other.Directors, StringComparer.Ordinal)
         && WatchedOn == other.WatchedOn
         && Medium == other.Medium
         && Review == other.Review
@@ -150,11 +160,17 @@ internal sealed class MovieInputValidator : AbstractValidator<MovieInput>
             .WithMessage($"Genre mag maximaal {MovieInput.LookupMaxLength} tekens bevatten.")
             .Must(genres => genres.Distinct(StringComparer.OrdinalIgnoreCase).Count() == genres.Count)
             .WithMessage("Een genre komt maar één keer voor.");
-        RuleFor(x => x.Director)
-            .NotEmpty()
-            .WithMessage("Regisseur is verplicht.")
-            .MaximumLength(MovieInput.DirectorMaxLength)
-            .WithMessage($"Regisseur mag maximaal {MovieInput.DirectorMaxLength} tekens bevatten.");
+        RuleFor(x => x.Directors)
+            .Must(directors => directors.Count >= 1)
+            .WithMessage("Geef minstens één regisseur op.")
+            .Must(directors => directors.Count <= MovieInput.MaxDirectors)
+            .WithMessage($"Maximaal {MovieInput.MaxDirectors} regisseurs.")
+            .Must(directors => directors.All(d => d.Length <= MovieInput.DirectorMaxLength))
+            .WithMessage($"Regisseur mag maximaal {MovieInput.DirectorMaxLength} tekens bevatten.")
+            .Must(directors => directors.All(d => !d.Contains(',', StringComparison.Ordinal)))
+            .WithMessage("Een regisseur mag geen komma bevatten.")
+            .Must(directors => directors.Distinct(StringComparer.OrdinalIgnoreCase).Count() == directors.Count)
+            .WithMessage("Een regisseur komt maar één keer voor.");
         RuleFor(x => x.Medium)
             .MaximumLength(MovieInput.LookupMaxLength)
             .WithMessage($"Gezien op/in mag maximaal {MovieInput.LookupMaxLength} tekens bevatten.");

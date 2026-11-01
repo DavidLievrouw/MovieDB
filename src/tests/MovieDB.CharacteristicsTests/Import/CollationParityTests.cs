@@ -45,6 +45,12 @@ public sealed class CollationParityTests
             { "ǆ", "dž" },
             { "ﬁlm", "film" },
             { "x\u00A0y", "x y" },
+            { "Jean-Pierre Jeunet", "jean-pierre jeunet" },
+            { "Lars von Trier", "LARS VON TRIER" },
+            { "Pedro Almodóvar", "Pedro Almodovar" },
+            { "Bo Widerberg ", "Bo Widerberg" },
+            { "Søren Kragh-Jacobsen", "Soren Kragh-Jacobsen" },
+            { "Werner Herzog", "Werner Herzog Jr." },
         };
 
     [Theory]

@@ -50,6 +50,14 @@ internal static class CollationKey
         return builder.ToString();
     }
 
-    public static string Of(string title, int year, string director) =>
-        string.Create(CultureInfo.InvariantCulture, $"{Of(title)}\u0001{year}\u0001{Of(director)}");
+    /// <summary>The duplicate-group key of a movie: title, year and the order-insensitive set of directors.</summary>
+    /// <param name="title">The title.</param>
+    /// <param name="year">The release year.</param>
+    /// <param name="directors">The directors; their order does not matter.</param>
+    /// <returns>The key.</returns>
+    public static string Of(string title, int year, IEnumerable<string> directors) =>
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"{Of(title)}\u0001{year}\u0001{string.Join('\u0002', directors.Select(Of).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}"
+        );
 }

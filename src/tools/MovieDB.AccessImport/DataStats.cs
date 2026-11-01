@@ -7,6 +7,8 @@ namespace MovieDB.AccessImport;
 /// <param name="Genres">Number of genre rows (the seeded list).</param>
 /// <param name="GenreLinks">Number of movie-genre links.</param>
 /// <param name="Media">Number of medium suggestion rows.</param>
+/// <param name="Directors">Number of distinct director rows.</param>
+/// <param name="DirectorLinks">Number of movie-director links.</param>
 /// <param name="NullOverall">Movies without an overall score.</param>
 /// <param name="NullStory">Movies without a story score.</param>
 /// <param name="NullPicture">Movies without a picture score.</param>
@@ -25,6 +27,8 @@ internal sealed record DataStats(
     int Genres,
     int GenreLinks,
     int Media,
+    int Directors,
+    int DirectorLinks,
     int NullOverall,
     int NullStory,
     int NullPicture,
@@ -40,7 +44,7 @@ internal sealed record DataStats(
     int MaxId
 )
 {
-    /// <summary>Builds the figures of a plan: every movie has exactly one genre link.</summary>
+    /// <summary>Builds the figures of a plan: every movie has exactly one genre link and one link per director.</summary>
     /// <param name="movies">The planned movies.</param>
     /// <param name="genres">The number of seeded genres.</param>
     /// <param name="media">The number of medium rows.</param>
@@ -51,6 +55,8 @@ internal sealed record DataStats(
             genres,
             movies.Count,
             media,
+            movies.SelectMany(m => m.Directors).Distinct(StringComparer.Ordinal).Count(),
+            movies.Sum(m => m.Directors.Count),
             movies.Count(m => m.OverallScore is null),
             movies.Count(m => m.StoryScore is null),
             movies.Count(m => m.PictureScore is null),
@@ -59,7 +65,7 @@ internal sealed record DataStats(
             movies.Count(m => m.Medium is null),
             movies.Count(m => m.Review is null),
             movies.Select(m => MovieCleaner.CharCount(m.Title)).DefaultIfEmpty(0).Max(),
-            movies.Select(m => MovieCleaner.CharCount(m.Director)).DefaultIfEmpty(0).Max(),
+            movies.SelectMany(m => m.Directors).Select(MovieCleaner.CharCount).DefaultIfEmpty(0).Max(),
             movies.Select(m => m.Review is null ? 0 : MovieCleaner.CharCount(m.Review)).DefaultIfEmpty(0).Max(),
             movies.Count == 0 ? null : movies.Min(m => m.WatchedOn),
             movies.Count == 0 ? null : movies.Max(m => m.WatchedOn),
@@ -72,6 +78,8 @@ internal sealed record DataStats(
         yield return ("genres", Text(Genres));
         yield return ("movie_genres", Text(GenreLinks));
         yield return ("media", Text(Media));
+        yield return ("directors", Text(Directors));
+        yield return ("movie_directors", Text(DirectorLinks));
         yield return ("NULL overall_score", Text(NullOverall));
         yield return ("NULL story_score", Text(NullStory));
         yield return ("NULL picture_score", Text(NullPicture));

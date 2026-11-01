@@ -13,8 +13,14 @@ internal sealed class ImportPlan
     /// <summary>The seeded genres, which the import verifies but never writes.</summary>
     public IReadOnlyList<string> Genres { get; init; } = [];
     public IReadOnlyList<string> Media { get; init; } = [];
+
+    /// <summary>The distinct director names (first spelling wins), in the order of first use.</summary>
+    public IReadOnlyList<string> Directors { get; init; } = [];
     public IReadOnlyList<int> TitleExtraPartsIds { get; init; } = [];
     public IReadOnlyList<int> DirectorExtraPartsIds { get; init; } = [];
+
+    /// <summary>The FilmIDs whose director text held several comma-separated names.</summary>
+    public IReadOnlyList<int> DirectorsSplitIds { get; init; } = [];
     public IReadOnlyList<int> WhitespaceCleanedIds { get; init; } = [];
 
     public bool HasErrors => Errors.Count > 0;
@@ -58,6 +64,7 @@ internal static class ImportPlanner
 
         var genres = MovieGenres.All.ToDictionary(g => CollationKey.Of(g.Name), g => g.Name, StringComparer.Ordinal);
         var media = new LookupResolver(KnownMedia);
+        var directors = new LookupResolver([]);
         var resolved = new List<CleanMovie>();
         foreach (var movie in corrected)
         {
@@ -72,6 +79,7 @@ internal static class ImportPlanner
                 movie with
                 {
                     Genre = genre,
+                    Directors = [.. movie.Directors.Select(directors.Resolve)],
                     Medium = movie.Medium is null ? null : media.Resolve(movie.Medium),
                 }
             );
@@ -86,8 +94,10 @@ internal static class ImportPlanner
             Corrections = outcomes,
             Genres = [.. MovieGenres.All.Select(g => g.Name)],
             Media = media.Names,
+            Directors = directors.Names,
             TitleExtraPartsIds = results.Where(r => r.TitleExtraPartsDropped).Select(r => r.FilmId).ToList(),
             DirectorExtraPartsIds = results.Where(r => r.DirectorExtraPartsDropped).Select(r => r.FilmId).ToList(),
+            DirectorsSplitIds = results.Where(r => r.DirectorsSplit).Select(r => r.FilmId).ToList(),
             WhitespaceCleanedIds = results.Where(r => r.WhitespaceCleaned).Select(r => r.FilmId).ToList(),
         };
     }

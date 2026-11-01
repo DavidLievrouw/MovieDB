@@ -50,26 +50,25 @@ public sealed class MovieStatisticsQueryTests
             foreach (var seed in seeds)
             {
                 number++;
-                db.Movies.Add(
-                    new Movie
-                    {
-                        Title = $"Film {number}",
-                        ReleaseYear = 2000,
-                        Director = seed.Director,
-                        GenreLinks =
-                        [
-                            .. new[] { seed.Genre, seed.SecondGenre }
-                                .OfType<string>()
-                                .Select(g => new MovieGenre { GenreId = genres[g].Id }),
-                        ],
-                        RuntimeMinutes = seed.Runtime,
-                        WatchedOn = seed.WatchedOn ?? new DateOnly(2020, 1, 1),
-                        MediumId = seed.Medium is null ? null : media[seed.Medium].Id,
-                        OverallScore = seed.Score,
-                        CreatedAt = Now,
-                        UpdatedAt = Now,
-                    }
-                );
+                var movie = new Movie
+                {
+                    Title = $"Film {number}",
+                    ReleaseYear = 2000,
+                    GenreLinks =
+                    [
+                        .. new[] { seed.Genre, seed.SecondGenre }
+                            .OfType<string>()
+                            .Select(g => new MovieGenre { GenreId = genres[g].Id }),
+                    ],
+                    RuntimeMinutes = seed.Runtime,
+                    WatchedOn = seed.WatchedOn ?? new DateOnly(2020, 1, 1),
+                    MediumId = seed.Medium is null ? null : media[seed.Medium].Id,
+                    OverallScore = seed.Score,
+                    CreatedAt = Now,
+                    UpdatedAt = Now,
+                };
+                await DirectorTestData.AssignAsync(db, movie, [.. seed.Director.Split('|')]);
+                db.Movies.Add(movie);
             }
 
             await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -147,6 +146,16 @@ public sealed class MovieStatisticsQueryTests
 
         stats.Directors[0].Count.ShouldBe(2);
         stats.Directors.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task A_film_counts_once_for_each_of_its_directors()
+    {
+        var queries = await SeedAsync(new Seed(Director: "Joel Coen|Ethan Coen"), new Seed(Director: "Joel Coen"));
+
+        var stats = await queries.GetStatisticsAsync(Today, TestContext.Current.CancellationToken);
+
+        stats.Directors.ShouldBe([new NamedCount("Joel Coen", 2), new NamedCount("Ethan Coen", 1)]);
     }
 
     [Fact]

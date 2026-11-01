@@ -17,7 +17,7 @@
     MariaDB connection string. Default: env MOVIEDB_CONNECTION_STRING, then the MovieDB.Web user-secrets, then a prompt.
 
 .PARAMETER Reset
-    Empty movies, movie_genres and media first (the seeded genres stay) (typed confirmation). Users and auth state are never touched.
+    Empty movie_directors, movie_genres, movies, directors and media first (the seeded genres stay) (typed confirmation). Users and auth state are never touched.
 
 .PARAMETER DryRun
     Read, clean, de-duplicate and correct in memory and print the report. Writes nothing.
@@ -168,7 +168,7 @@ if ($dbUser -notmatch '^[A-Za-z0-9_.-]+$' -or $dbName -notmatch '^[A-Za-z0-9_]+$
 if ($dbName -eq $scratchDatabase) { throw "The target database must not be '$scratchDatabase'." }
 
 if ($Reset) {
-    Write-Host "-Reset empties movies, movie_genres and media (not the seeded genres) in database '$dbName' (users and auth state are kept)." -ForegroundColor Yellow
+    Write-Host "-Reset empties movie_directors, movie_genres, movies, directors and media (not the seeded genres) in database '$dbName' (users and auth state are kept)." -ForegroundColor Yellow
     if ((Read-Host 'Type RESET to continue') -cne 'RESET') { throw 'Reset not confirmed.' }
 }
 
@@ -206,7 +206,7 @@ try {
             '--no-create-info', '--no-create-db', '--skip-triggers', '--complete-insert',
             '--default-character-set=utf8mb4', '--single-transaction', '--skip-add-locks',
             '--skip-disable-keys', '--no-tablespaces', "--result-file=$containerBody",
-            $dbName, 'media', 'movies', 'movie_genres'))
+            $dbName, 'media', 'directors', 'movies', 'movie_genres', 'movie_directors'))
     [void] (Invoke-Native 'docker' @('cp', "${MariaDbContainer}:$containerBody", $bodyPath))
     Remove-ContainerFile $containerBody
 

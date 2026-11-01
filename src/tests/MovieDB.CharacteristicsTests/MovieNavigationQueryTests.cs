@@ -52,7 +52,7 @@ public sealed class MovieNavigationQueryTests
                 {
                     Title = seed.Title,
                     ReleaseYear = seed.Year,
-                    Director = "Director",
+                    Directors = ["Director"],
                     Genres = [.. seed.Genres ?? ["Drama"]],
                     Medium = seed.Medium,
                     RuntimeMinutes = 100,

@@ -23,6 +23,9 @@ public readonly partial struct MovieId;
 public readonly partial struct GenreId;
 
 [ValueObject<int>(comparison: ComparisonGeneration.Omit, stringComparers: StringComparersGeneration.Generate)]
+public readonly partial struct DirectorId;
+
+[ValueObject<int>(comparison: ComparisonGeneration.Omit, stringComparers: StringComparersGeneration.Generate)]
 public readonly partial struct MediumId;
 
 /// <summary>A GUID string (users.id is VARCHAR(36)), matching the reference implementation's identity stores.</summary>

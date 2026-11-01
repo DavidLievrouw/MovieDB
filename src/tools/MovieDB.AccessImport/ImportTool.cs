@@ -180,9 +180,11 @@ internal static class ImportTool
         if (
             !body.Contains("INSERT INTO `movies`", StringComparison.Ordinal)
             || !body.Contains("INSERT INTO `movie_genres`", StringComparison.Ordinal)
+            || !body.Contains("INSERT INTO `directors`", StringComparison.Ordinal)
+            || !body.Contains("INSERT INTO `movie_directors`", StringComparison.Ordinal)
         )
         {
-            throw new ImportException("The dump body does not contain any movies or movie genres.");
+            throw new ImportException("The dump body does not contain any movies, genres or directors.");
         }
 
         var script = DumpComposer.Compose(body, Path.GetFileName(sourceName), clock.GetUtcNow(), expected, stats);

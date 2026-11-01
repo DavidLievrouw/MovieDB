@@ -107,6 +107,35 @@ namespace MovieDB.Infrastructure.Migrations
                     b.ToTable("auth_throttle_states", (string)null);
                 });
 
+            modelBuilder.Entity("MovieDB.Infrastructure.Entities.Director", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_directors");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ux_directors_name");
+
+                    b.ToTable("directors", (string)null);
+                });
+
             modelBuilder.Entity("MovieDB.Infrastructure.Entities.Genre", b =>
                 {
                     b.Property<int>("Id")
@@ -178,11 +207,11 @@ namespace MovieDB.Infrastructure.Migrations
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
 
-                    b.Property<string>("Director")
+                    b.Property<string>("DirectorsKey")
                         .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)")
-                        .HasColumnName("director");
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("directors_key");
 
                     b.Property<int?>("MediumId")
                         .HasColumnType("int")
@@ -245,9 +274,9 @@ namespace MovieDB.Infrastructure.Migrations
                     b.HasIndex("MediumId")
                         .HasDatabaseName("ix_movies_medium_id");
 
-                    b.HasIndex("Title", "ReleaseYear", "Director")
+                    b.HasIndex("Title", "ReleaseYear", "DirectorsKey")
                         .IsUnique()
-                        .HasDatabaseName("ux_movies_title_year_director");
+                        .HasDatabaseName("ux_movies_title_year_directors");
 
                     b.ToTable("movies", null, t =>
                         {
@@ -263,6 +292,33 @@ namespace MovieDB.Infrastructure.Migrations
 
                             t.HasCheckConstraint("ck_movies_story_score", "`story_score` IS NULL OR `story_score` BETWEEN 1 AND 10");
                         });
+                });
+
+            modelBuilder.Entity("MovieDB.Infrastructure.Entities.MovieDirector", b =>
+                {
+                    b.Property<int>("MovieId")
+                        .HasColumnType("int")
+                        .HasColumnName("movie_id");
+
+                    b.Property<int>("DirectorId")
+                        .HasColumnType("int")
+                        .HasColumnName("director_id");
+
+                    b.Property<sbyte>("Position")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("position");
+
+                    b.HasKey("MovieId", "DirectorId")
+                        .HasName("pk_movie_directors");
+
+                    b.HasIndex("DirectorId")
+                        .HasDatabaseName("ix_movie_directors_director_id");
+
+                    b.HasIndex("MovieId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("ux_movie_directors_movie_position");
+
+                    b.ToTable("movie_directors", (string)null);
                 });
 
             modelBuilder.Entity("MovieDB.Infrastructure.Entities.MovieGenre", b =>
@@ -350,6 +406,27 @@ namespace MovieDB.Infrastructure.Migrations
                     b.Navigation("Medium");
                 });
 
+            modelBuilder.Entity("MovieDB.Infrastructure.Entities.MovieDirector", b =>
+                {
+                    b.HasOne("MovieDB.Infrastructure.Entities.Director", "Director")
+                        .WithMany()
+                        .HasForeignKey("DirectorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_movie_directors_directors");
+
+                    b.HasOne("MovieDB.Infrastructure.Entities.Movie", "Movie")
+                        .WithMany("DirectorLinks")
+                        .HasForeignKey("MovieId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_movie_directors_movies");
+
+                    b.Navigation("Director");
+
+                    b.Navigation("Movie");
+                });
+
             modelBuilder.Entity("MovieDB.Infrastructure.Entities.MovieGenre", b =>
                 {
                     b.HasOne("MovieDB.Infrastructure.Entities.Genre", "Genre")
@@ -373,6 +450,8 @@ namespace MovieDB.Infrastructure.Migrations
 
             modelBuilder.Entity("MovieDB.Infrastructure.Entities.Movie", b =>
                 {
+                    b.Navigation("DirectorLinks");
+
                     b.Navigation("GenreLinks");
                 });
 #pragma warning restore 612, 618

@@ -21,8 +21,10 @@ public sealed class MigrationTests
         "__EFMigrationsHistory",
         "auth_throttle_states",
         "data_protection_keys",
+        "directors",
         "genres",
         "media",
+        "movie_directors",
         "movie_genres",
         "movies",
         "users",
@@ -114,6 +116,7 @@ public sealed class MigrationTests
     public async Task A_partially_applied_migration_can_be_retried()
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+        await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `movie_directors`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `movie_genres`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `movies`");
         await MariaDbFixture.ExecuteAsync(connectionString, "DROP TABLE `users`");
@@ -154,7 +157,7 @@ public sealed class MigrationTests
             """
             SELECT COUNT(*) FROM information_schema.columns
             WHERE table_schema = DATABASE()
-              AND table_name IN ('movies', 'genres', 'media', 'users')
+              AND table_name IN ('movies', 'genres', 'media', 'directors', 'users')
               AND data_type IN ('varchar', 'mediumtext')
               AND collation_name <> 'utf8mb4_uca1400_ai_ci'
             """

@@ -190,6 +190,50 @@ public class ChipMultiSelectTests : BunitContext
         cut.WaitForAssertion(() => raised.ShouldBe(["Actie", "Drama"]));
     }
 
+    [Fact]
+    public void The_class_parameter_is_added_to_the_wrapper()
+    {
+        var cut = Render<ChipMultiSelect>(parameters =>
+            parameters
+                .Add(p => p.Values, [])
+                .Add(p => p.Label, "Regisseur(s)")
+                .Add(p => p.Class, "films-field-wide")
+                .Add(p => p.Suggestions, (_, _) => Task.FromResult<IReadOnlyList<string>>([]))
+        );
+
+        cut.Find(".chip-multi-select").ClassList.ShouldBe(["chip-multi-select", "films-field-wide"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void Pasting_a_list_with_commas_and_spaces_adds_each_value_without_duplicates()
+    {
+        IReadOnlyList<string>? raised = null;
+        var cut = RenderSelect([], v => raised = v, allowNew: true);
+
+        cut.Find("input").Input("Joel Coen,  Ethan Coen , joel coen,");
+
+        cut.WaitForAssertion(() => raised.ShouldBe(["Joel Coen", "Ethan Coen"]));
+    }
+
+    [Fact]
+    public void Values_longer_than_the_maximum_length_are_not_added()
+    {
+        IReadOnlyList<string>? raised = null;
+        var cut = Render<ChipMultiSelect>(parameters =>
+            parameters
+                .Add(p => p.Values, [])
+                .Add(p => p.Label, "Regisseur(s)")
+                .Add(p => p.AllowNew, true)
+                .Add(p => p.MaxLength, 5)
+                .Add(p => p.ValuesChanged, EventCallback.Factory.Create<IReadOnlyList<string>>(this, v => raised = v))
+                .Add(p => p.Suggestions, (_, _) => Task.FromResult<IReadOnlyList<string>>([]))
+        );
+
+        cut.Find("input").Input("Abc, Veellangenaam");
+
+        cut.WaitForAssertion(() => raised.ShouldBe(["Abc"]));
+    }
+
     private IRenderedComponent<ChipMultiSelect> RenderWithBlur(IReadOnlyList<string> values, Action onBlur) =>
         Render<ChipMultiSelect>(parameters =>
             parameters

@@ -3,7 +3,7 @@
 Phase 1 ([`PLAN.md`](PLAN.md)) reached feature parity with the Access database. This plan covers the first round of
 improvements requested by the owner. Read it together with [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** M7 (drop Extra's, mandatory scores) is done; M8 (multi-genre + genre filter) is implemented and awaiting the owner's review; M9-M10 are planned.
+**Status:** M7 (drop Extra's, mandatory scores), M8 (multi-genre + genre filter) and M9 (multi-director) are done, validated by the owner and committed; M10 is planned.
 The owner's answers are in §2. A review of this plan against the code added the clarifications in §2a, which the
 owner has confirmed. There are no open questions (§10).
 

@@ -37,7 +37,7 @@ internal sealed class ImportLoader
         if (existing > 0 && !reset)
         {
             throw new ImportException(
-                "The movies, movie_genres or media tables already contain data. Use --reset to clear them first."
+                "The movies, movie_genres, movie_directors, directors or media tables already contain data. Use --reset to clear them first."
             );
         }
 
@@ -52,6 +52,12 @@ internal sealed class ImportLoader
             var genreIds = MovieGenres.All.ToDictionary(g => g.Name, g => GenreId.From(g.Id), StringComparer.Ordinal);
             var media = plan.Media.ToDictionary(n => n, n => new Medium { Name = n, CreatedAt = now });
             context.Media.AddRange(media.Values);
+            var directors = plan.Directors.ToDictionary(
+                n => n,
+                n => new Director { Name = n, CreatedAt = now },
+                StringComparer.Ordinal
+            );
+            context.Directors.AddRange(directors.Values);
             await context.SaveChangesAsync(cancellationToken);
 
             context.Movies.AddRange(
@@ -60,7 +66,13 @@ internal sealed class ImportLoader
                     Id = MovieId.From(m.Id),
                     Title = m.Title,
                     ReleaseYear = m.ReleaseYear,
-                    Director = m.Director,
+                    DirectorsKey = DirectorsKey.Of(m.Directors.Select(d => directors[d].Id)),
+                    DirectorLinks =
+                    [
+                        .. m.Directors.Select(
+                            (d, index) => new MovieDirector { DirectorId = directors[d].Id, Position = index + 1 }
+                        ),
+                    ],
                     GenreLinks = [new MovieGenre { GenreId = genreIds[m.Genre] }],
                     RuntimeMinutes = m.RuntimeMinutes,
                     WatchedOn = m.WatchedOn,
@@ -85,7 +97,7 @@ internal sealed class ImportLoader
     }
 
     /// <summary>The tables the import fills. <c>genres</c> is not one of them: it is seeded by the migration.</summary>
-    private static readonly string[] DomainTables = ["movie_genres", "movies", "media"];
+    private static readonly string[] DomainTables = ["movie_directors", "movie_genres", "movies", "directors", "media"];
 
     /// <summary>Fails unless the genres table holds exactly the seeded list, with the ids the URLs rely on.</summary>
     /// <param name="connection">An open connection to the target database.</param>
@@ -200,12 +212,13 @@ internal sealed class ImportLoader
                    COALESCE(SUM(`picture_score` IS NULL), 0), COALESCE(SUM(`music_score` IS NULL), 0),
                    COALESCE(SUM(`sound_score` IS NULL), 0),
                    COALESCE(SUM(`medium_id` IS NULL), 0), COALESCE(SUM(`review` IS NULL), 0),
-                   COALESCE(MAX(CHAR_LENGTH(`title`)), 0), COALESCE(MAX(CHAR_LENGTH(`director`)), 0),
+                   COALESCE(MAX(CHAR_LENGTH(`title`)), 0), (SELECT COALESCE(MAX(CHAR_LENGTH(`name`)), 0) FROM `directors`),
                    COALESCE(MAX(CHAR_LENGTH(`review`)), 0),
                    DATE_FORMAT(MIN(`watched_on`), '%Y-%m-%d'), DATE_FORMAT(MAX(`watched_on`), '%Y-%m-%d'),
                    COALESCE(MAX(`id`), 0),
                    (SELECT COUNT(*) FROM `genres`), (SELECT COUNT(*) FROM `media`),
-                   (SELECT COUNT(*) FROM `movie_genres`)
+                   (SELECT COUNT(*) FROM `movie_genres`),
+                   (SELECT COUNT(*) FROM `directors`), (SELECT COUNT(*) FROM `movie_directors`)
             FROM `movies`
             """;
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -222,6 +235,8 @@ internal sealed class ImportLoader
             Genres: Int(14),
             GenreLinks: Int(16),
             Media: Int(15),
+            Directors: Int(17),
+            DirectorLinks: Int(18),
             NullOverall: Int(1),
             NullStory: Int(2),
             NullPicture: Int(3),

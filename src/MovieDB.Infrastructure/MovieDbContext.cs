@@ -18,6 +18,8 @@ public sealed class MovieDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<Movie> Movies => Set<Movie>();
     public DbSet<Genre> Genres => Set<Genre>();
     public DbSet<MovieGenre> MovieGenreLinks => Set<MovieGenre>();
+    public DbSet<Director> Directors => Set<Director>();
+    public DbSet<MovieDirector> MovieDirectorLinks => Set<MovieDirector>();
     public DbSet<Medium> Media => Set<Medium>();
     public DbSet<User> Users => Set<User>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
@@ -37,6 +39,7 @@ public sealed class MovieDbContext : DbContext, IDataProtectionKeyContext
 
 [EfCoreConverter<MovieId>]
 [EfCoreConverter<GenreId>]
+[EfCoreConverter<DirectorId>]
 [EfCoreConverter<MediumId>]
 [EfCoreConverter<UserId>]
 internal sealed partial class VogenEfCoreConverters;

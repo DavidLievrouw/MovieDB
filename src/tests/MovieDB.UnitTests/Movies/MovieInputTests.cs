@@ -32,7 +32,7 @@ public sealed class MovieInputTests
         {
             Title = "Heat",
             Genres = ["Thriller"],
-            Director = "Michael Mann",
+            Directors = ["Michael Mann"],
             ReleaseYear = 1995,
             RuntimeMinutes = 170,
             WatchedOn = new DateOnly(2026, 3, 11),
@@ -64,7 +64,7 @@ public sealed class MovieInputTests
                 {
                     ["Title"] = "Filmtitel is verplicht.",
                     ["Genres"] = "Kies minstens één genre.",
-                    ["Director"] = "Regisseur is verplicht.",
+                    ["Directors"] = "Geef minstens één regisseur op.",
                     ["RuntimeMinutes"] = "Duur is verplicht.",
                     ["ReleaseYear"] = "Jaar is verplicht.",
                     ["WatchedOn"] = "Datum is verplicht.",
@@ -183,7 +183,7 @@ public sealed class MovieInputTests
     {
         var input = Valid();
         input.Title = new string('a', MovieInput.TitleMaxLength + 1);
-        input.Director = new string('a', MovieInput.DirectorMaxLength + 1);
+        input.Directors = [new string('a', MovieInput.DirectorMaxLength + 1)];
         input.Genres = [new string('a', MovieInput.LookupMaxLength + 1)];
         input.Medium = new string('a', MovieInput.LookupMaxLength + 1);
         input.Review = new string('a', MovieInput.ReviewMaxLength + 1);
@@ -191,7 +191,53 @@ public sealed class MovieInputTests
         Validator
             .Validate(input)
             .Errors.Select(e => e.PropertyName)
-            .ShouldBe(["Title", "Genres", "Director", "Medium", "Review"], ignoreOrder: true);
+            .ShouldBe(["Title", "Genres", "Directors", "Medium", "Review"], ignoreOrder: true);
+    }
+
+    [Theory]
+    [InlineData(1, true)]
+    [InlineData(5, true)]
+    [InlineData(6, false)]
+    public void A_movie_has_at_most_five_directors(int count, bool valid)
+    {
+        var input = Valid();
+        input.Directors = [.. Enumerable.Range(1, count).Select(i => $"Director {i}")];
+
+        ErrorsFor(input, "Directors").ShouldBe(valid ? [] : ["Maximaal 5 regisseurs."]);
+    }
+
+    [Fact]
+    public void A_movie_needs_at_least_one_director()
+    {
+        var input = Valid();
+        input.Directors = [];
+
+        ErrorsFor(input, "Directors").ShouldBe(["Geef minstens één regisseur op."]);
+    }
+
+    [Fact]
+    public void A_director_cannot_contain_a_comma_or_be_chosen_twice()
+    {
+        var input = Valid();
+        input.Directors = ["Coen, Joel"];
+        ErrorsFor(input, "Directors").ShouldBe(["Een regisseur mag geen komma bevatten."]);
+
+        input.Directors = ["Joel Coen", "joel coen"];
+        ErrorsFor(input, "Directors").ShouldBe(["Een regisseur komt maar één keer voor."]);
+    }
+
+    [Fact]
+    public void Directors_are_compared_in_order_and_normalized()
+    {
+        var first = Valid();
+        first.Directors = ["A", "B"];
+        var reversed = Valid();
+        reversed.Directors = ["B", "A"];
+        var padded = Valid();
+        padded.Directors = [" A ", "", "B"];
+
+        first.SameAs(reversed).ShouldBeFalse();
+        first.SameAs(padded.Normalized()).ShouldBeTrue();
     }
 
     [Fact]

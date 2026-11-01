@@ -36,7 +36,7 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
         builder.Property(x => x.Id).HasColumnName("id").ValueGeneratedOnAdd();
         builder.Property(x => x.Title).HasColumnName("title").HasMaxLength(200);
         builder.Property(x => x.ReleaseYear).HasColumnName("release_year").HasColumnType("smallint");
-        builder.Property(x => x.Director).HasColumnName("director").HasMaxLength(150);
+        builder.Property(x => x.DirectorsKey).HasColumnName("directors_key").HasMaxLength(64);
         builder.Property(x => x.RuntimeMinutes).HasColumnName("runtime_minutes").HasColumnType("smallint");
         builder.Property(x => x.WatchedOn).HasColumnName("watched_on").HasColumnType("date");
         builder.Property(x => x.MediumId).HasColumnName("medium_id");
@@ -62,10 +62,10 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
             {
                 x.Title,
                 x.ReleaseYear,
-                x.Director,
+                x.DirectorsKey,
             })
             .IsUnique()
-            .HasDatabaseName("ux_movies_title_year_director");
+            .HasDatabaseName("ux_movies_title_year_directors");
         builder.HasIndex(x => x.MediumId).HasDatabaseName("ix_movies_medium_id");
     }
 }

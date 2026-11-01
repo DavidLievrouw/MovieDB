@@ -7,7 +7,7 @@ namespace MovieDB.AccessImport;
 /// <param name="Id">The preserved Access FilmID.</param>
 /// <param name="Title">The cleaned title.</param>
 /// <param name="ReleaseYear">The release year.</param>
-/// <param name="Director">The cleaned director.</param>
+/// <param name="Directors">The cleaned directors, in source order (1-5, distinct by collation).</param>
 /// <param name="Genre">The genre.</param>
 /// <param name="RuntimeMinutes">The runtime in minutes.</param>
 /// <param name="WatchedOn">The viewing date.</param>
@@ -22,7 +22,7 @@ internal sealed record CleanMovie(
     int Id,
     string Title,
     int ReleaseYear,
-    string Director,
+    IReadOnlyList<string> Directors,
     string Genre,
     int RuntimeMinutes,
     DateOnly WatchedOn,
@@ -50,6 +50,7 @@ internal sealed record RowError(int FilmId, string Field, string Problem)
 /// <param name="Errors">The validation problems found.</param>
 /// <param name="TitleExtraPartsDropped">Whether extra lines or tabs were dropped from the title.</param>
 /// <param name="DirectorExtraPartsDropped">Whether extra lines or tabs were dropped from the director.</param>
+/// <param name="DirectorsSplit">Whether the director text held several comma-separated names.</param>
 /// <param name="WhitespaceCleaned">Whether whitespace was cleaned in any text field.</param>
 internal sealed record CleanResult(
     int FilmId,
@@ -57,6 +58,7 @@ internal sealed record CleanResult(
     IReadOnlyList<RowError> Errors,
     bool TitleExtraPartsDropped,
     bool DirectorExtraPartsDropped,
+    bool DirectorsSplit,
     bool WhitespaceCleaned
 );
 
@@ -64,6 +66,7 @@ internal static class MovieCleaner
 {
     public const int MaxTitleLength = 200;
     public const int MaxDirectorLength = 150;
+    public const int MaxDirectors = 5;
     public const int MaxLookupLength = 50;
     public const int MaxReviewLength = 20000;
     public const int MinYear = 1888;
@@ -77,7 +80,7 @@ internal static class MovieCleaner
         var whitespaceCleaned = false;
 
         var (title, titleExtra, titleChanged) = SingleLine(row.Title);
-        var (director, directorExtra, directorChanged) = SingleLine(row.Director);
+        var (directorText, directorExtra, directorChanged) = SingleLine(row.Director);
         whitespaceCleaned |= titleChanged || directorChanged;
 
         var (genre, _, genreChanged) = SingleLine(row.Genre);
@@ -85,7 +88,8 @@ internal static class MovieCleaner
         whitespaceCleaned |= genreChanged || mediumChanged;
 
         Require(errors, row.FilmId, "Title", title, MaxTitleLength);
-        Require(errors, row.FilmId, "Director", director, MaxDirectorLength);
+        var (directors, directorsSplit) = SplitDirectors(directorText);
+        RequireDirectors(errors, row.FilmId, directors);
         Require(errors, row.FilmId, "Genre", genre, MaxLookupLength);
         string? medium = mediumValue.Length == 0 ? null : mediumValue;
         if (medium is not null && CharCount(medium) > MaxLookupLength)
@@ -111,14 +115,22 @@ internal static class MovieCleaner
 
         if (errors.Count > 0 || year is null || runtime is null || watchedOn is null)
         {
-            return new CleanResult(row.FilmId, null, errors, titleExtra, directorExtra, whitespaceCleaned);
+            return new CleanResult(
+                row.FilmId,
+                null,
+                errors,
+                titleExtra,
+                directorExtra,
+                directorsSplit,
+                whitespaceCleaned
+            );
         }
 
         var movie = new CleanMovie(
             row.FilmId,
             title,
             year.Value,
-            director,
+            directors,
             genre,
             runtime.Value,
             watchedOn.Value,
@@ -130,7 +142,7 @@ internal static class MovieCleaner
             sound,
             review
         );
-        return new CleanResult(row.FilmId, movie, errors, titleExtra, directorExtra, whitespaceCleaned);
+        return new CleanResult(row.FilmId, movie, errors, titleExtra, directorExtra, directorsSplit, whitespaceCleaned);
     }
 
     /// <summary>
@@ -151,6 +163,37 @@ internal static class MovieCleaner
             .ToList();
         var value = parts.Count > 0 ? parts[0] : "";
         return (value, parts.Count > 1, !string.Equals(value, raw, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Splits the director text on commas, trims each part, drops empty parts and collapses parts that are equal by
+    /// collation, keeping the first spelling and the source order.
+    /// </summary>
+    /// <param name="text">The single-line director text.</param>
+    /// <returns>The distinct names, and whether the text held more than one name.</returns>
+    internal static (IReadOnlyList<string> Directors, bool Split) SplitDirectors(string text)
+    {
+        var parts = text.Split(',').Select(p => CollapseSpaces(p.Trim())).Where(p => p.Length > 0).ToList();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var distinct = parts.Where(p => seen.Add(CollationKey.Of(p))).ToList();
+        return (distinct, parts.Count > 1);
+    }
+
+    private static void RequireDirectors(List<RowError> errors, int filmId, IReadOnlyList<string> directors)
+    {
+        if (directors.Count == 0)
+        {
+            errors.Add(new RowError(filmId, "Director", "is missing"));
+        }
+        else if (directors.Count > MaxDirectors)
+        {
+            errors.Add(new RowError(filmId, "Director", "has too many names"));
+        }
+
+        if (directors.Any(d => CharCount(d) > MaxDirectorLength))
+        {
+            errors.Add(new RowError(filmId, "Director", "is too long"));
+        }
     }
 
     internal static string CollapseSpaces(string value)

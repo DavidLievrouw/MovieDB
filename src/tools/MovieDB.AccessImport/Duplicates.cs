@@ -13,7 +13,7 @@ internal sealed record CorrectionOutcome(AttributeCorrection Correction, bool Ap
 
 internal static class DuplicateResolver
 {
-    /// <summary>Groups on Title + Year + Director and keeps the earliest Datum, then the lowest FilmID.</summary>
+    /// <summary>Groups on Title + Year + the set of directors (order-insensitive) and keeps the earliest Datum, then the lowest FilmID.</summary>
     /// <param name="movies">The cleaned movies to de-duplicate.</param>
     public static (IReadOnlyList<CleanMovie> Kept, IReadOnlyList<DuplicateGroup> Groups) Resolve(
         IEnumerable<CleanMovie> movies
@@ -23,7 +23,7 @@ internal static class DuplicateResolver
         var groups = new List<DuplicateGroup>();
         foreach (
             var group in movies
-                .GroupBy(m => CollationKey.Of(m.Title, m.ReleaseYear, m.Director))
+                .GroupBy(m => CollationKey.Of(m.Title, m.ReleaseYear, m.Directors))
                 .OrderBy(g => g.Min(m => m.Id))
         )
         {

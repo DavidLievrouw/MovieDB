@@ -109,6 +109,22 @@ public sealed class BrowserSession : IAsyncDisposable
         await DismissPopoverAsync(4000);
     }
 
+    /// <summary>Adds a value to a free-entry chip field (for example the directors) by typing it and pressing Enter.</summary>
+    /// <param name="testId">The <c>data-testid</c> of the field.</param>
+    /// <param name="text">The value to type.</param>
+    public async Task TypeChipAsync(string testId, string text)
+    {
+        var input = ChipInput(testId);
+        await input.ClickAsync();
+        await input.FillAsync(text);
+
+        // Enter right after typing would pick a suggestion of the not yet filtered list; a user pauses for longer than the debounce.
+        await Page.WaitForTimeoutAsync(450);
+        await Page.Keyboard.PressAsync("Enter");
+        await Assertions.Expect(Chips(testId).GetByText(text, new() { Exact = false }).First).ToBeVisibleAsync();
+        await DismissPopoverAsync(1500);
+    }
+
     /// <summary>A score input of the edit form.</summary>
     /// <param name="label">The label of the score.</param>
     public ILocator ScoreGroup(string label) => Page.Locator($"[role=group][aria-label='{label}']");
