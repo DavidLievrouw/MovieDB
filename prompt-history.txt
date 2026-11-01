@@ -39,8 +39,41 @@ We have now reached feature-parity with the original Access database. However, n
 - "Extra's" is hardly ever used, so drop it completely, from the database and the UI. So every rating type is now mandatory, none of them can remain in "NVT" when adding or updating a film. If you have any questions, ask them first.
 
 Create another PLAN.md with the new features and changes, and update the HANDOVER.md to reflect the new state of the project.
+Ask any additional questions you may have before starting the implementation.
+Do not implement anything yet.
 
+----------
 
+1. Genres is a closed list. Directors allows free entry.
+2. Musical, Mystery, Film noir, Sport, Kortfilm. Check imdb or wikipedia for more dutch names of genres. propose them to me first.
+3. OK. Filtering should also be possible. which matches one of the genres. Now only filtering on title is possible.
+4. Yes OK to split current multi-director values into separate directors.
+5. Option A. The set key should be order-insensitive. So same year, same title, same directors in different order should still violate the rule.
+6. Yes, keep the order that was entered for displaying. But as mentioned in option 5: different order is the same.
+7. Yes OK.
+8. Yes, I confirm the data loss. No need to run backup.ps1 first, the local copy is a temporary development database. I still need to import the "real" data using the script in production.
+9. I prefer your recommendation: Validate in the UI, keep the db nullable.
+10. I mean the "Access Import" tool with "Migration script". Not the EF core stuff. There is no production environment yet, so you can ignore ef migrations for these changes. But run migrations manually to achieve the desired db state in the local development database that we are using on this machine. So just make sure that the access importing logic already seeds the new structure.
+11. Yes, adding milestones is OK.
+
+----------
+
+Do not add "Gangster". "Muziek" is "Musical".
+
+Assumptions:
+1. yes, agreed, start from scratch.
+2. No, when you select multiple genres in the filter, it should only return films that have ALL these genres. When selecting only one genre, display films that have that genre, in their list.
+3. Correct.
+
+----------
+
+Read AGENTS.md and PLAN.md and PLAN-2.md and HANDOVER.md. PLAN.md is complete, PLAN-2.md is about to be started. You are an expert full stack web developer, assigned this task. Verify if any parts of PLAN-2 are unclear or contradict. Ask me questions. Then update the plan so the next agent has all necessary info to implement.
+
+----------
+
+Read AGENTS.md and PLAN.md and PLAN-2.md and HANDOVER.md. We are implementing PLAN-2. You are an expert full stack web developer, assigned this task. Implement the next milestone. If you have any questions, ask them first.
+
+----------
 
 Finishing:
 

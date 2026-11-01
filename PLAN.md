@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** M0 (scaffold), M1 (data) and M2 (auth) implemented; M2 awaiting owner review. M3 (import) implemented and run against the local `.mdb`; awaiting owner review. M4 (UI shell + overview) implemented; awaiting owner review. M5 (edit/new) implemented; awaiting owner review. M6 (browser tests + deployment) implemented; awaiting owner review. All §13 questions are answered.
+**Status:** M0-M6 (phase 1) implemented and committed; feature parity with the Access database is reached. Phase 2 (multi-genre, multi-director, no Extra's) is planned in [`PLAN-2.md`](PLAN-2.md), which supersedes the affected sections of this plan (§2.3, §3, §5, §6, §8.3, §8.4, §9, §12). All §13 questions are answered.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
