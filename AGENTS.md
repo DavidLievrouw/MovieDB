@@ -150,10 +150,12 @@ These are enforced by architecture tests. Each slice registers through `*Module.
     error. Medium values are suggestion rows: new typed values are inserted in the same transaction as the save.
   - `version` columns are concurrency tokens: 1 on insert, incremented by the app on every update.
 - Evolve the schema through explicit EF Core migrations with usable `Down` methods. Preserve existing data and test
-  migrations against representative schemas. **Exception:** during phase 2 (M7-M10) the schema is rewritten in place
-  (`Initial` and its Designer files and the snapshot are edited, with no upgrade path) because nothing is deployed
-  (owner-approved, PLAN-2 §2a). The local database is rebuilt and re-imported from Access after every schema change.
-  Once a database is deployed, schema changes are new data-preserving migrations again.
+  migrations against representative schemas. **Exception:** phase 2 (M7-M10, finished) rewrote the schema in place
+  (`Initial` and its Designer files and the snapshot were edited, with no upgrade path) because nothing is deployed
+  (owner-approved, PLAN-2 §2a). `Initial` is therefore the phase 2 end-state schema. The first deployment (README) loads
+  that structure; from then on, and for any database that exists, schema changes are new data-preserving migrations
+  (never edit `Initial` again). Until the first deployment, the local database is rebuilt and re-imported from Access
+  after a pulled schema change.
 - MariaDB DDL may not be transactional. Make migrations safe to retry after partial failure; use self-guarding SQL
   where required by the provider and migration design.
 - `DatabaseMigrator` (`IHostedLifecycleService.StartingAsync`) migrates on startup under

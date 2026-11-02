@@ -13,7 +13,7 @@ mirror its patterns unless this plan says otherwise.
   `src/Motorsports.Web/Program.cs`, `src/Directory.Packages.props`, `Dockerfile`, `docker-compose/` and the backup
   script, are relative to that repository root.
 
-**Status:** M0-M6 (phase 1) implemented and committed; feature parity with the Access database is reached. Phase 2 (multi-genre, multi-director, no Extra's) is planned in [`PLAN-2.md`](PLAN-2.md) (M7-M9 done), which supersedes the affected sections of this plan (§2.3, §3, §5, §6, §8.3, §8.4, §9, §12). All §13 questions are answered.
+**Status:** M0-M6 (phase 1) implemented and committed; feature parity with the Access database is reached. Phase 2 (multi-genre, multi-director, no Extra's) is implemented in [`PLAN-2.md`](PLAN-2.md) (M7-M10 done, M10 awaiting owner review), which supersedes the affected sections of this plan (§2.3, §3, §5, §6, §8.3, §8.4, §9, §12). This file is the phase 1 record and is not rewritten. All §13 questions are answered. The first deployment is still to be done by the owner.
 
 **Language rule:** the **UI is Dutch** (labels, messages, validation, page titles and routes). **Everything else is
 English**: code, identifiers, database objects, comments, commits, docs and logs.
@@ -844,10 +844,13 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
 
 ## 12. Later phases (not now; shape decisions so they stay possible)
 
+Phase 2 ([`PLAN-2.md`](PLAN-2.md)) delivered the genre filter, multi-genre and the separate directors table
+(many-to-many); those items are no longer "later".
+
 - Statistics: charts and per-year statistics (the overview carousel already covers media, genre, director, recent and
   summary figures).
-- Filters (genre, medium, score range, year), full-text search in reviews.
-- TMDb/IMDb metadata and posters; directors as a separate table (many-to-many).
+- Further filters (medium, score range, year), full-text search in reviews.
+- TMDb/IMDb metadata and posters.
 - Delete with confirmation; export (CSV).
 - Re-watch logging ("Vertoningen" per film), if ever wanted. This needs a `viewings` table split from `movies`.
 - Owned-media inventory (a successor to `tblFilmInBezit`), if ever needed.

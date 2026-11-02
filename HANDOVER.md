@@ -8,9 +8,8 @@ milestones M7-M10) first. Update this file at the end of every milestone.
 
 - Do **one milestone at a time**, then stop and wait for the owner's review. Do not start the next milestone
   unprompted.
-- Do not commit unless asked. M0-M6 are committed, and so is PLAN-2.md (the last commit is "Add plan for
-  improvements."). PLAN-2.md §2a holds review clarifications confirmed by the owner (binding); there are no open
-  questions: read it first.
+- Do not commit unless asked. M0-M9 are committed, and so is PLAN-2.md. PLAN-2.md §2a holds review clarifications
+  confirmed by the owner (binding); there are no open questions: read it first.
 - Ask before taking product or schema decisions that the docs do not settle.
 
 ## Keeping this handover current (required)
@@ -42,9 +41,11 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M7 Drop Extra's, mandatory scores | Done (committed) |
 | M8 Multi-genre + genre filter | Done (committed) |
 | M9 Multi-director | Done (committed) |
-| M10 Phase 2 wrap-up | Planned (next) |
+| M10 Phase 2 wrap-up | Done, awaiting owner review (uncommitted) |
 
-## Phase 2: M7-M9 done, M10 planned
+Phase 2 is complete. There is no next milestone; the next step is the owner-driven first deployment (README).
+
+## Phase 2: M7-M10 done
 
 The owner has reached feature parity with Access and asked for improvements. [`PLAN-2.md`](PLAN-2.md) holds the
 decisions, data model, UI and import changes and the milestones. All questions are answered. Summary:
@@ -70,6 +71,23 @@ decisions, data model, UI and import changes and the milestones. All questions a
 
 Local data facts used for the plan (counts only): 1,203 movies; 21 genres used; 4 director values contain a comma;
 9 movies miss at least one score; 16 movies have an Extra's value.
+
+### What M10 delivered (uncommitted, awaiting owner review)
+
+- **Docs only; no code or schema change.** README (links PLAN-2, states the final rules, `-Reset` and dump contents),
+  AGENTS.md (the in-place schema rewrite exception is now past tense: `Initial` is the phase 2 end state, never edit it
+  again once a database is deployed, so the first deployment switches to data-preserving migrations), PLAN.md (status
+  pointer, §12 no longer lists the genre filter and the directors table), PLAN-2.md status and this file.
+- **Regression:** build `-warnaserror` and XML-doc build (0 warnings), `csharpier check` (113 files) and the full test run
+  pass: 561 tests (unit 251, architecture 17, characteristics 213, browser 80).
+- **Final import and dump** (`Import-Access.ps1 -Reset`, local `moviedb`): 1,222 source rows, 19 duplicates dropped, **1,203
+  movies, 715 directors, 1,207 director links, 1,203 genre links, 35 genres (verified, not inserted), 8 media**; plan
+  figures equal database figures (also in the dry run); the 4 split FilmIDs are 996, 1077, 1082, 1088. The guarded dump
+  `artifacts\import\moviedb-data.sql` was written and restored into the scratch database: fingerprints of all five
+  tables match and a second load is refused. The dump is git-ignored and holds personal reviews: delete every copy after
+  the production load.
+- Not done: no manual look at 390/1440 px beyond the automated browser tests; the PLAN.md §8.6 item "every imported
+  record shows the same values as in Access" is still the owner's to tick.
 
 ### What M9 delivered (committed)
 
@@ -316,13 +334,17 @@ health endpoints, options validation and Serilog.
 - Playwright chromium is installed (via `playwright.ps1 install chromium` after a build).
 - The reference repo `C:\_git\Motorsports` is read-only. Mirror its patterns.
 
-## Next: M10 (PLAN-2.md §9)
+## Next: first deployment (owner-driven)
 
-Start with M10 (M7-M9 are validated and committed), then stop for review. Wrap-up: documentation (README, AGENTS.md
-domain rules, PLAN.md §12 and the status pointer), full regression including the browser tests, the final dump and its
-verification, and this file. Done when: see the M10 row in PLAN-2 §9.
+There is no further planned milestone. After the owner has reviewed and committed M10, the first deployment follows
+README "First deployment: load the data" with the verified dump from the phase 2 import (`artifacts\import\moviedb-data.sql`):
+production gets the schema from the container's startup migration, then the dump. From the first deployment on, schema
+changes are new data-preserving migrations (AGENTS.md). Anything new needs a new plan and the owner's decisions first.
 
-The first deployment (README, PLAN.md §11.2) is owner-driven and should wait for the phase 2 structure.
+## Learnings from M10
+
+- `Import-Access.ps1 -Reset` runs non-interactively with `'RESET' | powershell -File .\scripts\Import-Access.ps1 ... -Reset`.
+- Run build/test commands from the repo root: from `src` the `src/MovieDB.slnx` path does not exist.
 
 ## Learnings from M9
 

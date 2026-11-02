@@ -5,7 +5,11 @@ vijf scores en een recensie. Vervangt de Access-database `FilmsBase.mdb`.
 
 Stack: .NET 10, Blazor Web App, MudBlazor, EF Core, MariaDB 12.3.
 
-See [`PLAN.md`](PLAN.md) for the product spec and milestones and [`AGENTS.md`](AGENTS.md) for the conventions.
+See [`PLAN.md`](PLAN.md) (phase 1 product spec), [`PLAN-2.md`](PLAN-2.md) (phase 2: several genres and directors per
+film, genre filter, no Extra's; it wins where the two differ) and [`AGENTS.md`](AGENTS.md) for the conventions.
+
+A film has 1-4 genres from a closed list of 35 and 1-5 directors (new names can be typed). It is unique on title, year
+and the set of directors, in any order. The five scores are required.
 
 ## Local development
 
@@ -40,11 +44,13 @@ MariaDB container.
 ```powershell
 .\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -DryRun   # counts only, no database changes
 .\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb           # migrate, import, report, dump, verify the dump
-.\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -Reset    # clear movies/movie_genres/media first (asks for RESET)
+.\scripts\Import-Access.ps1 -Source .\FilmsBase.mdb -Reset    # clear the five data tables first (asks for RESET)
 ```
 
-The dump lands in `artifacts\import\moviedb-data.sql`. It contains personal reviews: never commit it and delete all
-copies after deploying it. The script never prints rows or review text.
+The dump lands in `artifacts\import\moviedb-data.sql`. It holds the data of `media`, `directors`, `movies`,
+`movie_genres` and `movie_directors` (the 35 genres come from the migration) and its guard refuses a database that is not
+at the expected schema version or whose data tables are not empty. It contains personal reviews: never commit it and
+delete all copies after deploying it. The script never prints rows or review text.
 
 ## Deployment
 
