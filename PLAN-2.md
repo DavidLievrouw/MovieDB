@@ -3,7 +3,7 @@
 Phase 1 ([`PLAN.md`](PLAN.md)) reached feature parity with the Access database. This plan covers the first round of
 improvements requested by the owner. Read it together with [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** M7 (drop Extra's, mandatory scores), M8 (multi-genre + genre filter) and M9 (multi-director) are done, validated by the owner and committed; M10 (wrap-up: docs, full regression, final dump) is done and awaits the owner's review (uncommitted). Phase 2 is complete; the first deployment is owner-driven (README).
+**Status:** M7 (drop Extra's, mandatory scores), M8 (multi-genre + genre filter), M9 (multi-director) and M10 (wrap-up: docs, full regression, final dump) are done, validated by the owner and committed. Phase 2 is complete, and M0-M10 are all finished; the first deployment is owner-driven (README).
 The owner's answers are in §2. A review of this plan against the code added the clarifications in §2a, which the
 owner has confirmed. There are no open questions (§10).
 

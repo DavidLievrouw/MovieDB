@@ -8,7 +8,7 @@ milestones M7-M10) first. Update this file at the end of every milestone.
 
 - Do **one milestone at a time**, then stop and wait for the owner's review. Do not start the next milestone
   unprompted.
-- Do not commit unless asked. M0-M9 are committed, and so is PLAN-2.md. PLAN-2.md §2a holds review clarifications
+- Do not commit unless asked. M0-M10 are committed, and so is PLAN-2.md. PLAN-2.md §2a holds review clarifications
   confirmed by the owner (binding); there are no open questions: read it first.
 - Ask before taking product or schema decisions that the docs do not settle.
 
@@ -41,7 +41,7 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M7 Drop Extra's, mandatory scores | Done (committed) |
 | M8 Multi-genre + genre filter | Done (committed) |
 | M9 Multi-director | Done (committed) |
-| M10 Phase 2 wrap-up | Done, awaiting owner review (uncommitted) |
+| M10 Phase 2 wrap-up | Done (committed) |
 
 Phase 2 is complete. There is no next milestone; the next step is the owner-driven first deployment (README).
 
@@ -72,7 +72,7 @@ decisions, data model, UI and import changes and the milestones. All questions a
 Local data facts used for the plan (counts only): 1,203 movies; 21 genres used; 4 director values contain a comma;
 9 movies miss at least one score; 16 movies have an Extra's value.
 
-### What M10 delivered (uncommitted, awaiting owner review)
+### What M10 delivered (validated by the owner, committed)
 
 - **Docs only; no code or schema change.** README (links PLAN-2, states the final rules, `-Reset` and dump contents),
   AGENTS.md (the in-place schema rewrite exception is now past tense: `Initial` is the phase 2 end state, never edit it
