@@ -81,6 +81,15 @@ Read AGENTS.md and PLAN.md and PLAN-2.md and HANDOVER.md. We are implementing PL
 
 ----------
 
+I want to be able to fill in the form for a new movie by searching for it on a service with a free api, e.g. themoviedb or imdb or something.
+Do a fuzzy search, and let me select the one I want. Make sure every hit has a link to the source page, so I can verify it is the correct one.
+It would fetch the details in the background and fill in the form automatically. Make sure to handle errors gracefully if the URL is invalid or if the data cannot be fetched.
+Title, Genre(s), duration in minutes, year, and director(s) should be fetched from the external API. If no film is found, display a user-friendly error message.
+Do not implement this yet, but create a PLAN-3.md file. Find out which third-party service to use and how first.
+Ask me any questions you may have. Make sure to include all necessary details in the PLAN-3.md file for the next agent to implement this feature.
+
+----------
+
 Finishing:
 
 Performance is key, every cpu cycle costs, and every byte in memory too.
@@ -88,7 +97,3 @@ Check if there are any performance gains you can find in code. Also achieve the 
 Check usage of the mariadb database. Which indexes make sense? Add them in a on-startup ef core migration.
 When you do database changes, make sure you also keep the Import-Access.ps1 script updated to reflect those changes.
 
-I want to be able to fill in the filter by searching for it on a service with a free api, e.g. themoviedb or imdb or something.
-Do a fuzzy search, and let me select the one I want. Make sure every hit has a link to the source page, so I can verify it is the correct one.
-It would fetch the details in the background and fill in the form automatically. Make sure to handle errors gracefully if the URL is invalid or if the data cannot be fetched.
-Title, Genre(s), duration in minutes, year, and director(s) should be fetched from the external API. If no film is found, display a user-friendly error message.
