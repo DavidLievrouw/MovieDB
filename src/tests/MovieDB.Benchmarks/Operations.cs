@@ -35,7 +35,7 @@ internal sealed class Operations
         ("Same title and year", o => o.SameTitleAndYear()),
         ("Suggest directors", o => o._queries.SuggestDirectorsAsync("Jan", 10, default)),
         ("Suggest media", o => o._queries.SuggestMediaAsync("D", 10, default)),
-        ("List genres", o => o._queries.ListGenresAsync(default)),
+        ("List genres", o => o._database.Genres.ListAsync(default)),
         ("Save new movie", o => o.SaveNew()),
         ("Save existing movie", o => o.SaveExisting()),
     ];

@@ -117,6 +117,47 @@ internal sealed record MovieNavigation(
 /// <param name="Name">The genre name.</param>
 internal sealed record GenreOption(int Id, string Name);
 
+/// <summary>Raw result row of the overview count query.</summary>
+internal sealed class OverviewCounts
+{
+    /// <summary>The number of movies without any search or filter.</summary>
+    public int Total { get; set; }
+
+    /// <summary>The number of movies matching the search and the genre filter.</summary>
+    public int Matching { get; set; }
+}
+
+/// <summary>Raw result row of the overview page query. The director and genre names are separated by U+001F.</summary>
+internal sealed class OverviewPageRow
+{
+    /// <summary>The movie id.</summary>
+    public int Id { get; set; }
+
+    /// <summary>The title.</summary>
+    public string Title { get; set; } = "";
+
+    /// <summary>The release year.</summary>
+    public int ReleaseYear { get; set; }
+
+    /// <summary>The director names, in the entered order.</summary>
+    public string Directors { get; set; } = "";
+
+    /// <summary>The genre names, alphabetically.</summary>
+    public string Genres { get; set; } = "";
+
+    /// <summary>The runtime in minutes.</summary>
+    public int RuntimeMinutes { get; set; }
+
+    /// <summary>The viewing date.</summary>
+    public DateOnly WatchedOn { get; set; }
+
+    /// <summary>The medium name, if any.</summary>
+    public string? Medium { get; set; }
+
+    /// <summary>The overall score, if any.</summary>
+    public int? OverallScore { get; set; }
+}
+
 /// <summary>Raw result row of the navigation query.</summary>
 internal sealed class NavigationRow
 {
@@ -148,6 +189,8 @@ internal sealed class MovieQueries
     /// <summary>The largest number of media in the statistics.</summary>
     public const int MaxMedia = 8;
 
+    private const char NameSeparator = '\u001f';
+
     private readonly IDbContextFactory<MovieDbContext> _factory;
 
     /// <summary>Creates the queries.</summary>
@@ -163,105 +206,72 @@ internal sealed class MovieQueries
     public static string ContainsPattern(string text) =>
         "%" + text.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
 
-    /// <summary>Loads one page of the overview.</summary>
+    /// <summary>Loads one page of the overview, using two queries: the counts, and the page with its rows.</summary>
     /// <param name="state">The view state.</param>
     /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>The page; the page number is clamped to the last page.</returns>
     public async Task<MovieOverviewPage> ListOverviewAsync(OverviewState state, CancellationToken cancellationToken)
     {
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
-        var totalMovies = await db.Movies.AsNoTracking().CountAsync(cancellationToken);
-
         var (where, filterParameters) = FilterSql(state);
-        var totalMatching = totalMovies;
-        if (where.Length > 0)
+
+        // The filter text is composed only from the fixed fragments of FilterSql; every value is a parameter.
+        var countSql =
+            where.Length == 0
+                ? "SELECT COUNT(*) AS Total, COUNT(*) AS Matching FROM movies"
+                : "SELECT (SELECT COUNT(*) FROM movies) AS Total, "
+                    + $"(SELECT COUNT(*) FROM movies m WHERE 1 = 1{where}) AS Matching";
+        var counts = await db
+            .Database.SqlQueryRaw<OverviewCounts>(countSql, filterParameters)
+            .SingleAsync(cancellationToken);
+
+        var pageCount = Math.Max(1, (int)Math.Ceiling(counts.Matching / (double)state.PageSize));
+        var page = Math.Clamp(state.Page, 1, pageCount);
+        if (counts.Matching == 0)
         {
-            // The filter text is composed only from the fixed fragments of FilterSql; every value is a parameter.
-            var countSql = $"SELECT COUNT(*) AS Value FROM movies m WHERE 1 = 1{where}";
-            totalMatching = await db
-                .Database.SqlQueryRaw<int>(countSql, filterParameters)
-                .SingleAsync(cancellationToken);
+            return new MovieOverviewPage([], page, pageCount, counts.Matching, counts.Total);
         }
 
-        var pageCount = Math.Max(1, (int)Math.Ceiling(totalMatching / (double)state.PageSize));
-        var page = Math.Clamp(state.Page, 1, pageCount);
-
-        // The ordering lives in one place (OrderSql); the page is found by id and then filled in with a second query.
+        // The inner query filters, sorts and cuts the page (OrderSql is the one place that defines the ordering), so the
+        // per-row director and genre names are only concatenated for the rows of the page. Those names are separated
+        // by a control character that cannot be part of a name, and split again below.
+        var order = OrderSql(state);
         var offsetIndex = filterParameters.Length;
         object[] pageParameters = [.. filterParameters, state.PageSize, (page - 1) * state.PageSize];
         var pageSql =
-            "SELECT m.id AS Value FROM movies m LEFT JOIN media md ON md.id = m.medium_id "
-            + $"WHERE 1 = 1{where} ORDER BY {OrderSql(state)} LIMIT {{{offsetIndex}}} OFFSET {{{offsetIndex + 1}}}";
-        var ids = await db.Database.SqlQueryRaw<int>(pageSql, pageParameters).ToListAsync(cancellationToken);
-
-        var rows = await LoadRowsAsync(db, ids, cancellationToken);
-        return new MovieOverviewPage(rows, page, pageCount, totalMatching, totalMovies);
-    }
-
-    private static async Task<IReadOnlyList<MovieOverviewRow>> LoadRowsAsync(
-        MovieDbContext db,
-        List<int> ids,
-        CancellationToken cancellationToken
-    )
-    {
-        if (ids.Count == 0)
-        {
-            return [];
-        }
-
-        var movieIds = ids.ConvertAll(MovieId.From);
-        var movies = await db
-            .Movies.AsNoTracking()
-            .Where(m => movieIds.Contains(m.Id))
-            .Select(m => new
-            {
-                m.Id,
-                m.Title,
-                m.ReleaseYear,
-                m.RuntimeMinutes,
-                m.WatchedOn,
-                Medium = m.Medium == null ? null : m.Medium.Name,
-                m.OverallScore,
-            })
+            "SELECT m.id AS Id, m.title AS Title, m.release_year AS ReleaseYear, "
+            + "COALESCE((SELECT GROUP_CONCAT(d.name ORDER BY mdl.position SEPARATOR '\u001f') FROM movie_directors mdl "
+            + "JOIN directors d ON d.id = mdl.director_id WHERE mdl.movie_id = m.id), '') AS Directors, "
+            + "COALESCE((SELECT GROUP_CONCAT(g.name ORDER BY g.name SEPARATOR '\u001f') FROM movie_genres mgl "
+            + "JOIN genres g ON g.id = mgl.genre_id WHERE mgl.movie_id = m.id), '') AS Genres, "
+            + "m.runtime_minutes AS RuntimeMinutes, m.watched_on AS WatchedOn, md.name AS Medium, "
+            + "m.overall_score AS OverallScore FROM ("
+            + "SELECT m.id, m.title, m.release_year, m.runtime_minutes, m.watched_on, m.medium_id, m.overall_score "
+            + "FROM movies m LEFT JOIN media md ON md.id = m.medium_id "
+            + $"WHERE 1 = 1{where} ORDER BY {order} LIMIT {{{offsetIndex}}} OFFSET {{{offsetIndex + 1}}}"
+            + ") m LEFT JOIN media md ON md.id = m.medium_id "
+            + $"ORDER BY {order}";
+        var rows = await db
+            .Database.SqlQueryRaw<OverviewPageRow>(pageSql, pageParameters)
             .ToListAsync(cancellationToken);
-        var genres = (
-            await db
-                .MovieGenreLinks.AsNoTracking()
-                .Where(l => movieIds.Contains(l.MovieId))
-                .OrderBy(l => l.Genre.Name)
-                .Select(l => new { l.MovieId, l.Genre.Name })
-                .ToListAsync(cancellationToken)
-        )
-            .GroupBy(l => l.MovieId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(l => l.Name)]);
-        var directors = (
-            await db
-                .MovieDirectorLinks.AsNoTracking()
-                .Where(l => movieIds.Contains(l.MovieId))
-                .OrderBy(l => l.Position)
-                .Select(l => new { l.MovieId, l.Director.Name })
-                .ToListAsync(cancellationToken)
-        )
-            .GroupBy(l => l.MovieId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(l => l.Name)]);
 
-        var byId = movies.ToDictionary(m => m.Id);
-        return
-        [
-            .. ids.Select(id => byId[MovieId.From(id)])
-                .Select(m => new MovieOverviewRow(
-                    m.Id,
-                    m.Title,
-                    m.ReleaseYear,
-                    directors.TryGetValue(m.Id, out var directorNames) ? directorNames : [],
-                    genres.TryGetValue(m.Id, out var names) ? names : [],
-                    m.RuntimeMinutes,
-                    m.WatchedOn,
-                    m.Medium,
-                    m.OverallScore
-                )),
-        ];
+        return new MovieOverviewPage([.. rows.Select(ToOverviewRow)], page, pageCount, counts.Matching, counts.Total);
     }
+
+    private static MovieOverviewRow ToOverviewRow(OverviewPageRow row) =>
+        new(
+            MovieId.From(row.Id),
+            row.Title,
+            row.ReleaseYear,
+            SplitNames(row.Directors),
+            SplitNames(row.Genres),
+            row.RuntimeMinutes,
+            row.WatchedOn,
+            row.Medium,
+            row.OverallScore
+        );
+
+    private static string[] SplitNames(string names) => names.Length == 0 ? [] : names.Split(NameSeparator);
 
     /// <summary>
     /// The extra <c>WHERE</c> conditions for the search and the genre filter (each starting with <c>AND</c>), and their
@@ -367,33 +377,39 @@ internal sealed class MovieQueries
     public async Task<MovieEdit?> FindForEditAsync(MovieId id, CancellationToken cancellationToken)
     {
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
-        return await db
-            .Movies.AsNoTracking()
-            .Where(m => m.Id == id)
-            .Select(m => new MovieEdit(
-                m.Id,
-                m.Version,
-                m.CreatedAt,
-                m.UpdatedAt,
-                new MovieInput
-                {
-                    Title = m.Title,
-                    Genres = m.GenreLinks.Select(l => l.Genre.Name).Order().ToList(),
-                    RuntimeMinutes = m.RuntimeMinutes,
-                    ReleaseYear = m.ReleaseYear,
-                    Directors = m.DirectorLinks.OrderBy(l => l.Position).Select(l => l.Director.Name).ToList(),
-                    WatchedOn = m.WatchedOn,
-                    Medium = m.Medium == null ? null : m.Medium.Name,
-                    Review = m.Review,
-                    OverallScore = m.OverallScore,
-                    StoryScore = m.StoryScore,
-                    PictureScore = m.PictureScore,
-                    MusicScore = m.MusicScore,
-                    SoundScore = m.SoundScore,
-                }
-            ))
-            .SingleOrDefaultAsync(cancellationToken);
+        return await FindForEditCompiled(db, id, cancellationToken);
     }
+
+    private static readonly Func<MovieDbContext, MovieId, CancellationToken, Task<MovieEdit?>> FindForEditCompiled =
+        EF.CompileAsyncQuery(
+            (MovieDbContext db, MovieId id, CancellationToken _) =>
+                db
+                    .Movies.AsNoTracking()
+                    .Where(m => m.Id == id)
+                    .Select(m => new MovieEdit(
+                        m.Id,
+                        m.Version,
+                        m.CreatedAt,
+                        m.UpdatedAt,
+                        new MovieInput
+                        {
+                            Title = m.Title,
+                            Genres = m.GenreLinks.Select(l => l.Genre.Name).Order().ToList(),
+                            RuntimeMinutes = m.RuntimeMinutes,
+                            ReleaseYear = m.ReleaseYear,
+                            Directors = m.DirectorLinks.OrderBy(l => l.Position).Select(l => l.Director.Name).ToList(),
+                            WatchedOn = m.WatchedOn,
+                            Medium = m.Medium == null ? null : m.Medium.Name,
+                            Review = m.Review,
+                            OverallScore = m.OverallScore,
+                            StoryScore = m.StoryScore,
+                            PictureScore = m.PictureScore,
+                            MusicScore = m.MusicScore,
+                            SoundScore = m.SoundScore,
+                        }
+                    ))
+                    .SingleOrDefault()
+        );
 
     /// <summary>
     /// Finds another movie with the same title, year and set of directors (compared by the column collation, in any
@@ -549,19 +565,6 @@ internal sealed class MovieQueries
             .Where(d => wanted.Contains(d.Name))
             .OrderBy(d => d.Id)
             .Select(d => d.Name)
-            .ToListAsync(cancellationToken);
-    }
-
-    /// <summary>Lists all genres, alphabetically (by the column collation).</summary>
-    /// <param name="cancellationToken">Cancels the query.</param>
-    /// <returns>The genre ids and names.</returns>
-    public async Task<IReadOnlyList<GenreOption>> ListGenresAsync(CancellationToken cancellationToken)
-    {
-        await using var db = await _factory.CreateDbContextAsync(cancellationToken);
-        return await db
-            .Genres.AsNoTracking()
-            .OrderBy(g => g.Name)
-            .Select(g => new GenreOption(g.Id.Value, g.Name))
             .ToListAsync(cancellationToken);
     }
 
@@ -739,25 +742,31 @@ internal sealed class MovieQueries
     public async Task<MovieDetail?> FindAsync(MovieId id, CancellationToken cancellationToken)
     {
         await using var db = await _factory.CreateDbContextAsync(cancellationToken);
-        return await db
-            .Movies.AsNoTracking()
-            .Where(m => m.Id == id)
-            .Select(m => new MovieDetail(
-                m.Id,
-                m.Title,
-                m.ReleaseYear,
-                m.DirectorLinks.OrderBy(l => l.Position).Select(l => l.Director.Name).ToList(),
-                m.GenreLinks.Select(l => l.Genre.Name).Order().ToList(),
-                m.RuntimeMinutes,
-                m.WatchedOn,
-                m.Medium == null ? null : m.Medium.Name,
-                m.OverallScore,
-                m.StoryScore,
-                m.PictureScore,
-                m.MusicScore,
-                m.SoundScore,
-                m.Review
-            ))
-            .SingleOrDefaultAsync(cancellationToken);
+        return await FindCompiled(db, id, cancellationToken);
     }
+
+    private static readonly Func<MovieDbContext, MovieId, CancellationToken, Task<MovieDetail?>> FindCompiled =
+        EF.CompileAsyncQuery(
+            (MovieDbContext db, MovieId id, CancellationToken _) =>
+                db
+                    .Movies.AsNoTracking()
+                    .Where(m => m.Id == id)
+                    .Select(m => new MovieDetail(
+                        m.Id,
+                        m.Title,
+                        m.ReleaseYear,
+                        m.DirectorLinks.OrderBy(l => l.Position).Select(l => l.Director.Name).ToList(),
+                        m.GenreLinks.Select(l => l.Genre.Name).Order().ToList(),
+                        m.RuntimeMinutes,
+                        m.WatchedOn,
+                        m.Medium == null ? null : m.Medium.Name,
+                        m.OverallScore,
+                        m.StoryScore,
+                        m.PictureScore,
+                        m.MusicScore,
+                        m.SoundScore,
+                        m.Review
+                    ))
+                    .SingleOrDefault()
+        );
 }

@@ -262,7 +262,11 @@ Run the smallest relevant checks, then expand when results warrant it:
 
 - Measure before optimizing. Prefer efficient SQL projections, server-side filtering/pagination, and bounded result sets.
 - Avoid per-request or per-user copies of large, stable lookup data. Any cache of mutable data needs a freshness policy,
-  invalidation path, and regression test.
+  invalidation path, and regression test. The one allowed cache is `GenreCatalog` (singleton): the genre list is closed
+  and seeded, so it is loaded once and never invalidated. Do not cache anything else without the same justification.
+- Fixed-shape read queries on hot paths (`FindAsync`, `FindForEditAsync`) use `EF.CompileAsyncQuery` static delegates.
+  The overview loads a page with two queries (counts, then the page with its director and genre names); keep the
+  per-row concatenation outside the `LIMIT` subquery.
 - Do not add retries blindly: retry only transient operations that are safe to replay, and account for transactions and
   duplicate writes. Do not use `EnableRetryOnFailure`.
 - Keep long-lived UI state small. Do not retain database contexts or large entity graphs in circuits or components.

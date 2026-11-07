@@ -114,6 +114,7 @@ internal static class BenchmarkEnvironment
             name,
             counter,
             new MovieQueries(factory),
+            new GenreCatalog(factory),
             new MovieCommands(factory, new MovieInputValidator(clock), timeProvider),
             clock,
             sample,
@@ -146,6 +147,7 @@ internal sealed class SeededDatabase : IAsyncDisposable
         string name,
         QueryCounter counter,
         MovieQueries queries,
+        GenreCatalog genres,
         MovieCommands commands,
         UserClock clock,
         SampleData sample,
@@ -157,6 +159,7 @@ internal sealed class SeededDatabase : IAsyncDisposable
         Name = name;
         Counter = counter;
         Queries = queries;
+        Genres = genres;
         Commands = commands;
         Clock = clock;
         Sample = sample;
@@ -170,6 +173,8 @@ internal sealed class SeededDatabase : IAsyncDisposable
     public QueryCounter Counter { get; }
 
     public MovieQueries Queries { get; }
+
+    public GenreCatalog Genres { get; }
 
     public MovieCommands Commands { get; }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -40,6 +41,11 @@ internal sealed record SampleData(
 /// one to three genres, a handful of media, long reviews, a few missing scores, several viewings on some days and a few
 /// same-title movies with another set of directors. It never uses the real Access data.
 /// </summary>
+[SuppressMessage(
+    "Security",
+    "S2245:Using pseudorandom number generators (PRNGs) is security-sensitive",
+    Justification = "Seeded, deterministic generator for reproducible synthetic benchmark data; not security related."
+)]
 internal static class SyntheticData
 {
     private const int Seed = 20260101;

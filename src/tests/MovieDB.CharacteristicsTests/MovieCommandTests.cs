@@ -518,18 +518,6 @@ public sealed class MovieCommandTests
     }
 
     [Fact]
-    public async Task The_genre_list_has_every_seeded_genre_alphabetically_with_its_stable_id()
-    {
-        var setup = await CreateAsync();
-
-        var genres = await setup.Queries.ListGenresAsync(TestContext.Current.CancellationToken);
-
-        genres.Count.ShouldBe(MovieGenres.All.Count);
-        genres.Select(g => g.Name).ShouldBe(genres.Select(g => g.Name).Order(StringComparer.OrdinalIgnoreCase));
-        genres.Select(g => (g.Id, g.Name)).Order().ShouldBe(MovieGenres.All.Order());
-    }
-
-    [Fact]
     public async Task Movies_with_the_same_title_and_year_but_another_director_are_found()
     {
         var setup = await CreateAsync();

@@ -14,6 +14,7 @@ public static class MoviesModule
 
     public static IServiceCollection AddMoviesServices(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<GenreCatalog>();
         services.AddScoped<MovieQueries>();
         services.AddScoped<MovieCommands>();
         services.AddSingleton<IValidator<MovieInput>>(sp => new MovieInputValidator(

@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @implements IDisposable
 @inject MovieQueries Queries
+@inject GenreCatalog Genres
 @inject NavigationManager Navigation
 @inject ILogger<Overview> Logger
 
@@ -233,7 +234,7 @@
         {
             try
             {
-                _genres = await Queries.ListGenresAsync(CancellationToken.None);
+                _genres = await Genres.ListAsync(CancellationToken.None);
             }
             catch (Exception ex)
             {

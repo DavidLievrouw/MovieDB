@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @implements IAsyncDisposable
 @inject MovieQueries Queries
+@inject GenreCatalog Genres
 @inject MovieCommands Commands
 @inject UserClock Clock
 @inject NavigationManager Navigation
@@ -488,7 +489,7 @@
 
     private async Task<IReadOnlyList<string>> SuggestGenresAsync(string text, CancellationToken cancellationToken)
     {
-        var options = await Queries.ListGenresAsync(cancellationToken);
+        var options = await Genres.ListAsync(cancellationToken);
         _genreNames ??= [.. options.Select(g => g.Name)];
         return [.. _genreNames.Where(n => n.Contains(text, StringComparison.CurrentCultureIgnoreCase))];
     }

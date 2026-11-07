@@ -4,7 +4,7 @@ Phases 1-3 ([`PLAN.md`](PLAN.md), [`PLAN-2.md`](PLAN-2.md), [`PLAN-3.md`](PLAN-3
 **measured** performance and memory pass: fewer database round trips, less allocation, a smaller idle footprint, and the
 indexes that actually help. Read it together with [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** **In progress: M14 (committed) and M15 (awaiting review) are done; M16-M18 remain.** The owner reviewed the findings and answered every decision (§3). The next agent implements it milestone by milestone (M14-M18), stops for owner review after each, and does
+**Status:** **In progress: M14 and M15 (committed) and M16 (awaiting review) are done; M17-M18 remain.** The owner reviewed the findings and answered every decision (§3). The next agent implements it milestone by milestone (M14-M18), stops for owner review after each, and does
 not commit unless asked (same working agreement as PLAN-3).
 
 **Precedence:** AGENTS.md holds the conventions, this plan the spec of this work. Where they disagree, stop and ask. One
@@ -290,8 +290,10 @@ then the full suite when shared behaviour changed), a HANDOVER.md update, and a 
   configuration + snapshot (only if proven), the `Import-Access.ps1` `ANALYZE TABLE` step and docs, AGENTS.md exception note (only if the index is kept),
   rebuild of the local database from the `.mdb` (§4.3) and a verified full `Import-Access.ps1` run (with dump
   verification). Report counts only.
-- **M16 – Query and code optimizations.** §7 items in the order C3, C1+C7, C2, C5, C4 with the equivalence tests (§8). After
+- **M16 – Query and code optimizations. Done (awaiting review).** §7 items in the order C3, C1+C7, C2, C5, C4 with the equivalence tests (§8). After
   each item re-run the relevant benchmarks against the baseline; revert items that do not pass the ground rule.
+  Result: C3, C1+C7 and C5 kept; C2 reverted (no time gain, ~3% memory); C4 skipped (cannot be proven safe without
+  in-memory name matching). Evidence in HANDOVER.md.
 - **M17 – Runtime and memory settings.** §6: pool sizes, circuit retention, `mem_limit: 256m`, `GCConserveMemory`, optional
   gen0 budget; measure `docker stats` idle and after a short use session (overview, edit, statistics, TMDB dialog) before
   and after; update the compose file, Dockerfile, README deployment text and the health check timing if needed.

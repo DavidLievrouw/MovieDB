@@ -46,15 +46,58 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M12 Lookup dialog, attribution, page integration | Done (committed) |
 | M13 Docs, AGENTS.md convention, full regression | Not started |
 | M14 Benchmark harness + baseline, [`PLAN-4.md`](PLAN-4.md) | Done (committed) |
-| M15 Schema and import tooling | Done, awaiting owner review (uncommitted) |
-| M16 Query and code optimizations | Not started |
+| M15 Schema and import tooling | Done (committed) |
+| M16 Query and code optimizations | Done, awaiting owner review (uncommitted) |
 | M17 Runtime and memory settings | Not started |
 | M18 PLAN-4 wrap-up | Not started |
 
 Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
 owner-driven first deployment (README) is independent of it.
 
-### What M15 delivered (PLAN-4, uncommitted, awaiting review)
+### What M16 delivered (PLAN-4, uncommitted, awaiting review)
+
+- **C3/C8 genre catalog:** new `GenreCatalog` singleton (`MoviesModule`), the only allowed lookup-data cache (closed seeded
+  list, no invalidation). Lazy load guarded by a `SemaphoreSlim`; a failed load is not cached. `Overview.razor` and
+  `MovieEditPage.razor` use it; `MovieQueries.ListGenresAsync` is gone. "List genres": 1 round trip and ~34 KB → 0 and ~0.1 KB.
+  3 new tests (`GenreCatalogTests`).
+- **C1+C7 overview in two queries:** a count query (`total` and `matching` together) and one page query. The page query
+  selects the page ids inside a derived table (filter, `OrderSql`, `LIMIT`) and only the outer query concatenates the
+  director names (entered order) and genre names (alphabetical) with `GROUP_CONCAT … SEPARATOR U+001F`, which is split in
+  C#. Doing the concatenation in the single-level query first made the director/genre sorts and the last page slower at
+  12k movies, because the correlated subqueries were evaluated before the `LIMIT`; the derived table fixed that. The
+  `MovieOverviewRow` shape is unchanged (so the UI and its tests are untouched). Round trips 5-6 → 2. Equivalence was proven
+  against a copy of the old implementation over more than 1,000 sort/search/genre/page combinations, plus navigation,
+  detail and edit for every movie (temporary test, removed). Permanent tests: `MovieOverviewRowShapeTests` (director order,
+  genre order, names with a comma, empty lists, null medium, page clamping, empty result).
+- **C5 compiled queries:** `EF.CompileAsyncQuery` for `FindAsync` and `FindForEditAsync`: about 55% fewer allocations
+  (43 → 19 KB, 57 → 27 KB at 1,203 movies) and 5-15% faster.
+- **Reverted C2 (named windows in `NavigateAsync`):** MariaDB 12.3 accepts `WINDOW w AS (…)`, results were identical, but
+  time did not change (14.9 → 14.9 ms, 28.2 → 27.8 ms at 12k) and allocations dropped only ~3%, so it does not meet the
+  keep rule. Navigation stays at 15 ms (default) at 12k movies; its cost is the full sort of the list.
+- **Skipped C4 (batched directors key):** one `IN (…)` query cannot tell an unknown name from two spellings of a known one
+  (same director under the collation) without comparing names in C#, which the rules forbid. It would save at most 4 queries
+  of ~0.3 ms.
+- **C6 statistics:** unchanged (no cache). Re-measured: 5.4 ms at 1,203 and 17.9 ms at 12,030 movies, no regression.
+
+| Operation | Round trips (M15 → M16) | 1,203 movies M15 → M16 | 12,030 movies M15 → M16 |
+|---|---:|---:|---:|
+| Overview, default sort | 5 → 2 | 5.8 ms / 280 KB → 2.4 ms / 92 KB | 5.9 ms / 277 KB → 3.0 ms / 90 KB |
+| Overview, sort on title | 5 → 2 | 5.6 ms / 282 KB → 2.8 ms / 90 KB | 10.0 ms / 280 KB → 7.0 ms / 91 KB |
+| Overview, sort on director | 5 → 2 | 7.2 ms / 281 KB → 4.3 ms / 94 KB | 25.1 ms / 281 KB → 21.7 ms / 93 KB |
+| Overview, sort on genre | 5 → 2 | 7.6 ms / 264 KB → 4.6 ms / 88 KB | 28.2 ms / 265 KB → 24.9 ms / 88 KB |
+| Overview, title search | 6 → 2 | 6.9 ms / 207 KB → 3.5 ms / 72 KB | 11.0 ms / 300 KB → 6.8 ms / 94 KB |
+| Overview, one genre | 6 → 2 | 7.4 ms / 305 KB → 3.9 ms / 97 KB | 14.7 ms / 306 KB → 10.8 ms / 99 KB |
+| Overview, two genres | 6 → 2 | 8.5 ms / 297 KB → 5.8 ms / 96 KB | 19.5 ms / 317 KB → 15.4 ms / 101 KB |
+| Overview, last page | 5 → 2 | 5.5 ms / 196 KB → 2.6 ms / 71 KB | 11.4 ms / 282 KB → 8.5 ms / 91 KB |
+| Detail | 1 → 1 | 2.15 ms / 42 KB → 1.9 ms / 18 KB | 1.5 ms / 52 KB → 1.4 ms / 28 KB |
+| Edit load | 1 → 1 | 2.1 ms / 57 KB → 2.0 ms / 27 KB | 1.6 ms / 58 KB → 1.4 ms / 29 KB |
+| List genres | 1 → 0 | 1.4 ms / 34 KB → 3 µs / 0.1 KB | 1.1 ms / 35 KB → 2 µs / 1 KB |
+| Navigation, statistics, saves, suggestions | unchanged | within noise | within noise |
+
+Results are stored in git-ignored `artifacts/benchmarks/m16-c5` (round trips and results), next to `m15` and `baseline`.
+Full suite: 657 tests pass (UnitTests, ArchitectureTests, CharacteristicsTests; browser tests not run).
+
+### What M15 delivered (PLAN-4, committed)
 
 - **Index kept:** `ix_movies_watched_on_title ON movies (watched_on DESC, title, id DESC)`, added in place to `Initial`
   (retry-safe `CREATE TABLE IF NOT EXISTS`), `MovieConfiguration`, the snapshot and both Designer files. The columns
