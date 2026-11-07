@@ -78,6 +78,21 @@ public sealed class MigrationTests
     }
 
     [Fact]
+    public async Task Default_overview_order_has_a_matching_index()
+    {
+        var connectionString = await _fixture.CreateMigratedDatabaseAsync();
+
+        var parts = await MariaDbFixture.ScalarAsync<string>(
+            connectionString,
+            "SELECT GROUP_CONCAT(CONCAT(column_name, ' ', collation) ORDER BY seq_in_index SEPARATOR ', ') "
+                + "FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'movies' "
+                + "AND index_name = 'ix_movies_watched_on_title'"
+        );
+
+        parts.ShouldBe("watched_on D, title A, id D");
+    }
+
+    [Fact]
     public async Task Running_the_migrator_again_is_a_no_op()
     {
         var connectionString = await _fixture.CreateMigratedDatabaseAsync();

@@ -6,9 +6,9 @@
     Single entry point for PLAN.md section 6. Runs on the Windows dev machine (64-bit Access ODBC driver) against the
     local MariaDB container. Never prints rows, review text, passwords or connection strings.
 
-    Steps: resolve connection string, build the tool, migrate, import (one transaction) and report, write the guarded
-    dump with mariadb-dump inside the container, then verify the dump by restoring it into a scratch database and
-    comparing row counts and content hashes.
+    Steps: resolve connection string, build the tool, migrate, import (one transaction) and report, refresh the optimizer
+    statistics (ANALYZE TABLE), write the guarded dump with mariadb-dump inside the container, then verify the dump by
+    restoring it into a scratch database (also analyzed) and comparing row counts and content hashes.
 
 .PARAMETER Source
     Path of the Access database. Opened read-only.
@@ -129,6 +129,14 @@ function Get-FullPath([string] $Path) {
     [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Path))
 }
 
+# Refreshes the optimizer statistics of the domain tables in the local container (PLAN-4 section 4.2). Prints no rows.
+function Invoke-Analyze([string] $Database) {
+    $arguments = @('exec', '-e', 'MYSQL_PWD', $MariaDbContainer, 'mariadb', '-h', '127.0.0.1', '--protocol=tcp', '-u', $dbUser,
+        '--database', $Database, '--execute', 'ANALYZE TABLE movies, movie_genres, movie_directors, directors, genres, media;')
+    $result = Invoke-Native 'docker' $arguments
+    if ($result.Output -match '\t(error|warning)\t') { throw "ANALYZE TABLE reported a problem in '$Database'." }
+}
+
 function Remove-ContainerFile([string] $Path) {
     [void] (Invoke-Native 'docker' @('exec', $MariaDbContainer, 'rm', '-f', $Path) -AllowFailure)
 }
@@ -183,6 +191,12 @@ if ($Reset) { $importArguments += '--reset' }
 $import = Invoke-Tool $importArguments $targetConnection
 $import.Output | ForEach-Object { Write-Host $_ }
 
+Write-Step 'Refreshing the optimizer statistics (ANALYZE TABLE)'
+$previousPassword = $env:MYSQL_PWD
+$env:MYSQL_PWD = $dbPassword
+try { Invoke-Analyze $dbName }
+finally { $env:MYSQL_PWD = $previousPassword }
+
 if ($SkipDump) {
     Write-Step 'Done (dump skipped)'
     return
@@ -225,6 +239,8 @@ try {
 
         [void] (Invoke-Native 'docker' @('cp', $dumpFullPath, "${MariaDbContainer}:$containerDump"))
         [void] (Invoke-Native 'docker' @('exec', '-e', 'MYSQL_PWD', $MariaDbContainer, 'sh', '-c', $loadCommand))
+
+        Invoke-Analyze $scratchDatabase
 
         $expected = (Invoke-Tool @('fingerprint') $targetConnection).Output
         $actual = (Invoke-Tool @('fingerprint') $scratchConnection).Output

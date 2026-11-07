@@ -4,8 +4,7 @@ Phases 1-3 ([`PLAN.md`](PLAN.md), [`PLAN-2.md`](PLAN-2.md), [`PLAN-3.md`](PLAN-3
 **measured** performance and memory pass: fewer database round trips, less allocation, a smaller idle footprint, and the
 indexes that actually help. Read it together with [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** **Planned, not started.** The owner reviewed the findings and answered every decision (§3). Nothing in this plan
-is implemented. The next agent implements it milestone by milestone (M14-M18), stops for owner review after each, and does
+**Status:** **In progress: M14 (committed) and M15 (awaiting review) are done; M16-M18 remain.** The owner reviewed the findings and answered every decision (§3). The next agent implements it milestone by milestone (M14-M18), stops for owner review after each, and does
 not commit unless asked (same working agreement as PLAN-3).
 
 **Precedence:** AGENTS.md holds the conventions, this plan the spec of this work. Where they disagree, stop and ask. One
@@ -82,6 +81,11 @@ ix_movies_watched_on_title  ON movies (watched_on DESC, title [, id DESC])
   Microting provider accepts it; the DDL itself is raw SQL in `Initial`, so only the model/snapshot must agree).
 - If `EXPLAIN` shows the optimizer prefers a scan/filesort anyway for 1,200 rows (likely at this size), **drop the index**
   and record the evidence. At ~12,000 rows (the benchmark's second size, M14) it must be clearly beneficial to be kept.
+
+**M15 result (kept).** Variant (b) `(watched_on DESC, title, id DESC)` removes the filesort of the default overview order:
+12,030 movies 3.64 ms to 0.39 ms (about 9x, `type=index`, 25 rows), a middle page 5.77 to 2.53 ms; 1,203 movies 0.75 to
+0.45 ms. Variant (a) only helps an `id ASC` tie-breaker, so (c) was not needed. Navigation and the statistics totals did not
+benefit (left to M16 C2).
 
 Explicitly **not** added: indexes on `release_year`, `runtime_minutes`, `overall_score`, a covering index for statistics,
 FULLTEXT. A filesort of 1.2k rows is microseconds and every index costs writes and RAM. Revisit only on benchmark evidence.
@@ -282,7 +286,7 @@ then the full suite when shared behaviour changed), a HANDOVER.md update, and a 
 - **M14 – Benchmark harness and baseline.** §5. Project, data generator, benchmarks, round-trip counter, baseline run stored
   in `artifacts/benchmarks/baseline`, and the commands in AGENTS.md/README. No production code change except
   `InternalsVisibleTo` for the benchmarks project.
-- **M15 – Schema and import tooling.** §2 (`EXPLAIN` experiments on both data sizes first), §4: the index in `Initial` +
+- **M15 – Schema and import tooling (done, see HANDOVER.md; index `(watched_on DESC, title, id DESC)` kept).** §2 (`EXPLAIN` experiments on both data sizes first), §4: the index in `Initial` +
   configuration + snapshot (only if proven), the `Import-Access.ps1` `ANALYZE TABLE` step and docs, AGENTS.md exception note (only if the index is kept),
   rebuild of the local database from the `.mdb` (§4.3) and a verified full `Import-Access.ps1` run (with dump
   verification). Report counts only.

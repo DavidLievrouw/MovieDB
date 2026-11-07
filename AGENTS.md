@@ -155,7 +155,9 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   (`Initial` and its Designer files and the snapshot were edited, with no upgrade path) because nothing is deployed
   (owner-approved, PLAN-2 §2a). `Initial` is therefore the phase 2 end-state schema. The first deployment (README) loads
   that structure; from then on, and for any database that exists, schema changes are new data-preserving migrations
-  (never edit `Initial` again). Until the first deployment, the local database is rebuilt and re-imported from Access
+  (never edit `Initial` again). PLAN-4 (M15) made one last owner-approved edit in place (the index
+  `ix_movies_watched_on_title`); `Initial` is final again after it, and from the first deployment on only new migrations
+  are allowed. Until the first deployment, the local database is rebuilt and re-imported from Access
   after a pulled schema change.
 - MariaDB DDL may not be transactional. Make migrations safe to retry after partial failure; use self-guarding SQL
   where required by the provider and migration design.

@@ -79,7 +79,8 @@ MariaDB container.
 The dump lands in `artifacts\import\moviedb-data.sql`. It holds the data of `media`, `directors`, `movies`,
 `movie_genres` and `movie_directors` (the 35 genres come from the migration) and its guard refuses a database that is not
 at the expected schema version or whose data tables are not empty. It contains personal reviews: never commit it and
-delete all copies after deploying it. The script never prints rows or review text.
+delete all copies after deploying it. The script never prints rows or review text. After the import, and after the
+scratch restore, it runs `ANALYZE TABLE` on the six tables so the optimizer has fresh statistics.
 
 ## Deployment
 
@@ -153,8 +154,13 @@ and change the password at `/account/wachtwoord`.
    docker exec -it mariadb sh -c "mariadb -u root -p moviedb < /tmp/moviedb-data.sql"
    ```
 
-4. Smoke-test: log in, check the film count, open a film with accented text.
-5. Run `backup.ps1`. Delete every copy of the dump (local, server, container `/tmp`).
+4. Refresh the optimizer statistics once (the dump loads rows without recalculating them):
+
+   ```sh
+   docker exec -it mariadb mariadb -u root -p moviedb --execute "ANALYZE TABLE movies, movie_genres, movie_directors, directors, genres, media;"
+   ```n
+5. Smoke-test: log in, check the film count, open a film with accented text.
+6. Run `backup.ps1`. Delete every copy of the dump (local, server, container `/tmp`).
 
 ### Updating
 

@@ -122,6 +122,7 @@ internal partial class Initial : Migration
                 CONSTRAINT `ck_movies_sound_score` CHECK (`sound_score` IS NULL OR `sound_score` BETWEEN 1 AND 10),
                 UNIQUE INDEX `ux_movies_title_year_directors` (`title`, `release_year`, `directors_key`),
                 INDEX `ix_movies_medium_id` (`medium_id`),
+                INDEX `ix_movies_watched_on_title` (`watched_on` DESC, `title`, `id` DESC),
                 CONSTRAINT `fk_movies_media` FOREIGN KEY (`medium_id`) REFERENCES `media` (`id`) ON DELETE RESTRICT
             ) {TableOptions};
             """

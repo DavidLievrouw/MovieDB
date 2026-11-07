@@ -45,8 +45,8 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M11 TMDB provider client (no UI), [`PLAN-3.md`](PLAN-3.md) | Done (committed) |
 | M12 Lookup dialog, attribution, page integration | Done (committed) |
 | M13 Docs, AGENTS.md convention, full regression | Not started |
-| M14 Benchmark harness + baseline, [`PLAN-4.md`](PLAN-4.md) | Done, awaiting owner review (uncommitted) |
-| M15 Schema and import tooling | Not started |
+| M14 Benchmark harness + baseline, [`PLAN-4.md`](PLAN-4.md) | Done (committed) |
+| M15 Schema and import tooling | Done, awaiting owner review (uncommitted) |
 | M16 Query and code optimizations | Not started |
 | M17 Runtime and memory settings | Not started |
 | M18 PLAN-4 wrap-up | Not started |
@@ -54,7 +54,28 @@ After finishing a milestone, and before reporting to the owner, update this file
 Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
 owner-driven first deployment (README) is independent of it.
 
-### What M14 delivered (PLAN-4, uncommitted, awaiting review)
+### What M15 delivered (PLAN-4, uncommitted, awaiting review)
+
+- **Index kept:** `ix_movies_watched_on_title ON movies (watched_on DESC, title, id DESC)`, added in place to `Initial`
+  (retry-safe `CREATE TABLE IF NOT EXISTS`), `MovieConfiguration`, the snapshot and both Designer files. The columns
+  match the default overview order exactly, including the `id DESC` tie-breaker. The variant without `id` only helps an
+  `id ASC` order, so it was rejected. New characteristics test `Default_overview_order_has_a_matching_index` (reads
+  `information_schema.statistics`). `MigrationTests` 8/8.
+- **EXPLAIN evidence** (synthetic data, throwaway experiment, removed; output kept locally in git-ignored
+  `artifacts/benchmarks/explain.txt`): the default overview page query at 12,030 movies goes from `Using filesort`
+  (3.64 ms) to `type=index`, 25 rows read (0.39 ms), about 9x; at 1,203 movies 0.75 to 0.45 ms; a middle page at 12k
+  5.77 to 2.53 ms. Navigation (window functions, `Using temporary`, ~13.5 ms) and the statistics totals are unchanged by
+  the index: they are M16 targets (C2).
+- **`Import-Access.ps1`:** new `ANALYZE TABLE movies, movie_genres, movie_directors, directors, genres, media` step after
+  the import and after the scratch restore (it fails on an `error`/`warning` status row). README and PLAN.md §6.5/§11.2
+  document the same command that the owner runs once after loading the production dump.
+- **AGENTS.md:** `Initial` was edited one last time and is final again; from the first deployment on only new migrations.
+- **Local database rebuilt:** domain tables and `__EFMigrationsHistory` dropped (users kept), migrations re-applied,
+  full import run (no `-Reset`: the tables were empty and the typed `RESET` needs an interactive shell). Counts match the plan:
+  1,203 movies, 715 directors, 1,207 director links, 35 genres, 8 media. Dump written and the scratch restore fingerprints match;
+  the guard refused a second load.
+
+### What M14 delivered (PLAN-4, committed)
 
 - New `src/tests/MovieDB.Benchmarks` (BenchmarkDotNet, in process, one throwaway `mariadb:12.3.3` container; Docker required). It
   seeds deterministic synthetic data at 1,203 and 12,030 movies, runs 21 operations (overview variants, navigation, statistics,

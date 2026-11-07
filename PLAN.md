@@ -413,7 +413,8 @@ database:
    AUTO_INCREMENT past the max explicit id by itself. Verify that, and do not use `ALTER TABLE`.
 6. Print the verification report (§6.4), including the DB-side numbers read back after the commit. (`-DryRun` skips
    steps 3–8 and prints the in-memory report only.)
-7. Write the **production data dump** (§6.5) to `-DumpPath` (default `artifacts/import/moviedb-data.sql`).
+7. Refresh the optimizer statistics: `ANALYZE TABLE movies, movie_genres, movie_directors, directors, genres, media` (PLAN-4 §4.2).
+   Write the **production data dump** (§6.5) to `-DumpPath` (default `artifacts/import/moviedb-data.sql`).
 8. **Verify the dump**: drop and create a scratch database `moviedb_dumpcheck` (same charset/collation), migrate it
    with the tool (connection string with `Database=moviedb_dumpcheck`), run the dump in it exactly as in production
    (§11.2 step 4: `docker cp` into the container, then `mariadb … < /tmp/file` inside `sh -c`), compare row counts and
@@ -834,7 +835,8 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
      `MOVIEDB_DEFAULT_PASSWORD`.
   4. Copy the dump to the server, `docker cp` it into the MariaDB container, and run it there with
      `docker exec -it mariadb sh -c "mariadb -u root -p moviedb < /tmp/moviedb-data.sql"`. The guard block refuses to
-     run on a wrong schema version or non-empty tables.
+     run on a wrong schema version or non-empty tables. Then run `ANALYZE TABLE movies, movie_genres, movie_directors,
+     directors, genres, media` once (PLAN-4 §4.2), because the load does not refresh the optimizer statistics.
   5. Smoke-test: log in as `admin`, check the film count, open a film with accented text, and optionally change the
      password.
   6. Run `backup.ps1`. Delete every copy of the dump (local, server, container `/tmp`).

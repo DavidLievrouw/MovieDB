@@ -278,6 +278,10 @@ namespace MovieDB.Infrastructure.Migrations
                         .IsUnique()
                         .HasDatabaseName("ux_movies_title_year_directors");
 
+                    b.HasIndex("WatchedOn", "Title", "Id")
+                        .IsDescending(true, false, true)
+                        .HasDatabaseName("ix_movies_watched_on_title");
+
                     b.ToTable("movies", null, t =>
                         {
                             t.HasCheckConstraint("ck_movies_music_score", "`music_score` IS NULL OR `music_score` BETWEEN 1 AND 10");

@@ -67,5 +67,15 @@ internal sealed class MovieConfiguration : IEntityTypeConfiguration<Movie>
             .IsUnique()
             .HasDatabaseName("ux_movies_title_year_directors");
         builder.HasIndex(x => x.MediumId).HasDatabaseName("ix_movies_medium_id");
+        // Serves the default overview order (watched_on DESC, title, id DESC) without a filesort.
+        builder
+            .HasIndex(x => new
+            {
+                x.WatchedOn,
+                x.Title,
+                x.Id,
+            })
+            .IsDescending(true, false, true)
+            .HasDatabaseName("ix_movies_watched_on_title");
     }
 }
