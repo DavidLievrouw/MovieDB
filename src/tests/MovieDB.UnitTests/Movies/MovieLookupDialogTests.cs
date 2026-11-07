@@ -60,7 +60,8 @@ public sealed class MovieLookupDialogTests : BunitContext
         "Heat",
         1995,
         "A group of professional bank robbers.",
-        new Uri("https://www.themoviedb.org/movie/949")
+        new Uri("https://www.themoviedb.org/movie/949"),
+        new Uri("https://image.tmdb.org/t/p/w92/heat.jpg")
     );
 
     private static readonly LookupHit DutchHit = new(
@@ -116,6 +117,25 @@ public sealed class MovieLookupDialogTests : BunitContext
         provider.Markup.ShouldContain("Das Leben der Anderen (2006)");
         provider.Markup.ShouldContain("The Lives of Others");
         provider.Markup.ShouldContain("Controleer via de link of dit de juiste film is.");
+    }
+
+    [Fact]
+    public async Task Shows_the_poster_next_to_a_hit_and_a_placeholder_when_there_is_none()
+    {
+        _lookup.Search = (_, _) => Task.FromResult(Result<IReadOnlyList<LookupHit>>.Ok([HeatHit, DutchHit]));
+
+        var (provider, _) = await OpenAsync("Heat");
+
+        await provider.WaitForAssertionAsync(
+            () => provider.FindAll("[data-testid=lookup-hit]").Count.ShouldBe(2),
+            Timeout
+        );
+        var poster = provider.FindAll("[data-testid=lookup-hit-poster]").ShouldHaveSingleItem();
+        poster.GetAttribute("src").ShouldBe("https://image.tmdb.org/t/p/w92/heat.jpg");
+        poster.GetAttribute("alt").ShouldBe("");
+        poster.GetAttribute("referrerpolicy").ShouldBe("no-referrer");
+        poster.GetAttribute("loading").ShouldBe("lazy");
+        provider.FindAll("[data-testid=lookup-hit-no-poster]").ShouldHaveSingleItem();
     }
 
     [Fact]

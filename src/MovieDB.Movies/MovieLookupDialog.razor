@@ -43,6 +43,18 @@
                 {
                     var name = hit.OriginalTitle ?? hit.Title;
                     <li class="lookup-hit" data-testid="lookup-hit">
+                        @if (hit.PosterUrl is { } poster)
+                        {
+                            <img class="lookup-hit-poster" src="@poster" alt="" width="46" height="69" loading="lazy"
+                                 decoding="async" referrerpolicy="no-referrer" data-testid="lookup-hit-poster"/>
+                        }
+                        else
+                        {
+                            <span class="lookup-hit-poster lookup-hit-poster-empty" aria-hidden="true" data-testid="lookup-hit-no-poster">
+                                <MudIcon Icon="@Icons.Material.Filled.Movie" Size="Size.Small"/>
+                            </span>
+                        }
+
                         <div class="lookup-hit-main" @onclick="@(() => ChooseAsync(hit))">
                             <span class="lookup-hit-title">@name (@(hit.Year?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "jaar onbekend"))</span>
                             @if (!string.Equals(hit.Title, name, StringComparison.CurrentCultureIgnoreCase))

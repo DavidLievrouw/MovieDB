@@ -12,13 +12,15 @@ internal sealed record LookupQuery(string Title, int? Year = null);
 /// <param name="Year">The release year, if known.</param>
 /// <param name="Overview">A short plot summary (cut to about 200 characters), if any.</param>
 /// <param name="SourceUrl">The provider's page of the movie.</param>
+/// <param name="PosterUrl">A small poster image on the provider's image host, if the movie has one.</param>
 internal sealed record LookupHit(
     int Id,
     string Title,
     string? OriginalTitle,
     int? Year,
     string? Overview,
-    Uri SourceUrl
+    Uri SourceUrl,
+    Uri? PosterUrl = null
 );
 
 /// <summary>

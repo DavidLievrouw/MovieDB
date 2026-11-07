@@ -20,6 +20,11 @@ internal sealed partial class TmdbMovieLookup : IMovieLookup
     private const int MaxHits = 10;
     private const int MaxOverviewLength = 200;
 
+    /// <summary>The origin of the TMDB image host. The Content-Security-Policy <c>img-src</c> must allow it.</summary>
+    internal const string ImageOrigin = "https://image.tmdb.org";
+
+    private const string PosterBaseUrl = ImageOrigin + "/t/p/w92";
+
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private readonly HttpClient _http;
@@ -45,6 +50,9 @@ internal sealed partial class TmdbMovieLookup : IMovieLookup
 
     [GeneratedRegex(@"^tt\d{7,10}$", RegexOptions.CultureInvariant)]
     private static partial Regex ImdbIdPattern();
+
+    [GeneratedRegex(@"^/[A-Za-z0-9_-]{1,64}\.(jpg|png)$", RegexOptions.CultureInvariant)]
+    private static partial Regex PosterPathPattern();
 
     /// <summary>Sets the base address, headers and timeout of the typed client.</summary>
     /// <param name="client">The client to configure.</param>
@@ -112,7 +120,8 @@ internal sealed partial class TmdbMovieLookup : IMovieLookup
                     original,
                     ParseYear(item.ReleaseDate),
                     CutOverview(item.Overview),
-                    SourceUrl(item.Id.Value)
+                    SourceUrl(item.Id.Value),
+                    PosterUrl(item.PosterPath)
                 )
             );
         }
@@ -300,6 +309,15 @@ internal sealed partial class TmdbMovieLookup : IMovieLookup
 
     private static Uri SourceUrl(int id) => new($"https://www.themoviedb.org/movie/{id}");
 
+    /// <summary>
+    /// Builds the poster URL. The poster is cosmetic: a path that is not a plain file name just means "no poster". The
+    /// host is fixed (it must match the img-src of the Content-Security-Policy), never taken from the response.
+    /// </summary>
+    /// <param name="posterPath">The <c>poster_path</c> of the response, if any.</param>
+    /// <returns>The poster URL, or <c>null</c> when there is no usable poster.</returns>
+    private static Uri? PosterUrl(string? posterPath) =>
+        posterPath is not null && PosterPathPattern().IsMatch(posterPath) ? new Uri(PosterBaseUrl + posterPath) : null;
+
     private static string GetVersion()
     {
         var version = typeof(TmdbMovieLookup)
@@ -336,6 +354,9 @@ internal sealed partial class TmdbMovieLookup : IMovieLookup
 
         [JsonPropertyName("overview")]
         public string? Overview { get; set; }
+
+        [JsonPropertyName("poster_path")]
+        public string? PosterPath { get; set; }
     }
 
     private sealed class DetailsResponse

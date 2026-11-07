@@ -55,7 +55,10 @@ owner-driven first deployment (README) is independent of it.
   hit rows with a TMDB link and a "Kies" button, status area, Dutch messages from `LookupMessages`, retry for a failed
   details call (not for "not found"), stale searches ignored.
 - `TmdbAttribution.razor` + the unmodified TMDB "Alt short (blue)" logo in `MovieDB.Movies/wwwroot/images/` (with
-  `ATTRIBUTION.txt`). Shown in the dialog and on `/films/nieuw` only; served locally, so the CSP is unchanged.
+  `ATTRIBUTION.txt`). Shown in the dialog and on `/films/nieuw` only; served locally.
+- Poster thumbnails (owner extension, PLAN-3 §7.5): `LookupHit.PosterUrl` (validated `poster_path`, fixed host
+  `https://image.tmdb.org/t/p/w92`), shown left of each hit (placeholder icon when none; `referrerpolicy="no-referrer"`).
+  **CSP change:** `img-src 'self' data: https://image.tmdb.org`; nothing else changed.
 - `MovieEditPage`: on `/films/nieuw` an outlined "Zoek film online" button (disabled with a tooltip when no token is
   configured), overwrite confirmation when the form holds more than a title, `LookupFill.Apply`, stored director
   spellings (no "nieuw" marker for known directors), duplicate check, dismissible success alert with the notices, a source

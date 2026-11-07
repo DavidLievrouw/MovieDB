@@ -197,7 +197,8 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   user experience requires it. Use global `InteractiveServer` routing, with auth and error pages opted
   out through `[ExcludeFromInteractiveRouting]` (static SSR). Avoid double data loads during prerendering.
 - Send the security headers of the reference implementation (CSP with a per-request nonce on every `<script>`, `X-Frame-Options`, etc.).
-  Load no external scripts, styles or fonts.
+  Load no external scripts, styles or fonts. The only external origin is `https://image.tmdb.org` in `img-src`, for the
+  poster thumbnails in the online search dialog.
 - Validate configuration at startup. Use local secret storage for development and environment/secret-manager
   configuration in deployment. Never commit secrets.
 - Use Serilog structured console logging through `ILogger`. Never log review text, passwords, connection strings or

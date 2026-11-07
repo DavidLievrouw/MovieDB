@@ -81,8 +81,8 @@ public sealed class TmdbMovieLookupTests
 
     private const string SearchJson = """
         {"page":1,"results":[
-          {"id":603,"title":"The Matrix","original_title":"The Matrix","release_date":"1999-03-30","overview":"A hacker learns the truth."},
-          {"id":604,"title":"The Matrix Reloaded","original_title":"The Matrix Reloaded","release_date":"","overview":""}
+          {"id":603,"title":"The Matrix","original_title":"The Matrix","release_date":"1999-03-30","overview":"A hacker learns the truth.","poster_path":"/f89JNg1sJyPr4aVnKYoXk1rQGb.jpg"},
+          {"id":604,"title":"The Matrix Reloaded","original_title":"The Matrix Reloaded","release_date":"","overview":"","poster_path":null}
         ],"total_results":2}
         """;
 
@@ -149,6 +149,42 @@ public sealed class TmdbMovieLookupTests
         hits[0].SourceUrl.ToString().ShouldBe("https://www.themoviedb.org/movie/603");
         hits[1].Year.ShouldBeNull();
         hits[1].Overview.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task Search_builds_the_poster_url_on_the_fixed_image_host()
+    {
+        var (lookup, _, _) = Create(_ => Json(SearchJson));
+
+        var hits = (await lookup.SearchAsync(new LookupQuery("matrix"), CancellationToken.None)).Value;
+
+        hits[0]
+            .PosterUrl.ShouldNotBeNull()
+            .AbsoluteUri.ShouldBe("https://image.tmdb.org/t/p/w92/f89JNg1sJyPr4aVnKYoXk1rQGb.jpg");
+        hits[0].PosterUrl!.GetLeftPart(UriPartial.Authority).ShouldBe(TmdbMovieLookup.ImageOrigin);
+        hits[1].PosterUrl.ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("poster.jpg")]
+    [InlineData("/")]
+    [InlineData("/a/b.jpg")]
+    [InlineData("/../secret.jpg")]
+    [InlineData("/a.jpg?x=1")]
+    [InlineData("//evil.example/a.jpg")]
+    [InlineData("https://evil.example/a.jpg")]
+    [InlineData("/a.svg")]
+    [InlineData("/a b.jpg")]
+    public async Task Search_ignores_a_poster_path_that_is_not_a_plain_image_file_name(string path)
+    {
+        var json = $$"""{"results":[{"id":1,"title":"T","original_title":"T","poster_path":"{{path}}"}]}""";
+        var (lookup, _, _) = Create(_ => Json(json));
+
+        var result = await lookup.SearchAsync(new LookupQuery("t"), CancellationToken.None);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldHaveSingleItem().PosterUrl.ShouldBeNull();
     }
 
     [Fact]

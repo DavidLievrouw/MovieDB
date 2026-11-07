@@ -241,7 +241,8 @@ app.Use(
             "form-action 'self'",
             $"script-src 'self' 'nonce-{nonce}'",
             "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data:",
+            // The only external origin: TMDB poster thumbnails in the online search dialog (see TmdbMovieLookup.ImageOrigin).
+            "img-src 'self' data: https://image.tmdb.org",
             "font-src 'self' data:",
             "connect-src 'self' ws: wss:"
         );

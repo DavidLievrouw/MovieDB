@@ -49,7 +49,7 @@ public sealed class TmdbAttributionAssetTests
     }
 
     [Fact]
-    public async Task The_logo_is_served_as_a_local_svg_and_the_csp_allows_it_without_external_sources()
+    public async Task The_logo_is_served_as_a_local_svg_and_the_csp_only_adds_the_tmdb_image_host()
     {
         var (factory, client, settings) = await StartAsync();
         using var _ = settings;
@@ -68,9 +68,11 @@ public sealed class TmdbAttributionAssetTests
         var policy = login
             .Headers.GetValues("Content-Security-Policy")
             .Single(p => p.Contains("default-src 'self'", StringComparison.Ordinal));
-        policy.ShouldContain("img-src 'self' data:");
+        policy.ShouldContain("img-src 'self' data: https://image.tmdb.org;");
+        policy.ShouldContain("connect-src 'self' ws: wss:");
+        policy.ShouldContain("script-src 'self' 'nonce-");
         policy.ShouldNotContain("themoviedb");
-        policy.ShouldNotContain("tmdb");
+        policy.ShouldNotContain("api.");
     }
 
     [Fact]

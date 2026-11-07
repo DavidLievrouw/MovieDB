@@ -649,6 +649,22 @@
     min-width: 0;
 }
 
+.lookup-hit-poster {
+    background: var(--mud-palette-background-gray);
+    border-radius: 4px;
+    flex: none;
+    height: 69px;
+    object-fit: cover;
+    width: 46px;
+}
+
+.lookup-hit-poster-empty {
+    align-items: center;
+    color: var(--mud-palette-text-secondary);
+    display: flex;
+    justify-content: center;
+}
+
 .lookup-hit-title {
     font-weight: 600;
     overflow-wrap: anywhere;

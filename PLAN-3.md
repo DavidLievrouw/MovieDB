@@ -31,9 +31,9 @@ review, and saves as before.
 
 The whole feature is **optional**: without a configured API token the app runs normally and the search is disabled.
 
-Out of scope: posters/images, pasting links or IMDb ids into the search box, series, cast, plot text, user ratings, bulk
+Out of scope: full-size images, pasting links or IMDb ids into the search box, series, cast, plot text, user ratings, bulk
 import, a second provider, caching of provider data, the edit page of existing films, any change to the database
-schema.
+schema. (Extension after M12, owner request: a small poster thumbnail next to each search hit, see §7.5.)
 
 ---
 
@@ -164,8 +164,9 @@ The `Authorization: Bearer` header is set on each request **only when a token is
 configured, register the same type; `IsConfigured` is `false` (`!string.IsNullOrWhiteSpace(token)`) and both methods
 return `ErrorKind.NotConfigured` without any network access. The health checks do **not** include TMDB.
 
-HTTP happens **server-side** (Blazor Server): the browser never talks to TMDB, so the **CSP stays unchanged**
-(`connect-src 'self' ws: wss:` as it is today). The token never reaches the browser, logs, test output or the repository.
+HTTP happens **server-side** (Blazor Server): the browser never talks to the TMDB API, so `connect-src 'self' ws: wss:`
+stays as it is today. The only browser-side TMDB contact is the poster thumbnails (§7.5, `img-src`). The token never
+reaches the browser, logs, test output or the repository.
 
 `MovieEditPage` gets: the button, the dialog call, the overwrite confirmation, the persistent source link row, and
 `ApplyLookupAsync` which uses `LookupFill`, `FindKnownDirectorsAsync`, then reuses the existing machinery (dirty tracking
@@ -335,8 +336,8 @@ Keyboard: arrow keys/Tab through hits, Enter chooses, Esc closes. All text Dutch
 - The unsaved-changes guard, Ctrl+S and conflict logic keep working unchanged.
 
 ### 7.4 Attribution (required by the TMDB terms)
-- Self-host the approved TMDB logo so it is served from this origin (no new CSP origin; `img-src 'self' data:` stays
-  as is). The owner chose **"Alt short (blue)"**; the implementer (M12) downloads it, **unmodified**:
+- Self-host the approved TMDB logo so it is served from this origin (the logo needs no CSP origin; see §7.5 for the one
+  origin added later for posters). The owner chose **"Alt short (blue)"**; the implementer (M12) downloads it, **unmodified**:
   - Source page: <https://www.themoviedb.org/about/logos-attribution> (it sits behind a browser check, so open the
     page via a browser-like client; the file itself downloads fine with
     `curl.exe -sL -A "Mozilla/5.0" <url> -o <target>`).
@@ -361,6 +362,21 @@ Keyboard: arrow keys/Tab through hits, Enter chooses, Esc closes. All text Dutch
   **not** changed. Keep it a plain, non-interactive component. Check 390 px and 1440 px. Add
   `data-testid="tmdb-attribution"` (the page and the dialog each have one instance).
 - Do not store provider data beyond what the owner saves in the film record.
+
+### 7.5 Poster thumbnails (extension after M12, owner request)
+- Each search hit in the dialog shows a 46 × 69 px poster thumbnail on the left; hits without a poster show a neutral
+  placeholder icon so the rows keep their height. The poster is decorative (`alt=""`; the title is next to it).
+- `LookupHit.PosterUrl` is built **server-side** from TMDB's `poster_path`, only when that is a plain file name
+  (`^/[A-Za-z0-9_-]{1,64}\.(jpg|png)$`); anything else (a full URL, a path, a query) means "no poster". The host and size
+  are fixed: `https://image.tmdb.org/t/p/w92` (`TmdbMovieLookup.ImageOrigin`), never taken from the response.
+- **CSP:** the only change is `img-src 'self' data: https://image.tmdb.org` (the image host only, no wildcard).
+  `connect-src`, `script-src` and the other directives are unchanged. This is the only place where the browser contacts
+  a TMDB host directly (the poster requests do not carry the token).
+- The `<img>` uses `loading="lazy"`, `decoding="async"` and `referrerpolicy="no-referrer"` (no origin sent to TMDB).
+- Posters are not stored, not copied to the server and not shown on the form; only the search dialog shows them. No
+  caching beyond the browser's own.
+- Tests: unit (URL construction and rejected paths; dialog renders the poster and the placeholder), characteristics (the
+  exact CSP directive). Browser tests keep fake hits without posters so they never need the network.
 
 ---
 
@@ -465,7 +481,7 @@ content must not become test data). Use synthetic JSON fixtures written for the 
   `HttpMessageHandler` replacing the TMDB client: the app **starts without any `Tmdb` token** and the new-film page
   renders the button enabled/disabled depending on configuration; the token set through configuration/environment variable
   enables it; `Tmdb` options validation at startup with an invalid `BaseUrl` fails; unauthenticated users cannot reach
-  anything new (the fallback policy already covers it, assert it); the CSP header is unchanged; the attribution notice is
+  anything new (the fallback policy already covers it, assert it); the CSP header only differs by the poster image host (§7.5); the attribution notice is
   present on `/films/nieuw` and absent on `/films/{id}`, the overview and `/login`; `MovieQueries.FindKnownDirectorsAsync` against real MariaDB (case and accent
   variants return the stored spelling, unknown names are absent, empty input returns empty).
 - **Browser** (`MovieDB.BrowserTests`, Playwright, 390 and 1440 px) with a **fake lookup** registered in the test host
@@ -497,7 +513,8 @@ content must not become test data). Use synthetic JSON fixtures written for the 
 3. **Genres:** the mapping in §6 is right (Family -> Familie, Music -> Musical, TV Movie ignored). When no genre maps,
    leave Genre empty with a notice; more than 4: keep the first 4.
 4. **Scope:** only on the new-film page. If the five fields already hold data: overwrite after a confirmation.
-5. **Posters:** no. The link to the source page is enough.
+5. **Posters:** no at first (the link to the source page is enough). **Changed after M12 (owner request):** a small
+   poster thumbnail is shown next to each search hit; see §7.5.
 6. **Missing token:** the app **starts normally**; the search is optional and the button is disabled.
 7. **Link input:** **not** supported (no pasting of TMDB/IMDb links or IMDb ids). Instead, keep a **link to the selected
    movie** on the form after filling it in (§7.3).
