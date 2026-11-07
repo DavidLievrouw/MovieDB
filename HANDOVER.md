@@ -49,12 +49,12 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M15 Schema and import tooling | Done (committed) |
 | M16 Query and code optimizations | Done (committed) |
 | M17 Runtime and memory settings | Done (committed) |
-| M18 PLAN-4 wrap-up | Done, awaiting owner review (uncommitted) |
+| M18 PLAN-4 wrap-up | Done (committed) |
 
 Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
 owner-driven first deployment (README) is independent of it.
 
-### What M18 delivered (PLAN-4 wrap-up, uncommitted, awaiting review)
+### What M18 delivered (PLAN-4 wrap-up, committed)
 
 PLAN-4 is complete. M18 changed no production code: a final full benchmark run (stored in git-ignored
 `artifacts/benchmarks/final`, next to `baseline`), the documentation updates and the full regression.

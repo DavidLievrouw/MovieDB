@@ -4,7 +4,7 @@ Phases 1-3 ([`PLAN.md`](PLAN.md), [`PLAN-2.md`](PLAN-2.md), [`PLAN-3.md`](PLAN-3
 **measured** performance and memory pass: fewer database round trips, less allocation, a smaller idle footprint, and the
 indexes that actually help. Read it together with [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** **Done: M14-M17 (committed) and M18 (awaiting review). All PLAN-4 milestones are complete.** The owner reviewed the findings and answered every decision (§3). The next agent implements it milestone by milestone (M14-M18), stops for owner review after each, and does
+**Status:** **Done and committed: M14-M18. PLAN-4 is complete.** The owner reviewed the findings and answered every decision (§3). The next agent implements it milestone by milestone (M14-M18), stops for owner review after each, and does
 not commit unless asked (same working agreement as PLAN-3).
 
 **Precedence:** AGENTS.md holds the conventions, this plan the spec of this work. Where they disagree, stop and ask. One
@@ -290,7 +290,7 @@ then the full suite when shared behaviour changed), a HANDOVER.md update, and a 
   configuration + snapshot (only if proven), the `Import-Access.ps1` `ANALYZE TABLE` step and docs, AGENTS.md exception note (only if the index is kept),
   rebuild of the local database from the `.mdb` (§4.3) and a verified full `Import-Access.ps1` run (with dump
   verification). Report counts only.
-- **M16 – Query and code optimizations. Done (awaiting review).** §7 items in the order C3, C1+C7, C2, C5, C4 with the equivalence tests (§8). After
+- **M16 – Query and code optimizations. Done (committed).** §7 items in the order C3, C1+C7, C2, C5, C4 with the equivalence tests (§8). After
   each item re-run the relevant benchmarks against the baseline; revert items that do not pass the ground rule.
   Result: C3, C1+C7 and C5 kept; C2 reverted (no time gain, ~3% memory); C4 skipped (cannot be proven safe without
   in-memory name matching). Evidence in HANDOVER.md.
@@ -299,7 +299,7 @@ then the full suite when shared behaviour changed), a HANDOVER.md update, and a 
   and after (the limit was raised from 256m to 384m after review, for headroom); update the compose file, Dockerfile, README deployment text and the health check timing if needed.
   Result: all items kept except the optional gen0 budget (skipped, no evidence); settled memory 244 → 200 MiB, peak
   260 → 224 MiB, no OOM. Evidence in HANDOVER.md.
-- **M18 – Wrap-up. Done (awaiting review).** Final benchmark run vs baseline (table of before/after in HANDOVER.md: time, allocations, round trips,
+- **M18 – Wrap-up. Done (committed).** Final benchmark run vs baseline (table of before/after in HANDOVER.md: time, allocations, round trips,
   memory), update AGENTS.md (index/`Initial` rule, compiled queries, genre cache, benchmark commands, runtime limits),
   PLAN.md status, this plan's status, full regression, the final diff review (no generated artifacts, no secrets, no rows,
   `prompt-history.txt` untouched).

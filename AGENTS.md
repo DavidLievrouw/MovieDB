@@ -354,4 +354,5 @@ Record only decisions that are binding for this repository:
   - The Access macro `mcrGaNaarFilm` and handler `Knop35_Click` are dead code; do not port them.
   - Git may report "dubious ownership" for this repo. Use `git -c safe.directory=C:/_git/MovieDB …` rather than
     changing global config.
-  - `AGENTS.template.md` is the generic template this file was derived from; do not edit it.
+  - `AGENTS.template.md` is the generic template this file was derived from. Do not edit it unless the owner asks; when
+    asked, port only generic rules (no MovieDB names, numbers or decisions).

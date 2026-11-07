@@ -230,6 +230,7 @@ Run the smallest relevant checks, then expand when results warrant it:
 - Add migration: `[TODO: EF migration command]`
 - Migration review: `[TODO: EF migration/script command]`
 - Import/dump scripts: `[TODO: if any, including how to answer confirmation prompts non-interactively]`
+- Benchmarks: `[TODO: if any, including the baseline/compare workflow and the artifacts folder]`
 
 Also note platform gotchas here: line endings (enforce one style with `.editorconfig`; agent file tools may write CRLF, so
 normalize new files), `git -c safe.directory=…` when Git reports "dubious ownership", and Roslynator rules that the
@@ -238,12 +239,38 @@ build enforces (for example prefer `[0]` over `First()` on lists).
 ## Performance and reliability
 
 - Measure before optimizing. Prefer efficient SQL projections, server-side filtering/pagination, and bounded result sets.
+- **Keep rule:** keep an optimization only if a benchmark shows a gain in time, allocations or database round trips (or it
+  is neutral on time and clearly cheaper in memory). Otherwise revert it and record in the handover what was tried, the
+  numbers and why it was dropped. Do not add anything "because it is usually faster".
+- Benchmarks (only for demonstrated hot paths): a console project (for example BenchmarkDotNet, in process) against a
+  throwaway real database container (same image tag as production) with deterministic synthetic data at the current size
+  and about ten times larger, plus a round-trip counter (a `DbCommandInterceptor`). Store results in git-ignored
+  `artifacts/`, take a baseline first, and re-run the relevant benchmarks after each change. Keep it out of the normal test
+  run and give it `InternalsVisibleTo`.
+- Add a database index only with evidence: compare `EXPLAIN` and timings before and after at both data sizes (an index
+  must match the sort order exactly, including the tie-breaker column, to avoid a filesort). Keep import/dump tooling and
+  docs in step with every schema change, and run `ANALYZE TABLE` after a bulk load, which does not refresh optimizer
+  statistics.
 - Avoid per-request or per-user copies of large, stable lookup data. Any cache of mutable data needs a freshness policy,
-  invalidation path, and regression test.
+  invalidation path, and regression test. A closed, seeded reference list (for example genres, whose ids are stable) may be
+  a singleton that loads once without invalidation (guard the lazy load, and do not cache a failed load). Do not cache
+  anything else without the same justification.
+- Paged lists with aggregated child rows (for example names joined with `GROUP_CONCAT`): select the page ids first in a
+  derived table (filter, order, `LIMIT`) and aggregate only in the outer query, otherwise correlated subqueries run before
+  the `LIMIT`. Prefer a few set-based queries per page over one query per concern, and count round trips.
+- When rewriting a query for speed, prove equivalence: run a temporary test against a copy of the old implementation over
+  many combinations (sorts, filters, pages, edge cases), keep permanent tests for the result shape, then delete the old
+  copy. Use compiled queries (`EF.CompileAsyncQuery`) for hot fixed-shape reads, if measured.
+- Size pools for the real number of users: a pooled `DbContextFactory` with an explicit pool size and a database
+  connection pool limit (apply the default only when the connection string does not set it, and make sure a migration lock
+  connection cannot be starved). Keep disconnected interactive-server circuits few and short-lived.
+- Bound container memory: set a container memory limit and a matching managed heap cap (for .NET
+  `DOTNET_GCHeapHardLimitPercent`), consider `DOTNET_GCConserveMemory`, and measure `docker stats` (idle, peak and settled
+  after a scripted use session) before and after. Check `OOMKilled` and restarts, and ask the owner before raising a
+  limit.
 - Do not add retries blindly: retry only transient operations that are safe to replay, and account for transactions and
   duplicate writes.
 - Keep long-lived UI state small. Do not retain database contexts or large entity graphs in circuits or components.
-- Add benchmarks only for demonstrated hot paths or when a performance requirement calls for them.
 
 ## Deployment and operations
 
@@ -254,7 +281,7 @@ Document the repository's actual deployment setup here:
 - Listening address/port and health probe: [TODO]
 - Database backup/restore and migration procedure: [TODO]
 - Required secrets/certificates and rotation procedure: [TODO]
-- Logging, monitoring, and resource limits: [TODO]
+- Logging, monitoring, and resource limits: [TODO] (give the container a memory limit and measure it, see Performance)
 
 Use supported .NET runtime and SDK versions. Keep local development, tests, and production configuration consistent
 without copying production secrets or data into development.
