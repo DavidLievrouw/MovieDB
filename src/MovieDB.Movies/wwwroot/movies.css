@@ -564,6 +564,19 @@
         grid-template-columns: minmax(0, 1fr);
     }
 
+    /*
+     * On a phone the bar sticks to the bottom of the page flow instead of being fixed, so it ends flush with the page
+     * and no empty strip is left under it.
+     */
+    .films-edit {
+        padding-bottom: 0;
+    }
+
+    .films-savebar {
+        margin: 1rem -1rem 0;
+        position: sticky;
+    }
+
     .films-nav-text {
         display: none;
     }
@@ -620,6 +633,7 @@
 .lookup-hits {
     display: grid;
     gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr);
     list-style: none;
     margin: 0;
     padding: 0;
@@ -679,9 +693,7 @@
 .lookup-hit-overview {
     color: var(--mud-palette-text-secondary);
     font-size: 0.8125rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
 .lookup-hit-link {

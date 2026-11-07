@@ -397,7 +397,7 @@ and the validator (DB columns stay nullable; legacy films with a missing score m
 
 ### What M5 delivered
 
-- **Ui:** ScoreInput (toggle group "–", 1–10 on desktop, a select below 600px), SuggestField (debounced
+- **Ui:** ScoreInput (toggle group "–", 1–10 on every width; below 600px the buttons are 44px tall. Phone fixes: the lookup hit description wraps, and the save bar is sticky in flow with no bottom padding, so no dead strip is left), SuggestField (debounced
   MudAutocomplete that accepts any text), UnsavedChangesDialog + UnsavedChangesChoice (Stay/Save/Discard).
 - **Movies:** MovieInput + MovieInputValidator (Dutch messages; year 1888..current+5, date 1900..tomorrow, from
   UserClock), MovieCommands.SaveAsync (validate, duplicate check, resolve-or-insert genre/medium, version check,

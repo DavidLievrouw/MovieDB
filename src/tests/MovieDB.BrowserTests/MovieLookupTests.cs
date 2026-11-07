@@ -283,6 +283,34 @@ public sealed class MovieLookupTests
     }
 
     [Fact]
+    public async Task On_a_phone_a_long_description_wraps_inside_the_screen()
+    {
+        var title = BrowserFixture.Unique("Langefilm");
+        var overview = string.Join(" ", Enumerable.Repeat("Een lange synthetische samenvatting met veel woorden.", 8));
+        _fixture.Lookup.Search = _ =>
+            Result<IReadOnlyList<LookupHit>>.Ok([
+                new(949, title, title, 1995, overview, new Uri("https://www.themoviedb.org/movie/949")),
+            ]);
+        await using var session = await _fixture.OpenPhoneAsync();
+        await session.OpenNewAsync();
+
+        await SearchAsync(session, title);
+
+        var hit = session.Page.Locator(".mud-dialog").GetByTestId("lookup-hit");
+        await Expect(hit).ToHaveCountAsync(1);
+        var box = (await hit.BoundingBoxAsync())!;
+        box.X.ShouldBeGreaterThanOrEqualTo(0);
+        (box.X + box.Width).ShouldBeLessThanOrEqualTo(412);
+        var button = (await hit.GetByRole(AriaRole.Button).BoundingBoxAsync())!;
+        (button.X + button.Width).ShouldBeLessThanOrEqualTo(412);
+        var text = (await hit.Locator(".lookup-hit-overview").BoundingBoxAsync())!;
+        text.Height.ShouldBeGreaterThan(60);
+        (
+            await session.Page.EvaluateAsync<bool>("document.documentElement.scrollWidth > window.innerWidth")
+        ).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task The_button_is_disabled_with_an_explanation_when_lookup_is_not_configured()
     {
         _fixture.Lookup.IsConfigured = false;

@@ -57,11 +57,6 @@
     grid-column: 1 / -1;
 }
 
-.score-input-select {
-    display: none;
-    grid-column: 1 / -1;
-}
-
 .score-input-toggles .mud-toggle-group {
     width: 100%;
 }
@@ -72,18 +67,10 @@
     padding-inline: 0.25rem;
 }
 
+/* Touch-sized targets: all ten numbers still fit on one row of a phone. */
 @media (max-width: 599.98px) {
-    .score-input {
-        grid-template-columns: 1fr;
-    }
-
-    .score-input-label,
-    .score-input-toggles {
-        display: none;
-    }
-
-    .score-input-select {
-        display: block;
+    .score-input-toggles .mud-toggle-item {
+        min-height: 2.75rem;
     }
 }
 

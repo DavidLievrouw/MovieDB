@@ -125,7 +125,13 @@ public sealed class BrowserFixture : IAsyncLifetime
     /// <param name="height">The viewport height in pixels.</param>
     public Task<BrowserSession> OpenAnonymousAsync(int width, int height) => OpenCoreAsync(width, height, null);
 
-    private async Task<BrowserSession> OpenCoreAsync(int width, int height, string? storageState)
+    /// <summary>Opens a logged-in browser context that behaves like a phone: touch input and a mobile viewport.</summary>
+    /// <param name="width">The viewport width in CSS pixels.</param>
+    /// <param name="height">The viewport height in CSS pixels.</param>
+    public Task<BrowserSession> OpenPhoneAsync(int width = 412, int height = 915) =>
+        OpenCoreAsync(width, height, _storageState, phone: true);
+
+    private async Task<BrowserSession> OpenCoreAsync(int width, int height, string? storageState, bool phone = false)
     {
         var context = await _browser!.NewContextAsync(
             new BrowserNewContextOptions
@@ -133,6 +139,9 @@ public sealed class BrowserFixture : IAsyncLifetime
                 Locale = "nl-BE",
                 TimezoneId = "Europe/Brussels",
                 ViewportSize = new ViewportSize { Width = width, Height = height },
+                IsMobile = phone,
+                HasTouch = phone,
+                DeviceScaleFactor = phone ? 2.625f : 1f,
                 StorageState = storageState,
                 BaseURL = BaseUrl,
             }

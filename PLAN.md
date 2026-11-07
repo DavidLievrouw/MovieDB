@@ -699,7 +699,7 @@ The layout is equivalent to `frmFilms`, modernised:
 
   - **"Evaluatie" card**: sticky on md+, with a maroon gradient header "EVALUATIE". It holds six `ScoreInput`s:
     "Totaal (geen gemiddelde)", "Film", "Beeld", "Muziek", "Geluid" and "Extra's".
-    - `ScoreInput` = `MudToggleGroup<int?>` with "–" plus 1–10, or a `MudSelect` on xs.
+    - `ScoreInput` = `MudToggleGroup<int?>` with "–" plus 1–10 on every width (on phones the buttons are 44px tall; a `MudSelect` was dropped because its popup was unusable on a phone).
     - For Extra's, the empty option reads "n.v.t.".
     - `MudRating` is rejected because it cannot show an empty state or a 10-point scale clearly.
 - The record ID and audit info are shown in small muted text: "Film #1234 · aangemaakt …, gewijzigd …" in the user's

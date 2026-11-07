@@ -274,4 +274,34 @@ public sealed class MovieEditTests
         saved.Genres.ShouldBe(["Drama", "Komedie", "Thriller", "Western"]);
         saved.Version.ShouldBe(2);
     }
+
+    [Fact]
+    public async Task On_a_phone_the_scores_are_toggle_buttons_that_fit_the_screen_and_the_save_bar_ends_the_page()
+    {
+        var id = await _fixture.SeedMovieAsync(BrowserFixture.Unique("Telefoonfilm"), overallScore: 6);
+        await using var session = await _fixture.OpenPhoneAsync();
+        await session.OpenEditAsync(id);
+
+        var group = session.ScoreGroup("Totaal (geen gemiddelde)");
+        await group.ScrollIntoViewIfNeededAsync();
+        await Expect(group.Locator("div.mud-select")).ToHaveCountAsync(0);
+        var items = group.Locator(".score-input-toggles .mud-toggle-item");
+        await Expect(items).ToHaveCountAsync(10);
+        var first = (await items.First.BoundingBoxAsync())!;
+        var last = (await items.Last.BoundingBoxAsync())!;
+        first.X.ShouldBeGreaterThanOrEqualTo(0);
+        (last.X + last.Width).ShouldBeLessThanOrEqualTo(412);
+        first.Height.ShouldBeGreaterThanOrEqualTo(44);
+        await items.Nth(8).TapAsync();
+        await Expect(items.Nth(8)).ToHaveClassAsync(new Regex("mud-toggle-item-selected"));
+        await Expect(session.Page.Locator(".films-savebar-state")).ToHaveTextAsync("Niet-opgeslagen wijzigingen");
+
+        await session.Page.EvaluateAsync("window.scrollTo(0, document.documentElement.scrollHeight)");
+        var bar = (await session.Page.Locator(".films-savebar").BoundingBoxAsync())!;
+        var viewportHeight = await session.Page.EvaluateAsync<double>("window.innerHeight");
+        (bar.Y + bar.Height).ShouldBe((float)viewportHeight, 1f);
+        (
+            await session.Page.EvaluateAsync<double>("document.documentElement.scrollHeight - scrollY - innerHeight")
+        ).ShouldBeLessThanOrEqualTo(1);
+    }
 }

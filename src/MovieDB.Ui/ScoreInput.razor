@@ -16,21 +16,6 @@
             }
         </MudToggleGroup>
     </div>
-    <div class="score-input-select">
-        <MudSelect T="int" Label="@Label" Value="Current" ValueChanged="Changed" Variant="Variant.Outlined"
-                   Margin="Margin.Dense" Disabled="Disabled" AnchorOrigin="Origin.BottomCenter" Error="Error"
-                   Placeholder="@Placeholder">
-            @if (AllowEmpty)
-            {
-                <MudSelectItem T="int" Value="0">@EmptyText</MudSelectItem>
-            }
-            @for (var score = MinScore; score <= MaxScore; score++)
-            {
-                var shown = score;
-                <MudSelectItem T="int" Value="shown">@shown</MudSelectItem>
-            }
-        </MudSelect>
-    </div>
     @if (Error && !string.IsNullOrEmpty(ErrorText))
     {
         <span class="score-input-error" role="alert">@ErrorText</span>
@@ -63,10 +48,6 @@
     /// <summary>The text of the option that clears the score.</summary>
     [Parameter]
     public string EmptyText { get; set; } = "–";
-
-    /// <summary>The text shown by the compact (select) variant while no score is chosen.</summary>
-    [Parameter]
-    public string Placeholder { get; set; } = "Kies een score";
 
     /// <summary>Whether the input is disabled.</summary>
     [Parameter]

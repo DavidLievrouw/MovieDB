@@ -158,21 +158,13 @@ public sealed class BrowserSession : IAsyncDisposable
         await Assertions.Expect(popover).ToHaveCountAsync(0);
     }
 
-    /// <summary>Picks a score, using the toggle buttons on a wide screen and the select on a narrow one.</summary>
+    /// <summary>Picks a score with the toggle buttons.</summary>
     /// <param name="label">The label of the score.</param>
     /// <param name="score">The score, from 1 to 10.</param>
     public async Task SetScoreAsync(string label, int score)
     {
-        var group = ScoreGroup(label);
-        var toggles = group.Locator(".score-input-toggles");
-        if (await toggles.IsVisibleAsync())
-        {
-            await toggles.Locator(".mud-toggle-item").Nth(score - 1).ClickAsync();
-            return;
-        }
-
-        await group.Locator("div.mud-select").First.ClickAsync();
-        await Page.Locator(".mud-popover-open .mud-list-item").Nth(score - 1).ClickAsync();
+        var toggles = ScoreGroup(label).Locator(".score-input-toggles");
+        await toggles.Locator(".mud-toggle-item").Nth(score - 1).ClickAsync();
     }
 
     /// <summary>Picks the same score for all five scores.</summary>
