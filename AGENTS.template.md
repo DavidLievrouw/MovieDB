@@ -6,7 +6,21 @@ new repository, remove irrelevant guidance, and keep the instructions aligned wi
 ## Project overview
 
 - **Product:** [TODO: what the application does and who uses it]
-- **Stack:** [.NET version and language version], [web framework/UI], EF Core, MariaDB
+- **Stack:** [TODO: record the stack the owner chose, see "Technology choices"]. The template's guidance assumes
+  [.NET version and language version], [web framework/UI], EF Core and [database and version]; adapt it if the owner
+  chooses differently.
+- **Technology choices:** when defining the plan for a new project, the agent proposes the most fitting technologies;
+  the owner decides. Do this before writing code, and do not assume the template's examples (Blazor, EF Core, MariaDB,
+  MudBlazor, and so on) are the answer.
+  - Propose at least the database engine, the front-end approach and UI component library, the data-access approach,
+    authentication, hosting/deployment, and the test stack. Add others that matter for the product.
+  - For each, give a recommendation with a short rationale tied to the requirements (data shape and volume, number of
+    users, offline or real-time needs, accessibility, team skills, hosting constraints, maintenance cost, licensing),
+    and one or two realistic alternatives with their trade-offs. Prefer mature, supported, widely used options, and
+    prefer fewer technologies over more.
+  - List open questions and risks (for example a missing driver for the chosen version) instead of guessing.
+  - Wait for the owner's decision, then record each choice with its rationale in the plan (decisions section) and fill
+    in this file. Revisit a choice only with the owner.
 - **Runtime/deployment:** [TODO: hosting model, operating system, container/runtime ports]
 - **Current plan and handover:** [TODO: link to the project plan and handover/status file, if they exist. Tell the agent
   to read the handover first and to update it at the end of every milestone.]
@@ -62,9 +76,9 @@ Adapt these rules to the new repository; remove any that do not fit:
 - Make a type `public` only when another production assembly must use it, or the host requires it (for example
   `Program` for `WebApplicationFactory`). Everything else is `internal`, including options, stores, health checks,
   assembly markers and EF migrations/design-time factories. Tests see internals through `InternalsVisibleTo`; do not
-  make a type public for a test. Generated Razor components are always public (the Razor compiler cannot emit internal
-  components). Re-check visibility when adding a type, and make newly scaffolded migrations `internal`. This does not
-  apply to test projects.
+  make a type public for a test. Some UI frameworks require generated components to be public (for example Razor
+  components, which the Razor compiler cannot emit as internal). Re-check visibility when adding a type, and make newly
+  scaffolded migrations `internal`. This does not apply to test projects.
 - Do not use primary constructors on classes or structs: declare `private readonly` fields (`_camelCase`) and an
   explicit constructor. Primary constructors (positional parameter lists) are allowed, and preferred, on `record` and
   `record struct` types, which are small immutable data carriers. This applies to test projects too.
@@ -110,12 +124,12 @@ Adapt these rules to the new repository; remove any that do not fit:
 - For any authentication or authorization flow, protect state-changing requests, validate local redirect targets, and
   make authorization explicit. Default to requiring authentication when that matches the product.
 
-## MariaDB and data access
+## Database and data access
 
-- MariaDB is the application datastore. Use EF Core for ordinary persistence; add another data-access technology only
-  when the project has a documented reason.
+- [TODO: database engine and version] is the application datastore. Use EF Core for ordinary persistence; add another
+  data-access technology only when the project has a documented reason.
 - Inject `IDbContextFactory<TContext>` where appropriate and use a short-lived context per operation. Do not retain a
-  context in a singleton or long-lived UI circuit/component.
+  context in a singleton or long-lived UI session/component (for example a Blazor circuit).
 - Read paths should be no-tracking and project only the columns needed into display/response models. Avoid loading
   whole entity graphs for display, N+1 queries, and filtering large result sets in memory.
 - Write paths must validate and check conflicts before changing data. Use transactions and suitable isolation when
@@ -124,18 +138,18 @@ Adapt these rules to the new repository; remove any that do not fit:
 - Use restrictive foreign keys unless the product explicitly requires database cascades. Guard deletes in application
   code when related records must be preserved.
 - Name database objects consistently (for example lowercase `snake_case`, plural table names) and map them explicitly.
-- Use a case- and accent-insensitive collation where the product needs it (for example `utf8mb4_uca1400_ai_ci`) and put
-  the charset in connection strings. Never use `ToLower()`/`ToUpper()` for case-insensitive comparisons; rely on the
-  collation. Search with `LIKE` and escape `%`, `_` and `\`. Uniqueness that must ignore case or accents belongs in a
-  unique index, not only in application code.
+- Use a case- and accent-insensitive collation where the product needs it (for example `utf8mb4_uca1400_ai_ci` on
+  MySQL/MariaDB) and set the character encoding explicitly, also in connection strings. Never use
+  `ToLower()`/`ToUpper()` for case-insensitive comparisons; rely on the collation. Search with `LIKE` and escape `%`, `_`
+  and `\`. Uniqueness that must ignore case or accents belongs in a unique index, not only in application code.
 - Use concurrency tokens (for example a `version` column incremented by the application on every update) for records
   that can be edited concurrently, and surface conflicts to the user.
 - When replacing the rows of a join table on update, delete the old links and save before adding the new ones: EF may
   otherwise insert before it deletes and hit a key or unique-index violation. Clean up orphans only for rows the
   operation touched, and treat a foreign-key failure while deleting an orphan as "still in use", not as an error.
 - Prefer LINQ projections. Use raw SQL only where EF cannot translate the query (window functions, correlated
-  `GROUP_CONCAT`), with fixed SQL fragments for identifiers and ordering and parameters for values, and test the raw SQL
-  against the LINQ path for consistency.
+  string aggregation such as `GROUP_CONCAT`), with fixed SQL fragments for identifiers and ordering and parameters for
+  values, and test the raw SQL against the LINQ path for consistency.
 - Do not use `EnableRetryOnFailure` or other blanket retry strategies.
 - Evolve the schema through explicit EF Core migrations with usable `Down` methods. Preserve existing data and test
   migrations against representative schemas. If the owner approves rewriting the initial migration while nothing is
@@ -143,14 +157,15 @@ Adapt these rules to the new repository; remove any that do not fit:
   migration, every Designer file and the model snapshot in sync (a `HasPendingModelChanges` test guards this). After the
   first deployment, never edit a deployed migration again. Seed closed reference data in the migration and have a test
   that the seeded table equals the code constant; test fixtures that clear tables must not clear it.
-- MariaDB DDL may not be transactional. Make migrations safe to retry after partial failure; use self-guarding SQL
-  where required by the provider and migration design.
-- If application instances migrate on startup, serialize migration execution using a MariaDB named lock on a dedicated
-  connection. Verify repeated and concurrent startup behavior.
+- DDL may not be transactional on every engine (for example MySQL/MariaDB). Make migrations safe to retry after partial
+  failure; use self-guarding SQL where required by the provider and migration design.
+- If application instances migrate on startup, serialize migration execution using a database-level lock on a dedicated
+  connection (for example `GET_LOCK` on MySQL/MariaDB, an advisory lock on PostgreSQL). Verify repeated and concurrent
+  startup behavior.
 - Use parameterized queries (EF Core LINQ/`FormattableString`, or `DbParameter`s) instead of string formatting,
   interpolation or concatenation to build SQL. Identifiers cannot be parameters: use fixed literal statements for them.
-- Use `utf8mb4` end to end. Preserve Unicode in source, database connections, pages, and tests; never repair or replace
-  text through lossy transcoding.
+- Use full Unicode end to end (for example `utf8mb4` on MySQL/MariaDB). Preserve Unicode in source, database
+  connections, pages, and tests; never repair or replace text through lossy transcoding.
 - Keep database command logging free of credentials, personal data, and large or sensitive values. Never print database
   dumps or production rows in test output.
 - Data import tools and dumps: run them against the local database only; report counts, never rows or free text; wrap
@@ -165,8 +180,9 @@ Adapt these rules to the new repository; remove any that do not fit:
 - Follow the project's chosen UI framework and design system; do not introduce a second framework or ad-hoc controls
   without a clear need.
 - Design mobile-first and verify key flows at narrow and desktop widths (for example 390 px and 1440 px).
-- Prefer static/server-rendered content when it does not need client interactivity (auth and error pages), and add
-  interactivity only where the user experience requires it. Avoid double data loads during prerendering.
+- Prefer static or server-rendered content when it does not need client interactivity (auth and error pages), and add
+  interactivity only where the user experience requires it. Avoid double data loads when a page is rendered on the
+  server first and then becomes interactive (prerendering/hydration).
 - Self-host fonts, scripts and styles; load nothing from CDNs. Send security headers (CSP with a per-request nonce on
   every `<script>`, frame and content-type protections, HSTS outside development) and treat the site as HTTPS-only.
 - Culture and localization: when the UI is localized, configure request localization with the supported culture, set
@@ -177,10 +193,12 @@ Adapt these rules to the new repository; remove any that do not fit:
   submit, and defer blur handlers that would change the layout.
 - Custom composite controls must not pass `Required` to an inner input that is empty by design (for example a chip
   input); show required state and errors from the parent instead.
-- Component tests (bUnit) cannot reproduce real focus, blur, Enter/Tab and layout behavior. Cover those with browser
-  tests, including slow mouse interaction and geometry checks where alignment matters.
-- Behind a reverse proxy, accept forwarded headers from known proxies only, enable WebSocket support for server-side
-  interactive Blazor, and encrypt the data-protection key ring with a certificate kept outside the repository.
+- Component tests (for example bUnit or Testing Library) cannot reproduce real focus, blur, Enter/Tab and layout
+  behavior. Cover those with browser tests, including slow mouse interaction and geometry checks where alignment
+  matters.
+- Behind a reverse proxy, accept forwarded headers from known proxies only, and enable WebSocket/SSE support when the UI
+  keeps a live connection to the server (for example interactive server-side Blazor). Encrypt persisted
+  data-protection or session-signing keys with a certificate kept outside the repository.
 - Validate configuration at startup. Use local secret storage for development and environment/secret-manager
   configuration in deployment. Never commit secrets.
 - Use structured logging and the built-in logging abstractions. Avoid logging sensitive values or response bodies.
@@ -197,14 +215,15 @@ Prefer tests that exercise the real behavior and boundaries:
 - Browser/UI tests for critical user flows and responsive behavior.
 - Architecture tests for project boundaries and prohibited dependencies.
 
-Use a real MariaDB instance for database behavior tests (for example, through Testcontainers, pinned to the production
-image tag); do not substitute EF InMemory or SQLite when validating MariaDB-specific behavior. Seed tests with synthetic
-data, not production dumps, preferably through the application's own commands. Tests must never touch the developer
-database: environment variables override user-secrets in test hosts. Cover invalid input, boundary cases,
-concurrency/conflicts, and important business rules—not only happy paths.
+Use a real instance of the production database engine for database behavior tests (for example, through Testcontainers,
+pinned to the production image tag); do not substitute EF InMemory or SQLite when validating engine-specific behavior.
+Seed tests with synthetic data, not production dumps, preferably through the application's own commands. Tests must
+never touch the developer database: environment variables override user-secrets in test hosts. Cover invalid input,
+boundary cases, concurrency/conflicts, and important business rules—not only happy paths.
 
-- Browser tests need a real HTTP listener (not the in-memory `TestServer`) when they drive Blazor circuits; install the
-  browsers once after a build. Log in once and reuse the stored state, and account for login throttling in fixtures.
+- Browser tests need a real HTTP listener (not the in-memory `TestServer`) when they drive a live-connection UI (for
+  example Blazor circuits or WebSockets); install the browsers once after a build. Log in once and reuse the stored
+  state, and account for login throttling in fixtures.
 - Collation-dependent logic implemented in .NET (for example import de-duplication) is only an approximation of the
   database: add parity tests against the real database and keep the unique indexes as the safety net.
 - Never pipe a long test run into `Select-Object -First N` (a cancelled run leaves the test host running and locks
@@ -239,38 +258,39 @@ build enforces (for example prefer `[0]` over `First()` on lists).
 ## Performance and reliability
 
 - Measure before optimizing. Prefer efficient SQL projections, server-side filtering/pagination, and bounded result sets.
-- **Keep rule:** keep an optimization only if a benchmark shows a gain in time, allocations or database round trips (or it
-  is neutral on time and clearly cheaper in memory). Otherwise revert it and record in the handover what was tried, the
-  numbers and why it was dropped. Do not add anything "because it is usually faster".
+- **Keep rule:** keep an optimization only if a benchmark shows a gain in time, allocations or database round trips (or
+  it is neutral on time and clearly cheaper in memory). Otherwise revert it and record in the handover what was tried,
+  the numbers and why it was dropped. Do not add anything "because it is usually faster".
 - Benchmarks (only for demonstrated hot paths): a console project (for example BenchmarkDotNet, in process) against a
-  throwaway real database container (same image tag as production) with deterministic synthetic data at the current size
-  and about ten times larger, plus a round-trip counter (a `DbCommandInterceptor`). Store results in git-ignored
-  `artifacts/`, take a baseline first, and re-run the relevant benchmarks after each change. Keep it out of the normal test
-  run and give it `InternalsVisibleTo`.
-- Add a database index only with evidence: compare `EXPLAIN` and timings before and after at both data sizes (an index
-  must match the sort order exactly, including the tie-breaker column, to avoid a filesort). Keep import/dump tooling and
-  docs in step with every schema change, and run `ANALYZE TABLE` after a bulk load, which does not refresh optimizer
-  statistics.
+  throwaway real database container (same image tag as production) with deterministic synthetic data at the current
+  size and about ten times larger, plus a round-trip counter (a `DbCommandInterceptor`). Store results in git-ignored
+  `artifacts/`, take a baseline first, and re-run the relevant benchmarks after each change. Keep it out of the normal
+  test run and give it `InternalsVisibleTo`.
+- Add a database index only with evidence: compare the query plan (`EXPLAIN`) and timings before and after at both data
+  sizes (an index must match the sort order exactly, including the tie-breaker column, to avoid a filesort). Keep
+  import/dump tooling and docs in step with every schema change, and refresh optimizer statistics after a bulk load or
+  restore (for example `ANALYZE TABLE` on MySQL/MariaDB).
 - Avoid per-request or per-user copies of large, stable lookup data. Any cache of mutable data needs a freshness policy,
-  invalidation path, and regression test. A closed, seeded reference list (for example genres, whose ids are stable) may be
-  a singleton that loads once without invalidation (guard the lazy load, and do not cache a failed load). Do not cache
-  anything else without the same justification.
+  invalidation path, and regression test. A closed, seeded reference list (for example genres, whose ids are stable)
+  may be a singleton that loads once without invalidation (guard the lazy load, and do not cache a failed load). Do not
+  cache anything else without the same justification.
 - Paged lists with aggregated child rows (for example names joined with `GROUP_CONCAT`): select the page ids first in a
-  derived table (filter, order, `LIMIT`) and aggregate only in the outer query, otherwise correlated subqueries run before
-  the `LIMIT`. Prefer a few set-based queries per page over one query per concern, and count round trips.
-- When rewriting a query for speed, prove equivalence: run a temporary test against a copy of the old implementation over
-  many combinations (sorts, filters, pages, edge cases), keep permanent tests for the result shape, then delete the old
-  copy. Use compiled queries (`EF.CompileAsyncQuery`) for hot fixed-shape reads, if measured.
+  derived table (filter, order, `LIMIT`) and aggregate only in the outer query, otherwise correlated subqueries run
+  before the `LIMIT`. Prefer a few set-based queries per page over one query per concern, and count round trips.
+- When rewriting a query for speed, prove equivalence: run a temporary test against a copy of the old implementation
+  over many combinations (sorts, filters, pages, edge cases), keep permanent tests for the result shape, then delete the
+  old copy. Use compiled queries (`EF.CompileAsyncQuery`) for hot fixed-shape reads, if measured.
 - Size pools for the real number of users: a pooled `DbContextFactory` with an explicit pool size and a database
-  connection pool limit (apply the default only when the connection string does not set it, and make sure a migration lock
-  connection cannot be starved). Keep disconnected interactive-server circuits few and short-lived.
+  connection pool limit (apply the default only when the connection string does not set it, and make sure a migration
+  lock connection cannot be starved). Keep server-held UI sessions (for example disconnected Blazor circuits) few and
+  short-lived.
 - Bound container memory: set a container memory limit and a matching managed heap cap (for .NET
-  `DOTNET_GCHeapHardLimitPercent`), consider `DOTNET_GCConserveMemory`, and measure `docker stats` (idle, peak and settled
-  after a scripted use session) before and after. Check `OOMKilled` and restarts, and ask the owner before raising a
-  limit.
+  `DOTNET_GCHeapHardLimitPercent`), consider `DOTNET_GCConserveMemory`, and measure `docker stats` (idle, peak and
+  settled after a scripted use session) before and after. Check `OOMKilled` and restarts, and ask the owner before
+  raising a limit.
 - Do not add retries blindly: retry only transient operations that are safe to replay, and account for transactions and
   duplicate writes.
-- Keep long-lived UI state small. Do not retain database contexts or large entity graphs in circuits or components.
+- Keep long-lived UI state small. Do not retain database contexts or large entity graphs in UI sessions or components.
 
 ## Deployment and operations
 
