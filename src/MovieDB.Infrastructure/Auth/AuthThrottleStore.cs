@@ -109,6 +109,7 @@ public sealed class AuthThrottleStore
         var userIds = await db
             .Users.AsNoTracking()
             .Where(user => user.NormalizedUserName == normalizedUsername)
+            .OrderBy(user => user.Id)
             .Select(user => user.Id)
             .Take(1)
             .ToArrayAsync(ct);

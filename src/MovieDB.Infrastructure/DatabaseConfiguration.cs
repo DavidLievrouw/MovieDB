@@ -1,5 +1,6 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microting.EntityFrameworkCore.MySql.Infrastructure;
 using MySqlConnector;
@@ -26,6 +27,9 @@ public static class DatabaseConfiguration
         }
 
         options.UseMySql(connection.ConnectionString, Version, o => o.MigrationsHistoryTable("__EFMigrationsHistory"));
+
+        // The single-movie reads project at most 5 directors and 4 genres, so the single-query join stays tiny.
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.MultipleCollectionIncludeWarning));
     }
 
     /// <summary>Whether the connection string sets the maximum pool size itself (under any of its names).</summary>

@@ -103,6 +103,7 @@ internal sealed class UserStore : IUserPasswordStore<User>, IUserSecurityStampSt
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
         return await context
             .Users.AsNoTracking()
+            .OrderBy(u => u.Id)
             .FirstOrDefaultAsync(u => u.Id == UserId.From(userId), cancellationToken);
     }
 
@@ -111,6 +112,7 @@ internal sealed class UserStore : IUserPasswordStore<User>, IUserSecurityStampSt
         await using var context = await _factory.CreateDbContextAsync(cancellationToken);
         return await context
             .Users.AsNoTracking()
+            .OrderBy(u => u.Id)
             .FirstOrDefaultAsync(u => u.NormalizedUserName == normalizedUserName, cancellationToken);
     }
 

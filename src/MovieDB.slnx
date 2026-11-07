@@ -2,11 +2,7 @@
   <Folder Name="/Assets/">
     <File Path="../.editorconfig" />
     <File Path="../AGENTS.md" />
-    <File Path="../HANDOVER.md" />
-    <File Path="../PLAN-2.md" />
-    <File Path="../PLAN-3.md" />
-    <File Path="../PLAN-4.md" />
-    <File Path="../PLAN.md" />
+    <File Path="../docker-compose/moviedb-web/docker-compose.yml" />
     <File Path="../prompt-history.txt" />
     <File Path="../README.md" />
     <File Path="../version.txt" />
