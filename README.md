@@ -35,6 +35,19 @@ pwsh src/tests/MovieDB.BrowserTests/bin/Debug/net10.0/playwright.ps1 install chr
 dotnet test --project src/tests/MovieDB.BrowserTests
 ```
 
+### Benchmarks
+
+`src/tests/MovieDB.Benchmarks` measures the read/write paths against a throwaway MariaDB container (Docker must be running) with
+synthetic data of about today's size and ten times that. It is an executable, not part of `dotnet test`. Results go to the
+git-ignored `artifacts/benchmarks/<name>`.
+
+```powershell
+# timings and allocations (add --job short for a quick run)
+dotnet run -c Release --project src/tests/MovieDB.Benchmarks -- --filter "*" --artifacts artifacts/benchmarks/<name>
+# database round trips per operation
+dotnet run -c Release --project src/tests/MovieDB.Benchmarks -- --roundtrips artifacts/benchmarks/<name>
+```
+
 ## Online film search (TMDB)
 
 The new-film form can look a film up online and fill in title, genres, runtime, year and directors. It is optional: without

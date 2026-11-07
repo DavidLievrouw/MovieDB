@@ -15,6 +15,7 @@
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="tests/MovieDB.ArchitectureTests/MovieDB.ArchitectureTests.csproj" />
+    <Project Path="tests/MovieDB.Benchmarks/MovieDB.Benchmarks.csproj" />
     <Project Path="tests/MovieDB.BrowserTests/MovieDB.BrowserTests.csproj" />
     <Project Path="tests/MovieDB.CharacteristicsTests/MovieDB.CharacteristicsTests.csproj" />
     <Project Path="tests/MovieDB.UnitTests/MovieDB.UnitTests.csproj" />

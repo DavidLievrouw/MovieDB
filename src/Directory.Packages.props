@@ -24,6 +24,7 @@
     <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1" />
     <PackageVersion Include="Roslynator.CodeAnalysis.Analyzers" Version="5.0.1" />
     <PackageVersion Include="Roslynator.Formatting.Analyzers" Version="5.0.1" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="Testcontainers.MariaDb" Version="4.16.0" />
     <PackageVersion Include="bunit" Version="2.13.3" />
     <PackageVersion Include="Microsoft.Playwright" Version="1.64.1" />

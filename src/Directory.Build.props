@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MovieDB.ArchitectureTests" />
+    <InternalsVisibleTo Include="MovieDB.Benchmarks" />
     <InternalsVisibleTo Include="MovieDB.BrowserTests" />
     <InternalsVisibleTo Include="MovieDB.CharacteristicsTests" />
     <InternalsVisibleTo Include="MovieDB.UnitTests" />

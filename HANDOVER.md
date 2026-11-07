@@ -43,13 +43,42 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M9 Multi-director | Done (committed) |
 | M10 Phase 2 wrap-up | Done (committed) |
 | M11 TMDB provider client (no UI), [`PLAN-3.md`](PLAN-3.md) | Done (committed) |
-| M12 Lookup dialog, attribution, page integration | Done, awaiting owner review (uncommitted) |
+| M12 Lookup dialog, attribution, page integration | Done (committed) |
 | M13 Docs, AGENTS.md convention, full regression | Not started |
+| M14 Benchmark harness + baseline, [`PLAN-4.md`](PLAN-4.md) | Done, awaiting owner review (uncommitted) |
+| M15 Schema and import tooling | Not started |
+| M16 Query and code optimizations | Not started |
+| M17 Runtime and memory settings | Not started |
+| M18 PLAN-4 wrap-up | Not started |
 
 Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
 owner-driven first deployment (README) is independent of it.
 
-### What M12 delivered (uncommitted, awaiting review)
+### What M14 delivered (PLAN-4, uncommitted, awaiting review)
+
+- New `src/tests/MovieDB.Benchmarks` (BenchmarkDotNet, in process, one throwaway `mariadb:12.3.3` container; Docker required). It
+  seeds deterministic synthetic data at 1,203 and 12,030 movies, runs 21 operations (overview variants, navigation, statistics,
+  lookups, suggestions, saves) and counts database round trips with a `DbCommandInterceptor`. `InternalsVisibleTo` for the
+  project was added to `Directory.Build.props`; `BenchmarkDotNet` 0.15.8 to the central package versions. No production code changed.
+- Commands are in AGENTS.md and README. The baseline is stored in git-ignored `artifacts/benchmarks/baseline` (`roundtrips.md`,
+  `results/`). TieredPGO is out of scope (owner decision).
+- Baseline (default job, this machine; later milestones compare against it):
+
+| Operation | Round trips | 1,203 movies | 12,030 movies |
+|---|---:|---:|---:|
+| Overview, default sort | 5 | 5.8 ms / 280 KB | 9.9 ms / 276 KB |
+| Overview, sort on director | 5 | 7.2 ms / 281 KB | 24.8 ms / 281 KB |
+| Overview, sort on genre | 5 | 7.5 ms / 263 KB | 27.9 ms / 263 KB |
+| Overview, two genres | 6 | 8.4 ms / 297 KB | 28.5 ms / 316 KB |
+| Overview, last page | 5 | 5.9 ms / 197 KB | 14.4 ms / 281 KB |
+| Navigation, default | 1 | 2.7 ms / 36 KB | 15.2 ms / 36 KB |
+| Navigation, with genre | 2 | 4.8 ms / 66 KB | 28.3 ms / 67 KB |
+| Statistics | 4 | 5.4 ms / 125 KB | 18.0 ms / 124 KB |
+| Detail / edit load | 1 | 1.9 ms / 43 KB | 1.5 ms / 52 KB |
+| List genres | 1 | 1.3 ms / 35 KB | 1.1 ms / 35 KB |
+| Save new / existing | 9 / 10 | 9.6 / 9.7 ms, 205 KB | 9.3 / 8.9 ms, 210 KB |
+
+### What M12 delivered (committed)
 
 - `MovieLookupDialog.razor` (public component): own 400 ms debounced search (at least 2 characters, at most 10 hits),
   hit rows with a TMDB link and a "Kies" button, status area, Dutch messages from `LookupMessages`, retry for a failed

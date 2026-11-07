@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using MovieDB.Infrastructure;
 using MovieDB.Infrastructure.Entities;
 using MovieDB.Movies;
 using Shouldly;

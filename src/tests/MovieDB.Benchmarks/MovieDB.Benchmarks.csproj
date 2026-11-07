@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Testcontainers.MariaDb" />
+    <PackageReference Include="Microting.EntityFrameworkCore.MySql" />
+    <ProjectReference Include="..\..\MovieDB.Common\MovieDB.Common.csproj" />
+    <ProjectReference Include="..\..\MovieDB.Infrastructure\MovieDB.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\MovieDB.Movies\MovieDB.Movies.csproj" />
+  </ItemGroup>
+</Project>

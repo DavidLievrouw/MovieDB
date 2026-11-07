@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MovieDB.AccessImport;
 using MovieDB.Infrastructure;
-using MySqlConnector;
 using Shouldly;
 
 namespace MovieDB.CharacteristicsTests.Import;

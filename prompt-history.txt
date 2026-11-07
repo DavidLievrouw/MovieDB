@@ -90,10 +90,13 @@ Ask me any questions you may have. Make sure to include all necessary details in
 
 ----------
 
-Finishing:
-
 Performance is key, every cpu cycle costs, and every byte in memory too.
 Check if there are any performance gains you can find in code. Also achieve the most effective memory usage possible.
 Check usage of the mariadb database. Which indexes make sense? Add them in a on-startup ef core migration.
 When you do database changes, make sure you also keep the Import-Access.ps1 script updated to reflect those changes.
 
+Write PLAN-4.md with the performance improvements you found. Ask any additional questions you may have before starting the implementation.
+
+-----------
+
+Read AGENTS.md and PLAN.md and PLAN-4.md. We are implementing PLAN-4. You are an expert full stack web developer, assigned this task. Implement the change. But scan for inconsistencies or things that are unclear first. If you have any questions, ask them first.

@@ -1,5 +1,4 @@
 using MovieDB.Common;
-using MovieDB.Infrastructure;
 using MovieDB.Movies;
 using MovieDB.Movies.Lookup;
 using Shouldly;

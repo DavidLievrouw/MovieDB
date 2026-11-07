@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MovieDB.Auth;
-using MovieDB.Infrastructure;
 using MovieDB.Infrastructure.Entities;
 using Shouldly;
 

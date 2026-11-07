@@ -55,7 +55,8 @@ Solution `src/MovieDB.slnx` (PLAN.md §4.2):
   platform-neutral and unit-tested. Run it through `scripts/Import-Access.ps1`, which also produces the guarded
   production data dump. It is not shipped in the image.
 - **`src/tests/`:** `MovieDB.UnitTests`, `MovieDB.CharacteristicsTests` (WebApplicationFactory + Testcontainers),
-  `MovieDB.ArchitectureTests` (NetArchTest), `MovieDB.BrowserTests` (Playwright .NET).
+  `MovieDB.ArchitectureTests` (NetArchTest), `MovieDB.BrowserTests` (Playwright .NET), and the
+  `MovieDB.Benchmarks` console app (BenchmarkDotNet; PLAN-4 §5).
 
 Dependency directions:
 
@@ -247,6 +248,9 @@ Run the smallest relevant checks, then expand when results warrant it:
 - Add migration: `dotnet ef migrations add <Name> --project src/MovieDB.Infrastructure --startup-project src/MovieDB.Web`
 - Migration review: `dotnet ef migrations script --idempotent --project src/MovieDB.Infrastructure --startup-project src/MovieDB.Web`
 - Restore tools: `dotnet tool restore`
+- Benchmarks (Docker required, not part of `dotnet test`; results in git-ignored `artifacts/benchmarks/<name>`):
+  `dotnet run -c Release --project src/tests/MovieDB.Benchmarks -- --filter "*" --artifacts artifacts/benchmarks/<name>` (timings,
+  allocations; `--job short` for a quick run) and `... -- --roundtrips artifacts/benchmarks/<name>` (database round trips).
 - Access import + production dump (local DB only):
   `./scripts/Import-Access.ps1 -Source .\FilmsBase.mdb [-Reset] [-DryRun] [-SkipDump] [-DumpPath .\artifacts\import\moviedb-data.sql]`
 - Default login after a fresh database: `admin` / `demodemo` (seeded once on startup; the password comes from
