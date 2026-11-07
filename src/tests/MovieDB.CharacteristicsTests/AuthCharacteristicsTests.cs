@@ -202,8 +202,8 @@ public sealed partial class AuthCharacteristicsTests
         page.ShouldContain("Database van films");
         page.ShouldContain("MovieDB.Web.");
         page.ShouldContain(".styles.css");
-        options.DisconnectedCircuitRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(5));
-        options.DisconnectedCircuitMaxRetained.ShouldBe(20);
+        options.DisconnectedCircuitRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(2));
+        options.DisconnectedCircuitMaxRetained.ShouldBe(3);
     }
 
     [Fact]

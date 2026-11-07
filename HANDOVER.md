@@ -47,14 +47,43 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M13 Docs, AGENTS.md convention, full regression | Not started |
 | M14 Benchmark harness + baseline, [`PLAN-4.md`](PLAN-4.md) | Done (committed) |
 | M15 Schema and import tooling | Done (committed) |
-| M16 Query and code optimizations | Done, awaiting owner review (uncommitted) |
-| M17 Runtime and memory settings | Not started |
+| M16 Query and code optimizations | Done (committed) |
+| M17 Runtime and memory settings | Done, awaiting owner review (uncommitted) |
 | M18 PLAN-4 wrap-up | Not started |
 
 Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
 owner-driven first deployment (README) is independent of it.
 
-### What M16 delivered (PLAN-4, uncommitted, awaiting review)
+### What M17 delivered (PLAN-4, uncommitted, awaiting review)
+
+- **Pools:** `AddPooledDbContextFactory(..., poolSize: 8)`; `DatabaseConfiguration.Configure` sets MySqlConnector
+  `MaximumPoolSize=8` unless the connection string sets it itself (any alias; `ContainsPoolSize`). 3 new unit tests. The
+  migrator's lock connection is one of the 8, so it cannot be starved.
+- **Circuits:** `DisconnectedCircuitRetentionPeriod` 2 min, `DisconnectedCircuitMaxRetained` 3 (was 5 min / 20);
+  `AuthCharacteristicsTests` assertions updated.
+- **Container:** `mem_limit: 384m` in compose (planned 256m; raised after review for headroom, owner-approved) and `DOTNET_GCConserveMemory=5` in the Dockerfile. Existing
+  `gcServer=0`, `GCHeapHardLimitPercent=50` (= 192 MB heap under the 384m limit), non-concurrent GC and TieredPGO unchanged.
+  `GCgen0MaxBudget` skipped: no evidence that gen0 churn dominates, and the peak already dropped. README deployment
+  text updated; the health check timing needed no change (the container starts and answers `/health/live` within seconds).
+- **Measurement** (`docker stats`, MiB, the image run against the local MariaDB; scripted read-only Playwright session of
+  ~40 s: login, overview with search/sort/genre filters/paging, 3 edit pages per overview, new-film page; 20 rounds;
+  scripts were throwaway, outside the repo):
+
+  | Scenario | Idle | Peak in session | 30 s after | 3 min after | Mean CPU | OOM |
+  |----------|------|-----------------|------------|-------------|----------|-----|
+  | Before (HEAD, no limit) | 69.6 | 260 | 242.5 | 243.8 | 72.6% | n/a |
+  | After (all M17 changes, 256m) | 69.5 | 224 | 225.8 | 199.7 | 71.8% | no, 0 restarts |
+  | After, but `GCConserveMemory=0` (isolates it) | 69.6 | 248 | 227.9 | 229.2 | 74.8% | no, 0 restarts |
+
+  `GCConserveMemory=5` lowers the peak by ~24 MiB and the settled memory by ~30 MiB at no visible CPU cost. The whole
+  set reduces the settled memory by ~18% (244 → 200 MiB) and the peak by ~14%.
+  The measurements above ran with 256m: the peak under load (224 MiB) was ~87% of that limit (a deliberate stress run).
+  On the owner's request the limit was then raised to 384m (heap cap 192 MB), so the peak is ~58% of it. The 384m
+  configuration itself was not re-measured; the GC settings are unchanged.
+- Pool size and circuit retention have no separately measurable effect in a single-user session; they are kept as
+  safe upper bounds.
+
+### What M16 delivered (PLAN-4, committed)
 
 - **C3/C8 genre catalog:** new `GenreCatalog` singleton (`MoviesModule`), the only allowed lookup-data cache (closed seeded
   list, no invalidation). Lazy load guarded by a `SemaphoreSlim`; a failed load is not cached. `Overview.razor` and

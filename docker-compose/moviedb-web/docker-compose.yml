@@ -3,6 +3,8 @@ services:
     image: moviedb-web:${MOVIEDB_VERSION:-1.0.0}
     container_name: moviedb
     restart: unless-stopped
+    # DOTNET_GCHeapHardLimitPercent=50 in the image makes this a 192 MB managed heap cap.
+    mem_limit: 384m
     environment:
       - ConnectionStrings__MovieDb=${MOVIEDB_CONNECTION_STRING:?Set MOVIEDB_CONNECTION_STRING in your environment}
       - App__TimeZone=Europe/Brussels

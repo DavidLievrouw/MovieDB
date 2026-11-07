@@ -19,6 +19,7 @@ COPY --from=build /out .
 ENV ASPNETCORE_HTTP_PORTS=8080 \
     DOTNET_gcServer=0 \
     DOTNET_GCHeapHardLimitPercent=50 \
+    DOTNET_GCConserveMemory=5 \
     DOTNET_TieredPGO=1
 USER $APP_UID
 EXPOSE 8080

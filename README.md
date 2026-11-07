@@ -141,6 +141,12 @@ docker inspect moviedb --format '{{.State.Health.Status}}'
 On first start the container applies the migrations and seeds the user `admin` with `MOVIEDB_DEFAULT_PASSWORD`. Log in
 and change the password at `/account/wachtwoord`.
 
+The compose file sets `mem_limit: 384m`. The image caps the managed heap at 50% of that limit
+(`DOTNET_GCHeapHardLimitPercent=50`) and runs the GC with `DOTNET_GCConserveMemory=5`; the app itself limits the database
+connection pool to 8 (unless the connection string sets `Maximum Pool Size`) and keeps at most 3 disconnected Blazor
+circuits for 2 minutes. If `docker inspect moviedb --format '{{.State.OOMKilled}}'` is `true` or
+`docker stats moviedb` stays close to 384 MiB, raise `mem_limit` (and review why) instead of removing it.
+
 ### First deployment: load the data
 
 1. Locally, run `Import-Access.ps1` on a fresh local database (see above). It writes and verifies

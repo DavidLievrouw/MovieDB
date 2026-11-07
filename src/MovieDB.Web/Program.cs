@@ -162,8 +162,8 @@ builder
     .Services.AddRazorComponents()
     .AddInteractiveServerComponents(o =>
     {
-        o.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(5);
-        o.DisconnectedCircuitMaxRetained = 20;
+        o.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(2);
+        o.DisconnectedCircuitMaxRetained = 3;
     });
 
 // Configure trusted proxies explicitly so clients cannot spoof X-Forwarded-For to bypass login rate limits.
