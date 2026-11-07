@@ -131,7 +131,11 @@ port. Set these values in the environment or the stack (never in the repository)
 | `MOVIEDB_TMDB_TOKEN` | optional TMDB "API Read Access Token"; without it the online film search is disabled (see [Online film search (TMDB)](#online-film-search-tmdb)) |
 | `DATAPROTECTION_CERTIFICATE_PASSWORD` | password of the PFX |
 | `MOVIEDB_VERSION` | image tag (default `1.0.0`) |
-| `FORWARDED_HEADERS_KNOWN_PROXY_0` | Nginx Proxy Manager container IP (default `172.18.0.3`) |
+| `FORWARDED_HEADERS_KNOWN_PROXY_0` | Nginx Proxy Manager container IP (default `172.18.0.4`) |
+| `FORWARDED_HEADERS_KNOWN_NETWORK_0` | optional CIDR trusted as proxy network, e.g. `172.18.0.0/16`; survives the proxy container getting a new IP |
+
+If the proxy is not trusted, the app sees plain HTTP and `/login` fails with an antiforgery "not an SSL request" error;
+the log then shows `Ignored X-Forwarded-Proto from <ip>` with the address to trust.
 
 ```sh
 docker compose -f docker-compose/moviedb-web/docker-compose.yml up -d

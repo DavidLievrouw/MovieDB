@@ -12,7 +12,8 @@ services:
       - Auth__SecureCookies=true
       - Auth__DefaultPassword=${MOVIEDB_DEFAULT_PASSWORD:?Set MOVIEDB_DEFAULT_PASSWORD in your environment}
       - Tmdb__ApiReadAccessToken=${MOVIEDB_TMDB_TOKEN:-}
-      - ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0:-172.18.0.3}
+      - ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0:-172.18.0.4}
+      - ForwardedHeaders__KnownNetworks__0=${FORWARDED_HEADERS_KNOWN_NETWORK_0:-}
       - DataProtection__CertificatePath=/run/secrets/dataprotection.pfx
       - DataProtection__CertificatePassword=${DATAPROTECTION_CERTIFICATE_PASSWORD:?Set DATAPROTECTION_CERTIFICATE_PASSWORD in your environment}
     volumes:

@@ -803,7 +803,7 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
   - Environment variables, as in Motorsports (`KEY=${SOURCE_VAR:?…}` for required secrets):
     `ConnectionStrings__MovieDb=${MOVIEDB_CONNECTION_STRING}`, image tag `${MOVIEDB_VERSION}`,
     `App__TimeZone=Europe/Brussels`, `Health__PublicUrl=https://mdb.dalion.eu`, `Auth__SecureCookies=true`,
-    `ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0:-172.18.0.3}` (the Nginx Proxy Manager
+    `ForwardedHeaders__KnownProxies__0=${FORWARDED_HEADERS_KNOWN_PROXY_0:-172.18.0.4}` (the Nginx Proxy Manager
     container IP, confirmed by the owner),
     `DataProtection__CertificatePath=/run/secrets/dataprotection.pfx` and
     `DataProtection__CertificatePassword=${DATAPROTECTION_CERTIFICATE_PASSWORD}`, and
@@ -820,7 +820,7 @@ Each milestone ends with the end-of-task routine in AGENTS.md: build with `-warn
   `Kestrel__Endpoints__Http__Url` as Motorsports' compose does). In Nginx Proxy Manager add a proxy host for the
   public hostname `mdb.dalion.eu` that forwards to `moviedb:8080` with TLS, "Force SSL" and HSTS, and WebSocket support
   enabled (Blazor Server needs WebSockets). `Health__PublicUrl` is `https://mdb.dalion.eu`, and
-  `ForwardedHeaders__KnownProxies__0` is the NPM container IP `172.18.0.3` (confirmed by the owner). The app itself
+  `ForwardedHeaders__KnownProxies__0` is the NPM container IP `172.18.0.4` (confirmed by the owner). The app itself
   must also send an HSTS header (`UseHsts` outside Development) and treat the site as HTTPS-only (`Secure` cookies).
 - **Compose service name**: `moviedb` (container and image `moviedb-web:${MOVIEDB_VERSION}`), which must differ from
   Motorsports' `motorsports` container.
@@ -866,7 +866,7 @@ The owner answered the questions raised in the review of AGENTS.md and PLAN.md:
 | # | Question | Answer |
 |---|---|---|
 | Q-k | Public hostname? | `https://mdb.dalion.eu`, HTTPS only (HSTS). Used for `Health__PublicUrl`, the NPM proxy host and `Secure` cookies. |
-| Q-l | Is the NPM container IP still `172.18.0.3`? | Yes. Default `ForwardedHeaders__KnownProxies__0` to it. |
+| Q-l | Is the NPM container IP still `172.18.0.3`? | Yes. Default `ForwardedHeaders__KnownProxies__0` to it. (Later corrected by the owner to `172.18.0.4`.) |
 | Q-m | Share the existing production MariaDB and its resource limit? | Yes. |
 | Q-n | Production DB host and user? | Host `mariadb`, with its own `moviedb` user (privileges on `moviedb` only). |
 

@@ -177,6 +177,16 @@ var knownProxies = knownProxyAddresses
             )
     )
     .ToArray();
+var knownNetworks = (builder.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? [])
+    .Where(network => !string.IsNullOrWhiteSpace(network))
+    .Select(network =>
+        System.Net.IPNetwork.TryParse(network, out var parsed)
+            ? parsed
+            : throw new InvalidOperationException(
+                $"ForwardedHeaders:KnownNetworks contains an invalid CIDR network: {network}"
+            )
+    )
+    .ToArray();
 builder.Services.PostConfigure<ForwardedHeadersOptions>(o =>
 {
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -185,6 +195,10 @@ builder.Services.PostConfigure<ForwardedHeadersOptions>(o =>
     foreach (var address in knownProxies)
     {
         o.KnownProxies.Add(address);
+    }
+    foreach (var network in knownNetworks)
+    {
+        o.KnownIPNetworks.Add(network);
     }
 });
 
@@ -218,9 +232,30 @@ if (!string.IsNullOrWhiteSpace(builder.Configuration[$"{HealthOptions.Section}:{
 
 var app = builder.Build();
 
-if (!app.Environment.IsDevelopment() && knownProxies.Length > 0)
+if (!app.Environment.IsDevelopment() && (knownProxies.Length > 0 || knownNetworks.Length > 0))
 {
     app.UseForwardedHeaders();
+
+    // Accepted forwarded headers are consumed by the middleware, so a surviving X-Forwarded-Proto means the
+    // sender is not a trusted proxy. Secure cookies and antiforgery then fail on a plain-HTTP request.
+    var untrustedProxyLogged = 0;
+    app.Use(
+        async (context, next) =>
+        {
+            if (
+                context.Request.Headers.ContainsKey("X-Forwarded-Proto")
+                && Interlocked.Exchange(ref untrustedProxyLogged, 1) == 0
+            )
+            {
+                app.Logger.LogWarning(
+                    "Ignored X-Forwarded-Proto from {RemoteIp}, which is not in ForwardedHeaders:KnownProxies or KnownNetworks. "
+                        + "Add the reverse proxy's address, or the Docker network (CIDR), to trust it",
+                    context.Connection.RemoteIpAddress
+                );
+            }
+            await next(context);
+        }
+    );
 }
 if (!app.Environment.IsDevelopment())
 {
