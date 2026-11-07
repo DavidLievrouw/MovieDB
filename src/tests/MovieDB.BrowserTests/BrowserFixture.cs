@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Playwright;
 using MovieDB.Common;
 using MovieDB.Infrastructure;
 using MovieDB.Infrastructure.Entities;
 using MovieDB.Movies;
+using MovieDB.Movies.Lookup;
 using Testcontainers.MariaDb;
 
 namespace MovieDB.BrowserTests;
@@ -44,6 +47,9 @@ public sealed class BrowserFixture : IAsyncLifetime
     /// <summary>The address the host listens on, without a trailing slash.</summary>
     public string BaseUrl { get; private set; } = "";
 
+    /// <summary>The scripted online movie database; call <see cref="FakeMovieLookup.Reset"/> at the start of a test.</summary>
+    internal FakeMovieLookup Lookup { get; } = new();
+
     /// <summary>The services of the running host, for seeding and for reading back saved data.</summary>
     public IServiceProvider Services => _app!.Services;
 
@@ -68,7 +74,13 @@ public sealed class BrowserFixture : IAsyncLifetime
         Environment.SetEnvironmentVariable("Auth__Protection__DeviceAttempts", "1000");
         Environment.SetEnvironmentVariable("Auth__Protection__MaximumCooldownSeconds", "1");
 
-        var factory = new WebApplicationFactory<Program>();
+        var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IMovieLookup>();
+                services.AddSingleton<IMovieLookup>(Lookup);
+            })
+        );
         factory.UseKestrel(0);
         factory.StartServer();
         _app = factory;

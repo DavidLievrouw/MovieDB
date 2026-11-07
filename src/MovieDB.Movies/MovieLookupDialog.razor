@@ -1,0 +1,277 @@
+@implements IDisposable
+@inject IMovieLookup Lookup
+@inject UserClock Clock
+@inject ILogger<MovieLookupDialog> Logger
+
+<MudDialog Class="lookup-dialog">
+    <TitleContent>Film online zoeken</TitleContent>
+    <DialogContent>
+        <MudTextField T="string" @bind-Value="_text" @bind-Value:after="OnTextChanged" Immediate="true" Label="Titel"
+                      HelperText="Typ de (Engelse of originele) titel, eventueel met jaartal" MaxLength="LookupInputParser.MaxLength"
+                      Variant="Variant.Outlined" AutoFocus="true" Clearable="true" OnClearButtonClick="OnClear"
+                      Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" AdornmentAriaLabel="Zoeken"
+                      OnAdornmentClick="OnSearchClick" OnKeyDown="OnKeyDown" Disabled="@_choosing"
+                      Error="@(_inputError is not null)" ErrorText="@_inputError" Class="lookup-search"
+                      UserAttributes="@(new Dictionary<string, object> { ["data-testid"] = "lookup-search" })"/>
+
+        <div class="lookup-status" role="status" aria-live="polite" data-testid="lookup-status">@StatusText</div>
+
+        @if (_phase == Phase.Searching)
+        {
+            <div class="lookup-skeleton" aria-hidden="true">
+                <MudSkeleton Height="56px" Animation="Animation.Wave"/>
+                <MudSkeleton Height="56px" Animation="Animation.Wave"/>
+                <MudSkeleton Height="56px" Animation="Animation.Wave"/>
+            </div>
+        }
+
+        @if (_detailsError is not null)
+        {
+            <MudAlert Severity="Severity.Warning" Class="lookup-error" role="alert" data-testid="lookup-details-error">
+                <span>@_detailsError</span>
+                @if (_failedHit is { } failed)
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Inherit" OnClick="@(() => ChooseAsync(failed))">Opnieuw proberen</MudButton>
+                }
+            </MudAlert>
+        }
+
+        @if (_phase == Phase.Results && _hits.Count > 0)
+        {
+            <ul class="lookup-hits @(_choosing ? "lookup-hits-busy" : "")" aria-busy="@(_choosing ? "true" : "false")" data-testid="lookup-hits">
+                @foreach (var hit in _hits)
+                {
+                    var name = hit.OriginalTitle ?? hit.Title;
+                    <li class="lookup-hit" data-testid="lookup-hit">
+                        <div class="lookup-hit-main" @onclick="@(() => ChooseAsync(hit))">
+                            <span class="lookup-hit-title">@name (@(hit.Year?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "jaar onbekend"))</span>
+                            @if (!string.Equals(hit.Title, name, StringComparison.CurrentCultureIgnoreCase))
+                            {
+                                <span class="lookup-hit-english">@hit.Title</span>
+                            }
+
+                            @if (!string.IsNullOrWhiteSpace(hit.Overview))
+                            {
+                                <span class="lookup-hit-overview">@hit.Overview</span>
+                            }
+
+                            <a class="lookup-hit-link" href="@hit.SourceUrl" target="_blank" rel="noopener noreferrer"
+                               aria-label="@($"Bekijk {name} op TMDB")" @onclick:stopPropagation="true">Bekijk op TMDB</a>
+                        </div>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" Disabled="@_choosing"
+                                   OnClick="@(() => ChooseAsync(hit))" aria-label="@($"Kies {name}")">Kies</MudButton>
+                    </li>
+                }
+            </ul>
+            <p class="lookup-verify">Controleer via de link of dit de juiste film is.</p>
+        }
+    </DialogContent>
+    <DialogActions>
+        <TmdbAttribution/>
+        <MudButton OnClick="Cancel">Annuleren</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private const int DebounceMilliseconds = 400;
+    private const int MaxHits = 10;
+
+    private enum Phase
+    {
+        Idle,
+        Searching,
+        Results,
+        Failed,
+    }
+
+    private string? _text;
+    private string? _inputError;
+    private string _searched = "";
+    private string _failure = "";
+    private string? _detailsError;
+    private LookupHit? _failedHit;
+    private IReadOnlyList<LookupHit> _hits = [];
+    private Phase _phase = Phase.Idle;
+    private bool _choosing;
+    private bool _disposed;
+    private CancellationTokenSource? _searchCts;
+    private CancellationTokenSource? _detailsCts;
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    /// <summary>The text to search for when the dialog opens; searched at once when it has enough characters.</summary>
+    [Parameter]
+    public string? InitialText { get; set; }
+
+    private string StatusText =>
+        _choosing ? "Gegevens ophalen…"
+        : _phase switch
+        {
+            Phase.Searching => "Zoeken…",
+            Phase.Results when _hits.Count == 0 => LookupMessages.NoResults(_searched),
+            Phase.Failed => _failure,
+            _ => "",
+        };
+
+    protected override void OnInitialized()
+    {
+        _text = InitialText;
+        if ((_text?.Trim().Length ?? 0) >= LookupInputParser.MinLength)
+        {
+            _ = SearchAsync(0, explicitSearch: false);
+        }
+    }
+
+    private void OnTextChanged() => _ = SearchAsync(DebounceMilliseconds, explicitSearch: false);
+
+    private void OnSearchClick() => _ = SearchAsync(0, explicitSearch: true);
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _ = SearchAsync(0, explicitSearch: true);
+        }
+    }
+
+    private void OnClear()
+    {
+        _searchCts?.Cancel();
+        _text = "";
+        _inputError = null;
+        _hits = [];
+        _phase = Phase.Idle;
+    }
+
+    private async Task SearchAsync(int delayMilliseconds, bool explicitSearch)
+    {
+        // A newer search replaces the older one: the older one stops and leaves the screen to the newer one.
+        var cts = new CancellationTokenSource();
+        _searchCts?.Cancel();
+        _searchCts = cts;
+        var token = cts.Token;
+        try
+        {
+            if (delayMilliseconds > 0)
+            {
+                await Task.Delay(delayMilliseconds, token);
+            }
+
+            var parsed = LookupInputParser.Parse(_text, Clock.CurrentYear);
+            if (!parsed.IsSuccess)
+            {
+                _inputError = explicitSearch ? parsed.Error.Message : null;
+                _hits = [];
+                _phase = Phase.Idle;
+                return;
+            }
+
+            _inputError = null;
+            _detailsError = null;
+            _failedHit = null;
+            _hits = [];
+            _searched = _text!.Trim();
+            _phase = Phase.Searching;
+            StateHasChanged();
+
+            var result = await Lookup.SearchAsync(parsed.Value, token);
+            token.ThrowIfCancellationRequested();
+            if (result.IsSuccess)
+            {
+                _hits = [.. result.Value.Take(MaxHits)];
+                _phase = Phase.Results;
+            }
+            else
+            {
+                _failure = LookupMessages.For(result.Error.Kind);
+                _phase = Phase.Failed;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Searching the online movie database failed.");
+            _failure = LookupMessages.For(ErrorKind.Unavailable);
+            _phase = Phase.Failed;
+        }
+        finally
+        {
+            if (ReferenceEquals(_searchCts, cts))
+            {
+                _searchCts = null;
+            }
+
+            cts.Dispose();
+            if (!_disposed)
+            {
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task ChooseAsync(LookupHit hit)
+    {
+        if (_choosing)
+        {
+            return;
+        }
+
+        _choosing = true;
+        _detailsError = null;
+        _failedHit = null;
+        using var cts = new CancellationTokenSource();
+        _detailsCts = cts;
+        try
+        {
+            var result = await Lookup.GetDetailsAsync(hit.Id, cts.Token);
+            if (result.IsSuccess)
+            {
+                MudDialog.Close(DialogResult.Ok(result.Value));
+                return;
+            }
+
+            ShowDetailsFailure(hit, result.Error.Kind);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Fetching the movie details failed.");
+            ShowDetailsFailure(hit, ErrorKind.Unavailable);
+        }
+        finally
+        {
+            _detailsCts = null;
+        }
+
+        _choosing = false;
+    }
+
+    private void ShowDetailsFailure(LookupHit hit, ErrorKind kind)
+    {
+        if (kind == ErrorKind.NotFound)
+        {
+            _detailsError = LookupMessages.NotFound;
+            return;
+        }
+
+        _detailsError = $"{LookupMessages.For(kind)} {LookupMessages.DetailsFailed}";
+        _failedHit = hit;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _disposed = true;
+        _searchCts?.Cancel();
+        _detailsCts?.Cancel();
+    }
+}

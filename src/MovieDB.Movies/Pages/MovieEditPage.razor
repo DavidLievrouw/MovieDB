@@ -10,6 +10,7 @@
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 @inject ILogger<MovieEditPage> Logger
+@inject IMovieLookup Lookup
 
 <PageTitle>@PageHeading</PageTitle>
 
@@ -110,11 +111,50 @@
             <MudAlert Severity="Severity.Error" Class="mt-3" role="alert">Controleer de gemarkeerde velden.</MudAlert>
         }
 
+        @if (_showLookupAlert)
+        {
+            <MudAlert Severity="Severity.Success" Class="mt-3" role="status" ShowCloseIcon="true"
+                      CloseIconClicked="@(() => _showLookupAlert = false)" data-testid="lookup-success">
+                Ingevuld vanuit TMDB: titel, genre(s), duur, jaar, regisseur(s). Controleer de gegevens.
+                @if (_lookupNotices.Count > 0)
+                {
+                    <ul class="films-lookup-notices">
+                        @foreach (var notice in _lookupNotices)
+                        {
+                            <li>@notice</li>
+                        }
+                    </ul>
+                }
+            </MudAlert>
+        }
+
         @* A fresh set of fields per loaded movie, so required-field validation state never leaks between records. *@
         <MudGrid @key="_loadedKey" Class="mt-1" Spacing="3">
             <MudItem xs="12" md="8">
                 <MudPaper Class="films-panel pa-4" Outlined="true" Elevation="0">
                     <h2 class="films-section">Gegevens</h2>
+                    @if (IsNew)
+                    {
+                        <div class="films-lookup">
+                            <MudTooltip Text="@LookupMessages.NotConfigured" Disabled="@Lookup.IsConfigured">
+                                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Search"
+                                           OnClick="OpenLookupAsync" Disabled="@(!Lookup.IsConfigured || _saving)"
+                                           data-testid="lookup-open">Zoek film online</MudButton>
+                            </MudTooltip>
+                            @if (_lookup is { } source)
+                            {
+                                <p class="films-lookup-source" data-testid="lookup-source">
+                                    Ingevuld vanuit: <strong>@source.Title</strong> ·
+                                    <a href="@source.SourceUrl" target="_blank" rel="noopener noreferrer">TMDB ↗</a>
+                                    @if (source.ImdbUrl is { } imdb)
+                                    {
+                                        <text> · <a href="@imdb" target="_blank" rel="noopener noreferrer">IMDb ↗</a></text>
+                                    }
+                                </p>
+                            }
+                        </div>
+                    }
+
                     <div class="films-fields">
                         <MudTextField @ref="_title" T="string" @bind-Value="_model.Title" Label="Filmtitel" Immediate="true"
                                       MaxLength="MovieInput.TitleMaxLength" Variant="Variant.Outlined" Required="true"
@@ -209,6 +249,11 @@
             </MudItem>
         </MudGrid>
 
+        @if (IsNew)
+        {
+            <TmdbAttribution/>
+        }
+
         <div class="films-savebar" role="region" aria-label="Opslaan">
             <span class="films-savebar-state" aria-live="polite">@(Dirty ? "Niet-opgeslagen wijzigingen" : "")</span>
             <MudButton Variant="Variant.Text" OnClick="Cancel" Disabled="@(!Dirty || _saving)">Annuleren</MudButton>
@@ -270,6 +315,9 @@
     private int _loadedKey = -1;
     private DotNetObjectReference<MovieEditPage>? _self;
     private bool _registered;
+    private LookupDetails? _lookup;
+    private IReadOnlyList<string> _lookupNotices = [];
+    private bool _showLookupAlert;
 
     private MudTextField<string>? _title;
     private ChipMultiSelect? _genre;
@@ -421,6 +469,9 @@
         _conflict = false;
         _formError = null;
         _showSummary = false;
+        _lookup = null;
+        _lookupNotices = [];
+        _showLookupAlert = false;
     }
 
     private void Cancel()
@@ -537,6 +588,129 @@
         if (_duplicateId is not null && !_errors.ContainsKey(nameof(MovieInput.Title)))
         {
             _errors[nameof(MovieInput.Title)] = MovieMessages.Duplicate;
+        }
+    }
+
+    private static readonly string[] LookupFields =
+    [
+        nameof(MovieInput.Title),
+        nameof(MovieInput.Genres),
+        nameof(MovieInput.RuntimeMinutes),
+        nameof(MovieInput.ReleaseYear),
+        nameof(MovieInput.Directors),
+    ];
+
+    private async Task OpenLookupAsync()
+    {
+        var parameters = new DialogParameters<MovieLookupDialog> { { x => x.InitialText, _model.Title } };
+        var dialog = await Dialogs.ShowAsync<MovieLookupDialog>(
+            (string?)null,
+            parameters,
+            new DialogOptions { CloseOnEscapeKey = true, BackdropClick = false, MaxWidth = MaxWidth.Medium, FullWidth = true }
+        );
+        var result = await dialog.Result;
+        if (result is { Canceled: false, Data: LookupDetails details })
+        {
+            await ApplyLookupAsync(details);
+        }
+    }
+
+    private async Task ApplyLookupAsync(LookupDetails details)
+    {
+        if (
+            LookupFill.HasInputBesidesTitle(_model)
+            && await Dialogs.ShowMessageBoxAsync(
+                "Bestaande gegevens overschrijven?",
+                "De velden Filmtitel, Genre, Duur, Jaar en Regisseur(s) worden vervangen.",
+                yesText: "Overschrijven",
+                cancelText: "Annuleren"
+            ) is not true
+        )
+        {
+            return;
+        }
+
+        var notices = LookupFill.Apply(_model, details, Clock);
+        await UseStoredDirectorSpellingsAsync();
+        foreach (var field in LookupFields)
+        {
+            _errors.Remove(field);
+        }
+
+        _showSummary = false;
+        await CheckDuplicateAsync(Commands.Validate(_model.Normalized()));
+        _lookup = details;
+        _lookupNotices = notices;
+        _showLookupAlert = true;
+        await InvokeAsync(StateHasChanged);
+        await FocusFirstEmptyAsync();
+    }
+
+    // A looked-up director that is already stored takes the stored spelling, and is not marked as new.
+    private async Task UseStoredDirectorSpellingsAsync()
+    {
+        if (_model.Directors.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var stored = await Queries.FindKnownDirectorsAsync(_model.Directors, CancellationToken.None);
+            _model.Directors =
+            [
+                .. _model.Directors.Select(name =>
+                    stored.FirstOrDefault(s => SameName(s, name)) ?? name
+                ),
+            ];
+            _directorNames = [.. _directorNames.Union(stored, StringComparer.OrdinalIgnoreCase)];
+        }
+        catch (Exception ex)
+        {
+            // The marker and the spelling are conveniences: saving matches the names by collation on the server.
+            Logger.LogWarning(ex, "Looking up the known directors failed.");
+        }
+    }
+
+    private static bool SameName(string left, string right) =>
+        string.Compare(
+            left,
+            right,
+            CultureInfo.InvariantCulture,
+            CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace
+        ) == 0;
+
+    private async Task FocusFirstEmptyAsync()
+    {
+        Task? focus;
+        if (string.IsNullOrWhiteSpace(_model.Title))
+        {
+            focus = _title?.FocusAsync().AsTask();
+        }
+        else if (_model.Genres.Count == 0)
+        {
+            focus = _genre?.FocusAsync();
+        }
+        else if (_model.RuntimeMinutes is null)
+        {
+            focus = _runtime?.FocusAsync().AsTask();
+        }
+        else if (_model.ReleaseYear is null)
+        {
+            focus = _year?.FocusAsync().AsTask();
+        }
+        else if (_model.Directors.Count == 0)
+        {
+            focus = _directors?.FocusAsync();
+        }
+        else
+        {
+            focus = _date?.FocusAsync().AsTask();
+        }
+
+        if (focus is not null)
+        {
+            await focus;
         }
     }
 

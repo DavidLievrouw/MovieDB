@@ -42,14 +42,31 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M8 Multi-genre + genre filter | Done (committed) |
 | M9 Multi-director | Done (committed) |
 | M10 Phase 2 wrap-up | Done (committed) |
-| M11 TMDB provider client (no UI), [`PLAN-3.md`](PLAN-3.md) | Done, awaiting owner review (uncommitted) |
-| M12 Lookup dialog, attribution, page integration | Not started |
+| M11 TMDB provider client (no UI), [`PLAN-3.md`](PLAN-3.md) | Done (committed) |
+| M12 Lookup dialog, attribution, page integration | Done, awaiting owner review (uncommitted) |
 | M13 Docs, AGENTS.md convention, full regression | Not started |
 
 Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
 owner-driven first deployment (README) is independent of it.
 
-### What M11 delivered (uncommitted, awaiting review)
+### What M12 delivered (uncommitted, awaiting review)
+
+- `MovieLookupDialog.razor` (public component): own 400 ms debounced search (at least 2 characters, at most 10 hits),
+  hit rows with a TMDB link and a "Kies" button, status area, Dutch messages from `LookupMessages`, retry for a failed
+  details call (not for "not found"), stale searches ignored.
+- `TmdbAttribution.razor` + the unmodified TMDB "Alt short (blue)" logo in `MovieDB.Movies/wwwroot/images/` (with
+  `ATTRIBUTION.txt`). Shown in the dialog and on `/films/nieuw` only; served locally, so the CSP is unchanged.
+- `MovieEditPage`: on `/films/nieuw` an outlined "Zoek film online" button (disabled with a tooltip when no token is
+  configured), overwrite confirmation when the form holds more than a title, `LookupFill.Apply`, stored director
+  spellings (no "nieuw" marker for known directors), duplicate check, dismissible success alert with the notices, a source
+  row (TMDB and IMDb links) and focus on the first empty required field. Nothing is saved until the owner saves.
+- Tests: bUnit (dialog, attribution), browser (`MovieLookupTests` at 390 and 1440 px with a `FakeMovieLookup` that replaces
+  `IMovieLookup`, so the real token is never used), characteristics (logo asset and CSP, no attribution on `/login`,
+  anonymous redirect). Full run: 737 tests pass; build `-warnaserror`, XML-doc build and `csharpier check` are clean
+  (except the pre-existing `Directory.Packages.props` newline).
+- **Owner to verify:** try the dialog against the real TMDB (needs the user-secrets token).
+
+### What M11 delivered (committed)
 
 - `MovieDB.Movies/Lookup/`: `IMovieLookup`, `TmdbMovieLookup` (typed `HttpClient`, bearer token per request, no
   redirects), `LookupInputParser`, `LookupFill`, `TmdbGenreMap`, `TmdbOptions` + validator, `LookupMessages`, models.

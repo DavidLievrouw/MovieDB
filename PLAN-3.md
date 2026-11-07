@@ -4,7 +4,7 @@ Phase 1 ([`PLAN.md`](PLAN.md)) reached feature parity with Access, phase 2 ([`PL
 multi-director. This plan adds **"search a film online and fill in the form"**. Read it together with
 [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** **M11 implemented (provider client, no UI), awaiting owner review; M12 and M13 not started.** The service
+**Status:** **M11 done (committed); M12 implemented (dialog, attribution, page integration), awaiting owner review; M13 not started.** The service
 research (§2) is done and the owner has answered all open questions (§11); the decisions in §3 are final. A gap review
 (2026-11-05, §14) tightened the spec and the owner answered its five confirmation questions (§14.2); nothing is open.
 Implementation deviation: `401`/`403` map to a separate `ErrorKind.Misconfigured` (same Dutch text as `Unavailable`) so
