@@ -26,6 +26,28 @@ public class ResultTests
     }
 
     [Fact]
+    public void External_service_errors_have_their_own_kinds_and_no_field_messages()
+    {
+        var errors = new (Error Error, ErrorKind Kind)[]
+        {
+            (Error.NotConfigured("no token"), ErrorKind.NotConfigured),
+            (Error.Unavailable("down"), ErrorKind.Unavailable),
+            (Error.RateLimited("slow down"), ErrorKind.RateLimited),
+            (Error.InvalidResponse("garbage"), ErrorKind.InvalidResponse),
+            (Error.Misconfigured("bad token"), ErrorKind.Misconfigured),
+        };
+
+        foreach (var (error, kind) in errors)
+        {
+            error.Kind.ShouldBe(kind);
+            error.Fields.ShouldBeNull();
+            error.Message.ShouldNotBeNullOrWhiteSpace();
+        }
+
+        errors.Select(e => e.Kind).Distinct().Count().ShouldBe(errors.Length);
+    }
+
+    [Fact]
     public void Validation_error_carries_the_field_messages()
     {
         var error = Error.Validation("Title", "Titel is verplicht.");

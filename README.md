@@ -35,6 +35,22 @@ pwsh src/tests/MovieDB.BrowserTests/bin/Debug/net10.0/playwright.ps1 install chr
 dotnet test --project src/tests/MovieDB.BrowserTests
 ```
 
+## Online film search (TMDB)
+
+The new-film form can look a film up online and fill in title, genres, runtime, year and directors. It is optional: without
+a token the feature is switched off and the rest of the app is unaffected.
+
+1. Create a free account at <https://www.themoviedb.org>, then go to Settings → API and request an API key (personal use).
+2. Copy the **API Read Access Token** (not the short "API Key").
+3. Provide it as `Tmdb:ApiReadAccessToken`: in development with `dotnet user-secrets set "Tmdb:ApiReadAccessToken" "<token>"
+   --project src/MovieDB.Web`; in deployment as `MOVIEDB_TMDB_TOKEN` (compose maps it to `Tmdb__ApiReadAccessToken`).
+   Never commit it.
+
+Privacy: only the text you search for is sent to TMDB, from the server. Your reviews, scores and other data are never
+sent, and the browser never talks to TMDB. No TMDB text or images are stored beyond the values you save in the form.
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 ## Importing the Access data
 
 The one-time import loads the git-ignored `FilmsBase.mdb` (repository root) into the **local** database and writes a
@@ -98,6 +114,7 @@ port. Set these values in the environment or the stack (never in the repository)
 |----------|---------|
 | `MOVIEDB_CONNECTION_STRING` | e.g. `Server=mariadb;Port=3306;Database=moviedb;User=moviedb;Password=...;CharSet=utf8mb4` |
 | `MOVIEDB_DEFAULT_PASSWORD` | initial password of the user `admin`, only used when the `users` table is empty |
+| `MOVIEDB_TMDB_TOKEN` | optional TMDB "API Read Access Token"; without it the online film search is disabled (see [Online film search (TMDB)](#online-film-search-tmdb)) |
 | `DATAPROTECTION_CERTIFICATE_PASSWORD` | password of the PFX |
 | `MOVIEDB_VERSION` | image tag (default `1.0.0`) |
 | `FORWARDED_HEADERS_KNOWN_PROXY_0` | Nginx Proxy Manager container IP (default `172.18.0.3`) |

@@ -4,10 +4,11 @@ Phase 1 ([`PLAN.md`](PLAN.md)) reached feature parity with Access, phase 2 ([`PL
 multi-director. This plan adds **"search a film online and fill in the form"**. Read it together with
 [`AGENTS.md`](AGENTS.md) and [`HANDOVER.md`](HANDOVER.md).
 
-**Status:** **approved, not implemented.** The service research (§2) is done and the owner has answered all open
-questions (§11); the decisions in §3 are final. A gap review (2026-11-05, §14) tightened the spec and the owner answered
-its five confirmation questions (§14.2); nothing is open. Start
-with M11 when the owner asks for it.
+**Status:** **M11 implemented (provider client, no UI), awaiting owner review; M12 and M13 not started.** The service
+research (§2) is done and the owner has answered all open questions (§11); the decisions in §3 are final. A gap review
+(2026-11-05, §14) tightened the spec and the owner answered its five confirmation questions (§14.2); nothing is open.
+Implementation deviation: `401`/`403` map to a separate `ErrorKind.Misconfigured` (same Dutch text as `Unavailable`) so
+that callers and logs can tell a configuration problem from an outage.
 
 **Precedence:** AGENTS.md holds the conventions, this plan holds the spec of this feature. Where they disagree, stop and
 ask the owner. **Language rule** is unchanged: Dutch UI, English everything else.
@@ -377,7 +378,7 @@ Mapping used by `TmdbMovieLookup`:
 | No token configured | `NotConfigured` |
 | Search with no hits | success, empty list |
 | Details `404` | `NotFound` |
-| `401` / `403` | `Unavailable` (logged at Error: configuration problem) |
+| `401` / `403` | `Misconfigured` (logged at Error: configuration problem; shown like `Unavailable`) |
 | `429` | `RateLimited` |
 | Timeout, `HttpRequestException`, `5xx` | `Unavailable` |
 | Malformed/unexpected JSON, missing mandatory fields (`id` on a hit; `id` on details) | `InvalidResponse` |

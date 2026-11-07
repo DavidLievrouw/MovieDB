@@ -64,6 +64,7 @@ builder.Services.AddSerilog(
             .MinimumLevel.Is(builder.Environment.IsDevelopment() ? LogEventLevel.Debug : LogEventLevel.Information)
             .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
             .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
+            .MinimumLevel.Override("System.Net.Http.HttpClient", LogEventLevel.Warning)
             .Enrich.FromLogContext()
             .WriteTo.Console()
 );
@@ -107,7 +108,7 @@ builder.Services.AddSingleton(sp => new UserClock(
 ));
 
 // Auth: Identity over the users table, cookie sign-in; everything requires login unless [AllowAnonymous].
-builder.Services.AddAuthServices(builder.Configuration).AddMoviesServices();
+builder.Services.AddAuthServices(builder.Configuration).AddMoviesServices(builder.Configuration);
 builder.Services.AddOptions<DefaultUserOptions>().Bind(builder.Configuration.GetSection(DefaultUserOptions.Section));
 builder.Services.AddMovieDbIdentity().AddSignInManager();
 builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme).AddIdentityCookies();

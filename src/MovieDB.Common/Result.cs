@@ -6,6 +6,21 @@ public enum ErrorKind
     NotFound = 1,
     Conflict = 2,
     Forbidden = 3,
+
+    /// <summary>An optional external service is not set up (for example, no API token).</summary>
+    NotConfigured = 4,
+
+    /// <summary>An external service could not be reached, timed out or failed.</summary>
+    Unavailable = 5,
+
+    /// <summary>An external service refused the request because of too many requests.</summary>
+    RateLimited = 6,
+
+    /// <summary>An external service answered with data that could not be understood.</summary>
+    InvalidResponse = 7,
+
+    /// <summary>An external service rejected our credentials (a configuration problem, not a transient failure).</summary>
+    Misconfigured = 8,
 }
 
 /// <summary>Failure description. <see cref="Fields"/> maps a property name (or "" for the form) to messages.</summary>
@@ -25,6 +40,31 @@ public sealed record Error(ErrorKind Kind, string Message, IReadOnlyDictionary<s
     public static Error Conflict(string message) => new(ErrorKind.Conflict, message);
 
     public static Error Forbidden(string message) => new(ErrorKind.Forbidden, message);
+
+    /// <summary>Creates an error for an optional external service that is not set up.</summary>
+    /// <param name="message">A short technical description (never shown to the user).</param>
+    /// <returns>The error.</returns>
+    public static Error NotConfigured(string message) => new(ErrorKind.NotConfigured, message);
+
+    /// <summary>Creates an error for an external service that could not be reached or failed.</summary>
+    /// <param name="message">A short technical description (never shown to the user).</param>
+    /// <returns>The error.</returns>
+    public static Error Unavailable(string message) => new(ErrorKind.Unavailable, message);
+
+    /// <summary>Creates an error for an external service that refused the request because of too many requests.</summary>
+    /// <param name="message">A short technical description (never shown to the user).</param>
+    /// <returns>The error.</returns>
+    public static Error RateLimited(string message) => new(ErrorKind.RateLimited, message);
+
+    /// <summary>Creates an error for an external service that answered with data that could not be understood.</summary>
+    /// <param name="message">A short technical description (never shown to the user).</param>
+    /// <returns>The error.</returns>
+    public static Error InvalidResponse(string message) => new(ErrorKind.InvalidResponse, message);
+
+    /// <summary>Creates an error for an external service that rejected our credentials.</summary>
+    /// <param name="message">A short technical description (never shown to the user).</param>
+    /// <returns>The error.</returns>
+    public static Error Misconfigured(string message) => new(ErrorKind.Misconfigured, message);
 }
 
 public readonly record struct Result<T>

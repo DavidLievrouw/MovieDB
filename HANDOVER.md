@@ -42,8 +42,33 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M8 Multi-genre + genre filter | Done (committed) |
 | M9 Multi-director | Done (committed) |
 | M10 Phase 2 wrap-up | Done (committed) |
+| M11 TMDB provider client (no UI), [`PLAN-3.md`](PLAN-3.md) | Done, awaiting owner review (uncommitted) |
+| M12 Lookup dialog, attribution, page integration | Not started |
+| M13 Docs, AGENTS.md convention, full regression | Not started |
 
-Phase 2 is complete. There is no next milestone; the next step is the owner-driven first deployment (README).
+Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
+owner-driven first deployment (README) is independent of it.
+
+### What M11 delivered (uncommitted, awaiting review)
+
+- `MovieDB.Movies/Lookup/`: `IMovieLookup`, `TmdbMovieLookup` (typed `HttpClient`, bearer token per request, no
+  redirects), `LookupInputParser`, `LookupFill`, `TmdbGenreMap`, `TmdbOptions` + validator, `LookupMessages`, models.
+- `MovieQueries.FindKnownDirectorsAsync` (one no-tracking query, collation matching, returns stored spellings).
+- `ErrorKind`: `NotConfigured`, `Unavailable`, `RateLimited`, `InvalidResponse`, plus `Misconfigured` (deviation from
+  PLAN-3 §8: 401/403, same Dutch text as `Unavailable`, logged at Error).
+- `MovieInput.MinRuntimeMinutes`/`MaxRuntimeMinutes` shared with the lookup fill.
+- Config: `Tmdb` section in appsettings, `Tmdb__ApiReadAccessToken` (compose: `MOVIEDB_TMDB_TOKEN`), README section,
+  Serilog override for `System.Net.Http.HttpClient`. The CSP is unchanged (all calls are server side).
+- Tests: unit (parser, fill, genre map, messages, client with a stub handler, options validator) and characteristics
+  (`FindKnownDirectorsAsync` on MariaDB; starts without a token; invalid `Tmdb:BaseUrl` stops startup). No live calls
+  in automated tests.
+- Live check (throwaway, token never printed, nothing kept): search and details work with the local token.
+  `original_title` is always present; `title` is English (Amélie vs. Le Fabuleux Destin d'Amélie Poulain). Search tolerates
+  prefixes ("godfath" finds The Godfather) but **not typos** ("matirx" returns 0 hits). A search page has up to 20
+  hits (the client keeps 10). Unknown id: `404` with a JSON status body. A bad token: `401`. Not exercised live: `429`.
+  Directors for The Matrix: two (Lana and Lilly Wachowski), so the multi-director fill is real.
+- `dotnet csharpier check .` reports only `src/Directory.Packages.props` (trailing newline), which predates this work and
+  is untouched.
 
 ## Phase 2: M7-M10 done
 

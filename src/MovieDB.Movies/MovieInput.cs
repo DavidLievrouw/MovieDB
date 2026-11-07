@@ -44,6 +44,12 @@ internal sealed class MovieInput
     /// <summary>The number of years after the current year that are still accepted as a release year.</summary>
     public const int FutureYears = 5;
 
+    /// <summary>The shortest accepted runtime in minutes.</summary>
+    public const int MinRuntimeMinutes = 1;
+
+    /// <summary>The longest accepted runtime in minutes.</summary>
+    public const int MaxRuntimeMinutes = 999;
+
     /// <summary>The title.</summary>
     public string? Title { get; set; }
 
@@ -182,8 +188,10 @@ internal sealed class MovieInputValidator : AbstractValidator<MovieInput>
             .Cascade(CascadeMode.Stop)
             .NotNull()
             .WithMessage("Duur is verplicht.")
-            .InclusiveBetween(1, 999)
-            .WithMessage("Duur moet tussen 1 en 999 minuten liggen.");
+            .InclusiveBetween(MovieInput.MinRuntimeMinutes, MovieInput.MaxRuntimeMinutes)
+            .WithMessage(
+                $"Duur moet tussen {MovieInput.MinRuntimeMinutes} en {MovieInput.MaxRuntimeMinutes} minuten liggen."
+            );
         RuleFor(x => x.ReleaseYear)
             .Cascade(CascadeMode.Stop)
             .NotNull()

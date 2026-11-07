@@ -525,6 +525,33 @@ internal sealed class MovieQueries
         return [.. ids.Select(id => new SameTitleMovie(id, names.GetValueOrDefault(id, "")))];
     }
 
+    /// <summary>
+    /// Finds the stored spelling of the directors that already exist (matched by the column collation, so case and
+    /// accent variants match).
+    /// </summary>
+    /// <param name="names">The director names to look up.</param>
+    /// <param name="cancellationToken">Cancels the query.</param>
+    /// <returns>The stored names of the directors that exist; unknown names are absent. Empty when no name is given.</returns>
+    public async Task<IReadOnlyList<string>> FindKnownDirectorsAsync(
+        IReadOnlyList<string> names,
+        CancellationToken cancellationToken
+    )
+    {
+        var wanted = names.Select(n => n.Trim()).Where(n => n.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+        if (wanted.Count == 0)
+        {
+            return [];
+        }
+
+        await using var db = await _factory.CreateDbContextAsync(cancellationToken);
+        return await db
+            .Directors.AsNoTracking()
+            .Where(d => wanted.Contains(d.Name))
+            .OrderBy(d => d.Id)
+            .Select(d => d.Name)
+            .ToListAsync(cancellationToken);
+    }
+
     /// <summary>Lists all genres, alphabetically (by the column collation).</summary>
     /// <param name="cancellationToken">Cancels the query.</param>
     /// <returns>The genre ids and names.</returns>
