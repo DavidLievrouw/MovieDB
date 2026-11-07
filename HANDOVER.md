@@ -48,13 +48,53 @@ After finishing a milestone, and before reporting to the owner, update this file
 | M14 Benchmark harness + baseline, [`PLAN-4.md`](PLAN-4.md) | Done (committed) |
 | M15 Schema and import tooling | Done (committed) |
 | M16 Query and code optimizations | Done (committed) |
-| M17 Runtime and memory settings | Done, awaiting owner review (uncommitted) |
-| M18 PLAN-4 wrap-up | Not started |
+| M17 Runtime and memory settings | Done (committed) |
+| M18 PLAN-4 wrap-up | Done, awaiting owner review (uncommitted) |
 
 Phase 2 is complete; phase 3 (optional online film search, PLAN-3.md) is in progress, one milestone at a time. The
 owner-driven first deployment (README) is independent of it.
 
-### What M17 delivered (PLAN-4, uncommitted, awaiting review)
+### What M18 delivered (PLAN-4 wrap-up, uncommitted, awaiting review)
+
+PLAN-4 is complete. M18 changed no production code: a final full benchmark run (stored in git-ignored
+`artifacts/benchmarks/final`, next to `baseline`), the documentation updates and the full regression.
+
+**Final result vs baseline** (same BenchmarkDotNet job on this machine, time / allocated per call):
+
+| Operation | Round trips | 1,203 movies | 12,030 movies |
+|---|---:|---:|---:|
+| Overview, default sort | 5 → 2 | 5.8 ms / 280 KB → 2.7 ms / 91 KB | 9.9 ms / 276 KB → 3.1 ms / 90 KB |
+| Overview, sort on title | 5 → 2 | 5.6 ms / 281 KB → 3.0 ms / 91 KB | 10.1 ms / 280 KB → 7.0 ms / 90 KB |
+| Overview, sort on director | 5 → 2 | 7.2 ms / 281 KB → 4.3 ms / 94 KB | 24.8 ms / 281 KB → 21.9 ms / 94 KB |
+| Overview, sort on genre | 5 → 2 | 7.5 ms / 263 KB → 4.8 ms / 88 KB | 27.9 ms / 263 KB → 24.9 ms / 89 KB |
+| Overview, title search | 6 → 2 | 6.2 ms / 206 KB → 3.2 ms / 71 KB | 11.5 ms / 300 KB → 6.8 ms / 94 KB |
+| Overview, one genre | 6 → 2 | 8.0 ms / 305 KB → 3.6 ms / 97 KB | 24.3 ms / 307 KB → 11.3 ms / 98 KB |
+| Overview, two genres | 6 → 2 | 8.4 ms / 297 KB → 5.2 ms / 96 KB | 28.5 ms / 316 KB → 15.5 ms / 101 KB |
+| Overview, last page | 5 → 2 | 5.9 ms / 197 KB → 2.9 ms / 71 KB | 14.4 ms / 282 KB → 8.6 ms / 92 KB |
+| Detail | 1 → 1 | 1.9 ms / 43 KB → 1.7 ms / 18 KB | 1.5 ms / 52 KB → 1.4 ms / 28 KB |
+| Edit load | 1 → 1 | 1.9 ms / 56 KB → 1.7 ms / 26 KB | 1.5 ms / 58 KB → 1.4 ms / 29 KB |
+| List genres | 1 → 0 | 1.3 ms / 35 KB → 0 / 0.1 KB | 1.1 ms / 35 KB → 0 / 0.1 KB |
+| Navigation (3 variants), statistics, duplicate checks, suggestions, saves | unchanged | within noise | within noise |
+
+Overview page loads now take 2 round trips and about a third of the allocations; at 12k movies the default view is ~3x
+faster. Memory (M17, `docker stats`, scripted session): settled 244 → 200 MiB, peak 260 → 224 MiB, idle unchanged at ~70 MiB.
+
+**Kept:** index `ix_movies_watched_on_title` (M15), `ANALYZE TABLE` step, `GenreCatalog`, two-query overview, compiled
+queries (M16), pool sizes, circuit retention, `mem_limit: 384m`, `GCConserveMemory=5` (M17).
+**Reverted / skipped (no measured gain or unsafe):** C2 named windows (reverted), C4 batched directors key (skipped), C6
+statistics cache (not done), `GCgen0MaxBudget` (skipped), TieredPGO (out of scope, owner decision).
+**Known remaining costs:** navigation (15 ms at 12k, a full sort with window functions) and the director/genre sorts
+(22-25 ms at 12k) are limited by sorting the whole list; at the real size (~1,200 movies) they take 3-5 ms.
+
+- **Docs:** AGENTS.md (runtime limits, pools, circuit retention, the `ANALYZE TABLE` step, the keep rule), PLAN-4.md and
+  PLAN.md status lines. The benchmark commands were already in AGENTS.md and README (M14).
+- **Checks:** build with `-warnaserror` and XML-doc build clean, CSharpier check clean, 664 tests pass (UnitTests,
+  ArchitectureTests, CharacteristicsTests; browser tests not run). Diff is documentation only.
+- **Owner actions left:** none from PLAN-4. At the first deployment, run `ANALYZE TABLE …` once after loading the dump
+  (README) and take a backup before deploying versions with migrations. Observe `docker stats moviedb` for the first days
+  against the 384m limit.
+
+### What M17 delivered (PLAN-4, committed)
 
 - **Pools:** `AddPooledDbContextFactory(..., poolSize: 8)`; `DatabaseConfiguration.Configure` sets MySqlConnector
   `MaximumPoolSize=8` unless the connection string sets it itself (any alias; `ContainsPoolSize`). 3 new unit tests. The

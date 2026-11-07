@@ -158,7 +158,8 @@ These are enforced by architecture tests. Each slice registers through `*Module.
   (never edit `Initial` again). PLAN-4 (M15) made one last owner-approved edit in place (the index
   `ix_movies_watched_on_title`); `Initial` is final again after it, and from the first deployment on only new migrations
   are allowed. Until the first deployment, the local database is rebuilt and re-imported from Access
-  after a pulled schema change.
+  after a pulled schema change. After loading the production data dump, run `ANALYZE TABLE movies, movie_genres,
+  movie_directors, directors, genres, media` once (`Import-Access.ps1` does it for the local import).
 - MariaDB DDL may not be transactional. Make migrations safe to retry after partial failure; use self-guarding SQL
   where required by the provider and migration design.
 - `DatabaseMigrator` (`IHostedLifecycleService.StartingAsync`) migrates on startup under
@@ -270,7 +271,15 @@ Run the smallest relevant checks, then expand when results warrant it:
 - Do not add retries blindly: retry only transient operations that are safe to replay, and account for transactions and
   duplicate writes. Do not use `EnableRetryOnFailure`.
 - Keep long-lived UI state small. Do not retain database contexts or large entity graphs in circuits or components.
-- Add benchmarks only for demonstrated hot paths or when a performance requirement calls for them.
+  Disconnected circuits are kept for 2 minutes, at most 3 (`Program.cs`).
+- Pools are sized for one user: `AddPooledDbContextFactory(..., poolSize: 8)` and MySqlConnector `MaximumPoolSize=8`
+  (applied by `DatabaseConfiguration.Configure` only when the connection string does not set it).
+- Memory is bounded at runtime: compose `mem_limit: 384m`, `DOTNET_GCHeapHardLimitPercent=50` (192 MB heap), workstation
+  non-concurrent GC and `DOTNET_GCConserveMemory=5` (Dockerfile). Measure with `docker stats` before changing any of them
+  (PLAN-4 §6, HANDOVER.md). If the container is OOM-killed or sits near the limit, report to the owner before raising it.
+  `TieredPGO` is deliberately left unchanged.
+- Add benchmarks only for demonstrated hot paths or when a performance requirement calls for them. Keep an optimization
+  only if the benchmark shows a gain in time, allocations or round trips (PLAN-4 ground rule).
 
 ## Deployment and operations
 
@@ -297,7 +306,8 @@ Run the smallest relevant checks, then expand when results warrant it:
     environment only, never in the repo.
   - Rotating the PFX invalidates auth cookies; users log in again.
 - Logging, monitoring, and resource limits: Serilog to the console, read with `docker logs`. Compose healthcheck.
-  Resource limits follow the reference implementation's compose files; the shared MariaDB keeps its existing limit.
+  Resource limits follow the reference implementation's compose files, except the app container, which has
+  `mem_limit: 384m` (PLAN-4 M17); the shared MariaDB keeps its existing limit.
 
 Use supported .NET runtime and SDK versions. Keep local development, tests, and production configuration consistent
 without copying production secrets or data into development.
